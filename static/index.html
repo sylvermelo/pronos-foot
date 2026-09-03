@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pronos Foot — moteur Dixon-Coles</title>
+<style>
+/* ============ QUANT EDGE TERMINAL — système de design embarqué ============
+   Palette et typographie reprises de DESIGN.md (Quant Edge Terminal).
+   Aucun CDN : tout est embarqué pour fonctionner hors-ligne, dans
+   l'application autonome et sur GitHub Pages.                        */
+:root{
+  --bg:#0a0e16; --surface:#0f131c; --card:#111827; --card2:#181c24; --card3:#1c2028;
+  --hi:#1e293b; --hi2:#262a33; --bord:#2d3748; --bord2:#3b4a3f;
+  --txt:#dfe2ee; --mut:#b9cbbd; --mut2:#849588;
+  --green:#00f59b; --green-d:#00e38f; --green-s:#10b981;
+  --cyan:#4cd7f6; --cyan-d:#06b6d4; --blue:#3b82f6;
+  --red:#f43f5e; --amber:#f59e0b;
+  --fI:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --fM:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--bg)}
+body{background:var(--bg);color:var(--txt);font:400 14px/1.45 var(--fI);-webkit-font-smoothing:antialiased}
+.mono{font-family:var(--fM);font-feature-settings:"tnum" on,"zero" on}
+.lbl{font:600 11px/1.3 var(--fM);letter-spacing:.06em;text-transform:uppercase;color:var(--mut2)}
+.num{font-family:var(--fM);font-feature-settings:"tnum" on,"zero" on;font-weight:600}
+.g{color:var(--green)} .gd{color:var(--green-d)} .cy{color:var(--cyan)} .bl{color:var(--blue)}
+.rd{color:var(--red)} .am{color:var(--amber)} .mu{color:var(--mut)}
+button{font-family:inherit;cursor:pointer}
+::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-thumb{background:#2d3748;border-radius:5px}
+::-webkit-scrollbar-track{background:#0f131c}
+
+/* ---------- en-tête fixe ---------- */
+header{position:fixed;top:0;left:0;right:0;z-index:50;background:rgba(10,14,22,.92);
+  backdrop-filter:blur(14px);border-bottom:1px solid rgba(59,74,63,.35);box-shadow:0 4px 20px rgba(0,0,0,.6)}
+.hrow{height:60px;display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:0 16px;max-width:1680px;margin:0 auto;border-bottom:1px solid rgba(59,74,63,.2)}
+.logo{display:flex;align-items:center;gap:12px}
+.logotxt{display:flex;flex-direction:column}
+.logoline{display:flex;align-items:center;gap:8px}
+.brand{font:700 15px/1 var(--fI);letter-spacing:-.01em;text-transform:uppercase}
+.chip{font:600 10px/1 var(--fM);letter-spacing:.06em;color:var(--green);background:rgba(0,245,155,.1);
+  border:1px solid rgba(0,245,155,.35);padding:3px 6px;border-radius:4px}
+.subline{font:600 10px/1.4 var(--fM);letter-spacing:.04em;color:var(--mut2);display:flex;align-items:center;gap:6px;margin-top:4px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+.hstats{display:flex;align-items:center;gap:10px}
+.hbox{display:flex;align-items:center;gap:10px;background:var(--card2);border:1px solid rgba(59,74,63,.5);
+  padding:6px 10px;border-radius:6px}
+.hbox .col{display:flex;flex-direction:column;gap:2px}
+.sep{width:1px;height:22px;background:rgba(59,74,63,.5)}
+nav{height:44px;display:flex;align-items:center;gap:4px;overflow-x:auto;padding:0 16px;max-width:1680px;margin:0 auto}
+.tab{background:none;border:none;color:var(--mut);font:500 13px/1 var(--fI);padding:12px 12px;
+  border-bottom:2px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:7px}
+.tab:hover{color:var(--txt);background:rgba(30,41,59,.4)}
+.tab.on{color:var(--green);border-bottom-color:var(--green)}
+.tbadge{font:600 10px/1 var(--fM);background:rgba(0,245,155,.12);color:var(--green);
+  border:1px solid rgba(0,245,155,.3);padding:3px 6px;border-radius:4px}
+.tbadge.n{background:rgba(76,215,246,.12);color:var(--cyan);border-color:rgba(76,215,246,.3)}
+
+/* ---------- structure ---------- */
+main{padding-top:118px;max-width:1680px;margin:0 auto;padding-left:16px;padding-right:16px;padding-bottom:40px}
+.band{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;margin:18px 0 14px}
+.htitle{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+h1{font:700 24px/1.2 var(--fI);letter-spacing:-.02em;text-transform:uppercase}
+.badge{font:600 10px/1 var(--fM);letter-spacing:.06em;padding:4px 7px;border-radius:4px;text-transform:uppercase}
+.badge.cy{background:rgba(3,181,211,.15);color:var(--cyan)}
+.badge.gy{background:rgba(0,245,155,.1);color:var(--green);display:flex;align-items:center;gap:6px}
+.desc{font:400 12px/1.6 var(--fI);color:var(--mut);max-width:860px;margin-top:6px}
+.grid{display:grid;gap:12px}
+.g4{grid-template-columns:repeat(4,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g2{grid-template-columns:repeat(2,1fr)}
+.split{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:12px;align-items:start}
+@media(max-width:1180px){.split{grid-template-columns:1fr}.g4{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:760px){.g4,.g3,.g2{grid-template-columns:1fr}}
+
+/* ---------- cartes ---------- */
+.card{background:var(--card);border:1px solid var(--bord);border-radius:8px;padding:14px}
+.card.hi{background:var(--card2)}
+.kpi{position:relative;overflow:hidden}
+.kpi .top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.kpi .val{font:600 15px/1.35 var(--fI);font-weight:600}
+.kpi .det{font:500 12px/1.6 var(--fM);color:var(--mut);margin-top:6px}
+.kpi .foot{display:flex;justify-content:space-between;gap:8px;margin-top:10px;padding-top:8px;
+  border-top:1px solid rgba(45,55,72,.7);font:600 10px/1.3 var(--fM);letter-spacing:.05em}
+.edge{font:700 12px/1 var(--fM)}
+.glow{box-shadow:inset 0 0 60px rgba(0,245,155,.05)}
+
+/* ---------- tableaux ---------- */
+.tblwrap{background:var(--card);border:1px solid var(--bord);border-radius:8px;overflow:hidden}
+.tblhead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;
+  background:var(--card3);border-bottom:1px solid var(--bord)}
+table{width:100%;border-collapse:collapse}
+th{font:600 10px/1.4 var(--fM);letter-spacing:.06em;text-transform:uppercase;color:var(--mut2);
+  text-align:left;padding:9px 12px;border-bottom:1px solid var(--bord);white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid rgba(45,55,72,.55);vertical-align:middle}
+tr.row{cursor:pointer}
+tr.row:hover{background:var(--hi)}
+tr.row.sel{background:var(--hi2);box-shadow:inset 3px 0 0 var(--green)}
+.tname{font:600 13px/1.35 var(--fI)}
+.tsub{font:500 10px/1.5 var(--fM);letter-spacing:.04em;color:var(--mut2);text-transform:uppercase;margin-top:3px}
+.tagv{display:inline-block;font:600 10px/1 var(--fM);letter-spacing:.05em;padding:3px 6px;border-radius:3px;text-transform:uppercase}
+.pill{display:inline-flex;flex-direction:column;align-items:center;gap:2px;background:var(--hi);
+  border:1px solid var(--bord);border-radius:5px;padding:5px 9px;min-width:64px}
+.pill .p{font:700 12px/1 var(--fM)}
+.pill .c{font:500 10px/1 var(--fM);color:var(--cyan)}
+.bar{height:5px;background:#232a36;border-radius:3px;overflow:hidden;margin-top:6px}
+.bar>i{display:block;height:100%;background:var(--green);border-radius:3px}
+.bar.cy>i{background:var(--cyan)}
+
+/* ---------- sous-onglets & filtres ---------- */
+.subtabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.stab{display:flex;align-items:center;gap:7px;font:500 12px/1 var(--fI);color:var(--mut);
+  background:var(--card2);border:1px solid var(--bord);border-radius:6px;padding:9px 12px}
+.stab.on{background:var(--green);color:#003920;border-color:var(--green);font-weight:600}
+.filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.fchip{font:600 11px/1 var(--fM);letter-spacing:.03em;color:var(--mut);background:var(--card2);
+  border:1px solid var(--bord);border-radius:5px;padding:7px 10px}
+.fchip.on{color:var(--green);border-color:rgba(0,245,155,.45);background:rgba(0,245,155,.08)}
+.dayhead{display:flex;align-items:center;gap:10px;margin:18px 0 8px}
+.dayhead .lbl{color:var(--green)}
+.dayhead .line{flex:1;height:1px;background:rgba(59,74,63,.4)}
+
+/* ---------- panneau latéral (anatomie) ---------- */
+.panel{position:sticky;top:126px;display:flex;flex-direction:column;gap:12px}
+.phead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ptitle{font:700 16px/1.3 var(--fI)}
+.ptitle .vs{color:var(--cyan);font-weight:500}
+.mat6{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.sc{background:var(--card2);border:1px solid var(--bord);border-radius:6px;padding:8px;text-align:center}
+.sc .s{font:700 14px/1 var(--fM);letter-spacing:.02em}
+.sc .p{font:600 12px/1.4 var(--fM);color:var(--green);margin-top:4px}
+.sc .c{font:500 10px/1.4 var(--fM);color:var(--mut2);margin-top:2px}
+.ligne{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;
+  border-bottom:1px solid rgba(45,55,72,.6)}
+.ligne:last-child{border-bottom:none}
+.ligne .l{font:500 12px/1.4 var(--fI)}
+.ligne .sub{font:500 10px/1.5 var(--fM);color:var(--mut2);margin-top:2px}
+.ligne .r{text-align:right}
+.ligne .r .p{font:700 13px/1.2 var(--fM)}
+.ligne .r .e{font:600 10px/1.4 var(--fM)}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
+  background:var(--green);color:#003920;border:none;border-radius:6px;padding:11px;
+  font:600 13px/1 var(--fI)}
+.btn:hover{background:var(--green-d)}
+.btn.ghost{background:rgba(0,245,155,.08);color:var(--green);border:1px solid rgba(0,245,155,.3)}
+.btn.ghost:hover{background:rgba(0,245,155,.15)}
+.btn.danger{background:rgba(244,63,94,.1);color:var(--red);border:1px solid rgba(244,63,94,.35)}
+.ougrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.oubox{background:var(--card2);border:1px solid var(--bord);border-radius:6px;padding:9px}
+.oubox .h{font:600 10px/1 var(--fM);letter-spacing:.06em;text-transform:uppercase;margin-bottom:7px}
+.ouline{display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;
+  font:500 11px/1.4 var(--fM);border-bottom:1px dashed rgba(45,55,72,.6)}
+.ouline:last-child{border-bottom:none}
+.ouline b{font-weight:700;font-size:12px}
+.formula{background:#0a0e16;border:1px solid var(--bord);border-radius:6px;padding:10px;
+  font:500 11px/1.7 var(--fM);color:var(--cyan);overflow-x:auto;white-space:pre}
+.warn{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:6px;
+  padding:10px;font:400 12px/1.6 var(--fI);color:#fbd38d}
+.warn.rd{background:rgba(244,63,94,.07);border-color:rgba(244,63,94,.3);color:#fda4af}
+
+/* ---------- graphique SVG ---------- */
+.chart{background:#0a0e16;border:1px solid var(--bord);border-radius:8px;padding:14px}
+.legend{display:flex;gap:16px;align-items:center;font:600 10px/1 var(--fM);letter-spacing:.05em}
+.legend i{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:5px}
+
+/* ---------- divers ---------- */
+select,input{background:var(--card2);color:var(--txt);border:1px solid var(--bord);border-radius:6px;
+  padding:9px 10px;font:500 13px/1 var(--fI);outline:none}
+select:focus,input:focus{border-color:rgba(0,245,155,.5)}
+footer{border-top:1px solid rgba(59,74,63,.35);background:var(--surface);margin-top:30px}
+.fline{display:flex;flex-wrap:wrap;gap:8px 22px;justify-content:space-between;align-items:center;
+  max-width:1680px;margin:0 auto;padding:10px 16px;font:600 10px/1.6 var(--fM);letter-spacing:.06em;color:var(--mut2)}
+.fline .g{color:var(--green-d)}
+.empty{text-align:center;padding:46px 20px;color:var(--mut2);font:400 13px/1.8 var(--fI)}
+.empty b{color:var(--mut);display:block;font:600 15px/1.5 var(--fI);margin-bottom:6px}
+.hm{display:grid;grid-template-columns:repeat(8,1fr);gap:2px}
+.hm div{font:500 9px/1 var(--fM);text-align:center;padding:6px 1px;border-radius:2px;color:#cfe9dd}
+.spin{width:14px;height:14px;border:2px solid rgba(0,245,155,.25);border-top-color:var(--green);
+  border-radius:50%;animation:rot .8s linear infinite;display:inline-block}
+@keyframes rot{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hrow">
+    <div class="logo">
+      <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="1" y="1" width="30" height="30" rx="7" fill="#0f131c" stroke="#00f59b" stroke-width="1.4"/>
+        <path d="M8 22 L13 14 L17 18 L24 8" fill="none" stroke="#00f59b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="24" cy="8" r="2.4" fill="#4cd7f6"/>
+      </svg>
+      <div class="logotxt">
+        <div class="logoline"><span class="brand">Dixon-Coles</span><span class="chip">QUANT ENGINE</span></div>
+        <span class="subline"><span class="dot"></span><span id="hsub">chargement…</span></span>
+      </div>
+    </div>
+    <div class="hstats">
+      <div class="hbox">
+        <div class="col"><span class="lbl">Backtest ROI</span><span class="num rd" id="hroi">—</span></div>
+        <div class="sep"></div>
+        <div class="col"><span class="lbl">LogLoss 1X2</span><span class="num cy" id="hll">—</span></div>
+      </div>
+      <div class="hbox">
+        <div class="col"><span class="lbl">Coupon</span><span class="num" id="hcp">0 sélection</span></div>
+      </div>
+    </div>
+  </div>
+  <nav id="nav"></nav>
+</header>
+
+<main id="main"></main>
+
+<footer>
+  <div class="fline">
+    <span>DIXON-COLES ENGINE · ESTIMATION POISSON BIVARIÉE DES SCORES · <span class="g" id="flat1">LATENCE : —</span></span>
+    <span><span class="g">●</span> MODÈLE CALIBRÉ SUR <span id="flat2">—</span> MATCHS RÉELS (<span id="flat3">—</span> LIGUES)</span>
+  </div>
+  <div class="fline">
+    <span>MATRICE D'INFLATION TAU (τ) · CORRECTION DES SCORES NULS · <span class="g">USAGE PERSONNEL — CECI N'EST PAS UN CONSEIL DE MISE</span></span>
+    <span>SOURCE : FOOTBALL-DATA.CO.UK (GRATUIT) · <span id="flat4">—</span></span>
+  </div>
+</footer>
+
+<script>
+/* ===========================================================================
+   INTERFACE « QUANT EDGE TERMINAL » — toutes les données viennent du serveur
+   (ou du moteur JavaScript embarqué dans la version autonome).
+   Règle d'honnêteté : aucun chiffre inventé. Tout ce qui est affiché sort
+   du moteur ou du backtest ; les mauvaises nouvelles sont affichées en rouge.
+   =========================================================================== */
+"use strict";
+const $=s=>document.querySelector(s);
+const pct=x=>x==null?"—":(x*100).toFixed(1)+" %";
+const pct1=x=>x==null?"—":(x*100).toFixed(1);
+const f2=x=>x==null?"—":Number(x).toFixed(2);
+const f3=x=>x==null?"—":Number(x).toFixed(3);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const clsEdge=v=>v>0.02?"g":v<-0.02?"rd":"mu";
+const sgnEdge=v=>(v>0?"+":"")+pct1(v)+" %";
+
+const ETAT={onglet:"matchs",matchs:[],ligues:[],bilan:null,coupon:[],sel:null,
+            fsous:"over",fligue:"toutes",simDiv:"",simH:"",simA:"",clDiv:""};
+
+async function api(p){const r=await fetch(p);if(!r.ok)throw new Error(p);return r.json();}
+
+/* ---------------------------------------------------------------- onglets */
+const ONGLETS=[["matchs","Matchs à venir"],["coupon","Mon coupon"],["sim","Simulateur"],
+  ["fleuves","Scores fleuves"],["sec","Fautes & cartons"],["classement","Classement des clubs"],
+  ["bilan","Fiabilité du moteur"]];
+
+function renduNav(){
+  $("#nav").innerHTML=ONGLETS.map(([id,lb])=>{
+    let b="";
+    if(id==="matchs"){const n=ETAT.matchs.length;
+      b=n?`<span class="tbadge">${joursDisponibles()}</span>`:"";}
+    if(id==="coupon") b=`<span class="tbadge n">${ETAT.coupon.length}</span>`;
+    return `<button class="tab ${ETAT.onglet===id?"on":""}" data-o="${id}">${lb}${b}</button>`;
+  }).join("");
+  $("#nav").querySelectorAll(".tab").forEach(t=>t.onclick=()=>{ETAT.onglet=t.dataset.o;rendu();});
+}
+function joursDisponibles(){
+  const d=[...new Set(ETAT.matchs.map(m=>m.jour_delta))].sort((a,b)=>a-b);
+  if(!d.length) return "aucun match";
+  if(d.length===1&&d[0]===0) return "Aujourd'hui";
+  if(d.length===2&&d[0]===0&&d[1]===1) return "Aujourd'hui & Demain";
+  return `J → J+${d[d.length-1]}`;
+}
+
+/* ---------------------------------------------------------------- coupon */
+function cpAjout(label,p,cote,meta){
+  ETAT.coupon.push({label,p,cote,...(meta||{})});
+  majCoupon();
+}
+function majCoupon(){
+  $("#hcp").textContent=ETAT.coupon.length+" sélection"+(ETAT.coupon.length>1?"s":"");
+  if(ETAT.onglet==="coupon") rendu();
+  renduNav();
+}
+
+/* ---------------------------------------------------------------- chargement */
+async function init(){
+  const t0=performance.now();
+  try{
+    const [lig,mt,bil]=await Promise.all([api("/api/ligues"),api("/api/matchs"),api("/api/bilan")]);
+    ETAT.ligues=lig; ETAT.matchs=mt; ETAT.bilan=bil;
+  }catch(e){
+    $("#main").innerHTML=`<div class="card empty"><b>Impossible de charger les données</b>
+      Lancez le serveur (<span class="mono">./lancer.sh</span>) ou ouvrez la version autonome.</div>`;
+    return;
+  }
+  const ms=performance.now()-t0;
+  $("#flat1").textContent="LATENCE CALCUL : "+(ms/1000).toFixed(2)+" s";
+  const meta=ETAT.bilan&&ETAT.bilan.volume?ETAT.bilan.volume:{};
+  $("#hsub").textContent=`Modèle actif • ${fmtN(meta.total_matchs)} matchs réels • ${ETAT.ligues.length} ligues`;
+  $("#flat2").textContent=fmtN(meta.total_matchs); $("#flat3").textContent=ETAT.ligues.length;
+  const dm=ETAT.ligues.map(l=>l.dernier_match).filter(Boolean).sort().pop();
+  $("#flat4").textContent="DERNIER MATCH CONNU : "+(dm||"—");
+  const r=ETAT.bilan&&ETAT.bilan.resultats?ETAT.bilan.resultats:{};
+  $("#hroi").textContent=(r.roi_edge2!=null?(r.roi_edge2*100).toFixed(1):"—")+" %";
+  $("#hll").textContent=r.logloss_modele_1x2!=null?r.logloss_modele_1x2.toFixed(4):"—";
+  rendu();
+}
+function fmtN(n){return n==null?"—":String(n).replace(/\B(?=(\d{3})+(?!\d))/g," ");}
+
+function rendu(){renduNav();
+  ({matchs:tabMatchs,coupon:tabCoupon,sim:tabSim,fleuves:tabFleuves,sec:tabSec,
+    classement:tabClassement,bilan:tabBilan})[ETAT.onglet]();}
+
+/* ================================================================ ONGLET 1
+   MATCHS À VENIR — triés aujourd'hui → demain → J+n, jamais de match passé.
+   Clic sur une ligne = toutes les options du bot dans le panneau de droite. */
+function tabMatchs(){
+  const parJour={};
+  for(const m of ETAT.matchs)(parJour[m.jour_delta]=parJour[m.jour_delta]||[]).push(m);
+  const jours=Object.keys(parJour).map(Number).sort((a,b)=>a-b);
+  let liste="";
+  if(!jours.length){
+    liste=`<div class="card empty"><b>Aucun match à venir dans la fenêtre de la source</b>
+      La source gratuite (football-data.co.uk) publie un calendrier glissant de ~3 jours.
+      En période de trêve internationale, elle peut ne contenir que très peu de matchs,
+      voire aucun. Réessayez après la reprise des championnats.</div>`;
+  }
+  for(const j of jours){
+    const ms=parJour[j];
+    liste+=`<div class="dayhead"><span class="lbl">${esc(ms[0].jour)}</span>
+      <span class="lbl mu">${ms[0].date}</span><span class="line"></span>
+      <span class="lbl mu">${ms.length} match${ms.length>1?"s":""}</span></div>`;
+    liste+=`<div class="tblwrap"><table><thead><tr>
+      <th>Heure</th><th>Fixture / Compétition</th><th>1</th><th>X</th><th>2</th>
+      <th>Over 1.5</th><th>Over 2.5</th><th>Under 2.5</th><th>BTTS</th><th>E(buts)</th><th>Conf.</th></tr></thead><tbody>`;
+    for(const m of ms){
+      const id=esc(m.div+"|"+m.home+"|"+m.away);
+      const sel=ETAT.sel&&ETAT.sel.id===id?" sel":"";
+      liste+=`<tr class="row${sel}" data-id="${id}">
+        <td class="num">${esc(m.heure||"—")}</td>
+        <td><div class="tname">${esc(m.home)} <span class="mu">vs</span> ${esc(m.away)}</div>
+            <div class="tsub">${esc(m.ligue)} · ${esc(m.pays)}</div></td>
+        <td class="num">${pct1(m.p1)}</td><td class="num mu">${pct1(m.pX)}</td><td class="num">${pct1(m.p2)}</td>
+        <td class="num g">${pct1(m.over&&m.over["1.5"])}</td>
+        <td class="num g">${pct1(m.over25)}</td>
+        <td class="num cy">${pct1(m.under&&m.under["2.5"])}</td>
+        <td class="num">${pct1(m.btts)}</td>
+        <td class="num cy">${f2(m.buts)}</td>
+        <td><span class="tagv" style="color:${m.confiance==="haute"?"var(--green)":m.confiance==="moyenne"?"var(--amber)":"var(--red)"};background:rgba(148,163,184,.08)">${esc(m.confiance||"—")}</span></td>
+      </tr>`;
+    }
+    liste+="</tbody></table></div>";
+  }
+  $("#main").innerHTML=`
+  <div class="band">
+    <div>
+      <div class="htitle"><h1>Matchs à venir</h1>
+        <span class="badge cy">FENÊTRE SOURCE : ~3 JOURS GLISSANTS</span>
+        <span class="badge gy"><span class="dot"></span>FILTRAGE ANTI-PASSÉ ACTIF</span></div>
+      <p class="desc">Calendrier trié du jour le plus proche au plus lointain : aujourd'hui, demain, puis J+2…
+      Les matchs déjà joués sont exclus automatiquement. Cliquez sur une ligne pour ouvrir
+      l'anatomie complète du match : toutes les options analysées par le moteur.</p>
+    </div>
+    <div class="hbox"><div class="col"><span class="lbl">Matchs affichés</span>
+      <span class="num g">${ETAT.matchs.length}</span></div><div class="sep"></div>
+      <div class="col"><span class="lbl">Journées</span><span class="num">${jours.length}</span></div></div>
+  </div>
+  <div class="split"><div>${liste}</div><div class="panel" id="panel">${panneauVide()}</div></div>`;
+  brancherLignes();
+  if(ETAT.sel) chargerPanneau(ETAT.sel);
+}
+function panneauVide(){return `<div class="card empty"><b>Anatomie d'un match</b>
+  Cliquez sur un match pour afficher toutes les options analysées :
+  over/under de 0.5 à 5.5 buts, double chance, clean sheets, scores exacts,
+  fautes, corners, cartons et impact de l'arbitre.</div>`;}
+
+function brancherLignes(){
+  document.querySelectorAll("tr.row").forEach(tr=>tr.onclick=()=>{
+    const [div,home,away]=tr.dataset.id.split("|");
+    ETAT.sel={id:tr.dataset.id,div,home,away};
+    ETAT.selFat=ETAT.matchs.find(m=>m.div===div&&m.home===home&&m.away===away)||null;
+    document.querySelectorAll("tr.row").forEach(x=>x.classList.remove("sel"));
+    tr.classList.add("sel");
+    chargerPanneau(ETAT.sel);
+    if($("#fatwrap")) grapheFatTail(ETAT.selFat);
+  });
+}
+
+async function chargerPanneau(s){
+  const P=$("#panel"); if(!P) return;
+  P.innerHTML=`<div class="card empty"><span class="spin"></span> calcul…</div>`;
+  let p=null,sec=null;
+  try{ p=await api(`/api/pronostic?div=${enc(s.div)}&home=${enc(s.home)}&away=${enc(s.away)}`); }catch(e){}
+  try{ sec=await api(`/api/secondaires?div=${enc(s.div)}&home=${enc(s.home)}&away=${enc(s.away)}`); }catch(e){}
+  if(!p){P.innerHTML=`<div class="card empty"><b>Match non couvert par le moteur</b></div>`;return;}
+  P.innerHTML=panneauMatch(p,sec,s);
+}
+function enc(x){return encodeURIComponent(x);}
+
+function panneauMatch(p,sec,s){
+  const seuils=["0.5","1.5","2.5","3.5","4.5","5.5"];
+  const ou=`<div class="ougrid">
+    <div class="oubox"><div class="h g">Over (plus de)</div>${seuils.map(x=>
+      `<div class="ouline"><span>${x} but${x==="0.5"?"":"s"}</span><b class="g">${pct1(p.over[x])} %</b></div>`).join("")}</div>
+    <div class="oubox"><div class="h cy">Under (moins de)</div>${seuils.map(x=>
+      `<div class="ouline"><span>${x} but${x==="0.5"?"":"s"}</span><b class="cy">${pct1(p.under[x])} %</b></div>`).join("")}</div>
+  </div>`;
+  const scores=p.scores_top.slice(0,6).map(sc=>{
+    return `<div class="sc"><div class="s">${esc(sc.score)}</div><div class="p">${pct1(sc.p)} %</div>
+      <div class="c">cote juste ${sc.p>0?(1/sc.p).toFixed(2):"—"}</div></div>`;}).join("");
+  const fiab=p.fiabilite||{};
+  const m=p.marche;
+  let html=`<div class="card hi glow">
+    <div class="phead"><span class="badge gy"><span class="dot"></span>ANATOMIE DU MATCH</span>
+      <span class="badge cy">${esc(p.ligue)}</span></div>
+    <div class="ptitle" style="margin-top:9px">${esc(p.home)} <span class="vs">vs</span> ${esc(p.away)}</div>
+    <div class="tsub" style="margin:5px 0 10px">λ ${f2(p.lambda_home)} · μ ${f2(p.lambda_away)} · E(buts) ${f2(p.buts_attendus)}</div>
+    <div class="ligne"><div class="l">Victoire ${esc(p.home)} (1)</div>
+      <div class="r"><div class="p g">${pct1(p.victoire_1)} %</div>${m?`<div class="e ${clsEdge(m.ecart_1)}">écart marché ${sgnEdge(m.ecart_1)}</div>`:""}</div></div>
+    <div class="ligne"><div class="l">Match nul (X)</div>
+      <div class="r"><div class="p">${pct1(p.nul)} %</div>${m?`<div class="e ${clsEdge(m.ecart_X)}">écart marché ${sgnEdge(m.ecart_X)}</div>`:""}</div></div>
+    <div class="ligne"><div class="l">Victoire ${esc(p.away)} (2)</div>
+      <div class="r"><div class="p g">${pct1(p.victoire_2)} %</div>${m?`<div class="e ${clsEdge(m.ecart_2)}">écart marché ${sgnEdge(m.ecart_2)}</div>`:""}</div></div>
+    <div class="ligne"><div class="l">Les deux équipes marquent</div>
+      <div class="r"><div class="p">oui ${pct1(p.btts_oui)} %</div><div class="e mu">non ${pct1(p.btts_non)} %</div></div></div>
+    <div class="ligne"><div class="l">Double chance</div>
+      <div class="r"><div class="e mu">1X ${pct1(p.double_chance_1X)} · 12 ${pct1(p.double_chance_12)} · X2 ${pct1(p.double_chance_X2)}</div></div></div>
+    <div class="ligne"><div class="l">Clean sheet</div>
+      <div class="r"><div class="e mu">${esc(p.home)} ${pct1(p.clean_sheet_home)} · ${esc(p.away)} ${pct1(p.clean_sheet_away)}</div></div></div>
+    <div class="ligne"><div class="l">Score fleuve / écart</div>
+      <div class="r"><div class="e g">≥5 buts ${pct1(p.score_fleuve_5plus)} · ≥6 ${pct1(p.score_fleuve_6plus)}</div>
+      <div class="e cy">écart ≥3 ${pct1(p.eclat_3plus)} · ≥4 ${pct1(p.eclat_4plus)}</div></div></div>
+    <div style="margin:12px 0 4px"><span class="lbl">Lignes de buts — over & under</span></div>${ou}
+    <div style="margin:14px 0 6px"><span class="lbl">Scores exacts les plus probables</span></div>
+    <div class="mat6">${scores}</div>`;
+  if(sec){
+    const mk=sec.marches||{};
+    const F=mk.fautes||{},C=mk.corners||{},J=mk.jaunes||{};
+    const o={fautes:F.over||{},corners:C.over||{},jaunes:J.over||{}};
+    const a=sec.arbitre_info;
+    html+=`<div style="margin:14px 0 4px"><span class="lbl">Fautes, corners, cartons</span></div>
+    <div class="ligne"><div class="l">Fautes totales attendues<div class="sub">over 21.5 : ${pct1(o.fautes["21.5"])} · over 23.5 : ${pct1(o.fautes["23.5"])}</div></div>
+      <div class="r"><div class="p cy">${f2(F.total_attendu)}</div></div></div>
+    <div class="ligne"><div class="l">Corners attendus<div class="sub">over 9.5 : ${pct1(o.corners["9.5"])} · over 10.5 : ${pct1(o.corners["10.5"])}</div></div>
+      <div class="r"><div class="p cy">${f2(C.total_attendu)}</div></div></div>
+    <div class="ligne"><div class="l">Cartons jaunes attendus<div class="sub">over 3.5 : ${pct1(o.jaunes["3.5"])} · over 4.5 : ${pct1(o.jaunes["4.5"])}</div></div>
+      <div class="r"><div class="p am">${f2(J.total_attendu)}</div></div></div>`;
+    if(a) html+=`<div class="ligne"><div class="l">Arbitre : ${esc(sec.arbitre||"non annoncé")}
+      <div class="sub">${a.n||0} matchs analysés · ${f2(a.fautes)} fautes · ${f2(a.jaunes)} jaunes / match</div></div></div>`;
+  }
+  html+=`<div style="margin-top:12px" class="warn ${fiab.niveau==="haute"?"":"rd"}">
+    Confiance <b>${esc(fiab.niveau||"—")}</b> — ${esc(p.home)} : ${fiab.home_n_eff??0} matchs pondérés,
+    ${esc(p.away)} : ${fiab.away_n_eff??0}. ${fiab.message||"Effectifs bien établis dans cette division."}</div>`;
+  if(m) html+=`<div style="margin-top:8px" class="warn">Comparaison au marché (cotes deviggées) :
+    un écart positif ne veut PAS dire gain garanti. Sur le backtest complet, suivre ces écarts
+    donne un ROI de <b class="rd">${pct1(ETAT.bilan.resultats.roi_edge2)} %</b>.</div>`;
+  html+=`<div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
+    <button class="btn" id="cpO">+ Ajouter Over 2.5 (${pct1(p.over["2.5"])}) au coupon</button>
+    <button class="btn ghost" id="cpU">+ Ajouter Under 2.5 (${pct1(p.under["2.5"])}) au coupon</button>
+    <button class="btn ghost" id="cp1">+ Ajouter victoire ${esc(p.home)} (${pct1(p.victoire_1)})</button></div></div>`;
+  setTimeout(()=>{
+    const b1=$("#cpO"),b2=$("#cpU"),b3=$("#cp1");
+    if(b1)b1.onclick=()=>cpAjout(`Over 2.5 — ${p.home}/${p.away}`,p.over["2.5"],null);
+    if(b2)b2.onclick=()=>cpAjout(`Under 2.5 — ${p.home}/${p.away}`,p.under["2.5"],null);
+    if(b3)b3.onclick=()=>cpAjout(`1 — ${p.home} bat ${p.away}`,p.victoire_1,null);
+  },0);
+  return html;
+}
+
+/* ================================================================ ONGLET 2
+   MON COUPON — probabilité combinée réelle, avec avertissement honnête.   */
+function tabCoupon(){
+  const c=ETAT.coupon;
+  let corps;
+  if(!c.length){
+    corps=`<div class="card empty"><b>Coupon vide</b>
+      Ajoutez des sélections depuis l'onglet « Matchs à venir » ou « Scores fleuves »
+      (boutons verts « Ajouter au coupon »).</div>`;
+  }else{
+    const P=c.reduce((a,x)=>a*x.p,1);
+    corps=`<div class="split"><div class="tblwrap"><table><thead><tr>
+      <th>Sélection</th><th>Probabilité moteur</th><th>Cote juste implicite</th><th></th></tr></thead><tbody>`+
+      c.map((x,i)=>`<tr><td><div class="tname">${esc(x.label)}</div></td>
+        <td class="num g">${pct1(x.p)} %</td>
+        <td class="num cy">${x.p>0?(1/x.p).toFixed(2):"—"}</td>
+        <td><button class="fchip" data-x="${i}">retirer</button></td></tr>`).join("")+
+      `</tbody></table></div>
+      <div class="panel"><div class="card hi glow">
+        <div class="phead"><span class="badge gy"><span class="dot"></span>CE QUE VAUT CE COUPON</span></div>
+        <div class="ligne"><div class="l">Sélections</div><div class="r"><div class="p">${c.length}</div></div></div>
+        <div class="ligne"><div class="l">Probabilité combinée<div class="sub">hypothèse d'indépendance</div></div>
+          <div class="r"><div class="p g">${pct1(P)} %</div></div></div>
+        <div class="ligne"><div class="l">Cote juste du combiné</div>
+          <div class="r"><div class="p cy">${P>0?(1/P).toFixed(1):"—"}</div></div></div>
+        <div class="ligne"><div class="l">Chance de perdre</div>
+          <div class="r"><div class="p rd">${pct1(1-P)} %</div></div></div>
+        <div class="warn rd" style="margin-top:10px">La multiplication suppose des sélections
+          indépendantes. Deux matchs d'une même ligue ne le sont pas tout à fait : la probabilité
+          réelle est donc probablement <b>un peu plus basse</b> que celle affichée.
+          Sur le backtest, aucun combiné testé n'a été rentable.</div>
+        <button class="btn danger" id="cpV" style="margin-top:10px">Vider le coupon</button>
+      </div></div></div>`;
+  }
+  $("#main").innerHTML=`<div class="band"><div><div class="htitle"><h1>Mon coupon</h1>
+    <span class="badge cy">${c.length} SÉLECTION${c.length>1?"S":""}</span></div>
+    <p class="desc">Le coupon calcule la probabilité réelle de votre combiné selon le moteur,
+    pas la cote du bookmaker. C'est un outil de lecture, pas un conseil de mise.</p></div></div>${corps}`;
+  document.querySelectorAll("[data-x]").forEach(b=>b.onclick=()=>{ETAT.coupon.splice(+b.dataset.x,1);majCoupon();});
+  const v=$("#cpV"); if(v) v.onclick=()=>{ETAT.coupon=[];majCoupon();};
+}
+
+/* ================================================================ ONGLET 3
+   SIMULATEUR — n'importe quelle paire d'équipes d'une ligue couverte.     */
+function tabSim(){
+  const divs=ETAT.ligues;
+  if(!ETAT.simDiv&&divs.length) ETAT.simDiv=divs[0].div;
+  ETAT.clCache=ETAT.clCache||{};
+  const wrap=$("#main");
+  wrap.innerHTML=`<div class="band"><div><div class="htitle"><h1>Simulateur de match</h1>
+    <span class="badge cy">DIXON-COLES BIVARIÉ + τ</span></div>
+    <p class="desc">Choisissez deux équipes d'une même ligue : le moteur reconstruit toute la
+    distribution des scores, même pour un match qui n'existe pas au calendrier.</p></div></div>
+  <div class="split"><div class="card hi">
+    <div class="grid g3" style="gap:10px">
+      <div><span class="lbl">Ligue</span><select id="sD" style="width:100%;margin-top:6px">
+        ${divs.map(l=>`<option value="${esc(l.div)}" ${l.div===ETAT.simDiv?"selected":""}>${esc(l.nom)} (${esc(l.pays)})</option>`).join("")}</select></div>
+      <div><span class="lbl">Domicile</span><select id="sH" style="width:100%;margin-top:6px"><option>…</option></select></div>
+      <div><span class="lbl">Extérieur</span><select id="sA" style="width:100%;margin-top:6px"><option>…</option></select></div>
+    </div>
+    <button class="btn" id="sGo" style="margin-top:12px">Analyser le match</button>
+    <div id="sMat" style="margin-top:14px"></div>
+  </div><div class="panel" id="panel">${panneauVide()}</div></div>`;
+  $("#sD").onchange=e=>{ETAT.simDiv=e.target.value;ETAT.simH="";ETAT.simA="";tabSim();};
+  chargerEquipes(ETAT.simDiv).then(eq=>{
+    const h=$("#sH"),a=$("#sA"); if(!h||!a) return;
+    const opts=eq.map(e=>`<option>${esc(e)}</option>`).join("");
+    h.innerHTML=opts; a.innerHTML=opts;
+    if(ETAT.simH&&eq.includes(ETAT.simH)) h.value=ETAT.simH;
+    if(ETAT.simA&&eq.includes(ETAT.simA)) a.value=ETAT.simA; else if(eq[1]) a.value=eq[1];
+  });
+  $("#sGo").onclick=()=>{
+    ETAT.simH=$("#sH").value; ETAT.simA=$("#sA").value;
+    if(ETAT.simH===ETAT.simA){$("#panel").innerHTML=`<div class="card empty"><b>Choisissez deux équipes différentes</b></div>`;return;}
+    ETAT.sel={id:ETAT.simDiv+"|"+ETAT.simH+"|"+ETAT.simA,div:ETAT.simDiv,home:ETAT.simH,away:ETAT.simA};
+    ETAT.selFat=null;
+    chargerPanneau(ETAT.sel);
+    api(`/api/pronostic?div=${enc(ETAT.simDiv)}&home=${enc(ETAT.simH)}&away=${enc(ETAT.simA)}`)
+      .then(p=>{
+        const M=p.matrice;
+        let h=`<span class="lbl">Matrice des scores (ligne = domicile, colonne = extérieur)</span>
+          <div class="hm" style="margin-top:8px"><div></div>${[0,1,2,3,4,5,6,7].map(j=>`<div class="mu">${j}</div>`).join("")}</div>`;
+        h+=`<div class="hm">`;
+        for(let i=0;i<8;i++){h+=`<div class="mu" style="padding:6px 2px">${i}</div>`;
+          for(let j=0;j<8;j++){const v=M[i][j];
+            h+=`<div style="background:rgba(0,245,155,${Math.min(v*6,.85).toFixed(3)})" title="${i}-${j} : ${pct1(v)} %">${v>=0.01?(v*100).toFixed(0):""}</div>`;}}
+        h+="</div>";
+        const sm=$("#sMat"); if(sm) sm.innerHTML=h;
+      }).catch(()=>{});
+  };
+}
+function chargerEquipes(div){
+  ETAT.clCache=ETAT.clCache||{};
+  if(ETAT.clCache[div]) return Promise.resolve(ETAT.clCache[div]);
+  return api(`/api/classement?div=${enc(div)}`).then(c=>{
+    const eq=(c&&c.equipes?c.equipes:[]).map(x=>x.equipe).sort();
+    ETAT.clCache[div]=eq; return eq;
+  }).catch(()=>[]);
+}
+
+/* ================================================================ ONGLET 4
+   SCORES FLEUVES — fidèle à la maquette : KPI, 3 régimes, table, anatomie,
+   distribution fat-tail, carte τ. Toutes les valeurs sont réelles.        */
+function tabFleuves(){
+  const ms=ETAT.matchs.filter(m=>m.disponible&&m.over);
+  const pool=ms.filter(m=>ETAT.fligue==="toutes"||m.div===ETAT.fligue);
+  const tri=ETAT.fsous==="over"?pool.slice().sort((a,b)=>b.buts-a.buts)
+        :ETAT.fsous==="under"?pool.slice().sort((a,b)=>a.buts-b.buts)
+        :pool.slice().sort((a,b)=>(b.eclat_4plus||0)-(a.eclat_4plus||0));
+  /* KPI réels */
+  const expl=ms.slice().sort((a,b)=>b.buts-a.buts)[0];
+  const coff=ms.slice().sort((a,b)=>a.buts-b.buts)[0];
+  let anom=null,best=-9;
+  for(const m of ms){const e=m.meilleur_ecart; if(e!=null&&Math.abs(e)>Math.abs(best)){best=e;anom=m;}}
+  const sat=ms.length?ms.reduce((a,m)=>a+m.buts,0)/ms.length:null;
+  const hist=ETAT.ligues.length?ETAT.ligues.reduce((a,l)=>a+(l.buts_moy||0),0)/ETAT.ligues.length:null;
+  const kpi=(t,b,val,det,foot,cl)=>`<div class="card kpi ${cl||""}"><div class="top"><span class="lbl">${t}</span>${b||""}</div>
+    <div class="val">${val}</div><div class="det">${det}</div>
+    <div class="foot"><span class="mu">${foot[0]}</span><span class="${foot[2]||"g"}">${foot[1]}</span></div></div>`;
+  const ligues=[...new Set(ms.map(m=>m.div))];
+  let tbl="";
+  if(!tri.length){
+    tbl=`<div class="card empty"><b>Aucun match dans cette fenêtre</b>
+      La source gratuite ne publie que ~3 jours de calendrier. Pendant les trêves
+      internationales, il peut n'y avoir aucun match : ce n'est pas un bug.</div>`;
+  }else{
+    tbl=`<div class="tblwrap"><div class="tblhead">
+      <span class="lbl" style="color:var(--txt)">TABLEAU DES PAIRES EXTRÊMES : MODÉLISATION DIXON-COLES</span>
+      <span class="lbl">ALGORITHME : DC-BIVARIATE-τ <span class="g">●</span></span></div>
+      <table><thead><tr><th>Fixture / Compétition</th><th>λ / μ</th><th>E(buts)</th>
+      <th>Over 3.5</th><th>Over 4.5</th><th>Fleuve ≥5</th><th>Écart ≥4</th><th>Score typique</th>
+      <th>Edge marché</th></tr></thead><tbody>`;
+    for(const m of tri){
+      const id=esc(m.div+"|"+m.home+"|"+m.away);
+      const sel=ETAT.sel&&ETAT.sel.id===id?" sel":"";
+      const typ=m.scores_top&&m.scores_top[0]?m.scores_top[0].score:"—";
+      const e=m.meilleur_ecart;
+      tbl+=`<tr class="row${sel}" data-id="${id}">
+        <td><div class="tname">${esc(m.home)} <span class="mu">vs</span> ${esc(m.away)}</div>
+          <div class="tsub">${esc(m.ligue)} · ${esc(m.jour)} · ${esc(m.heure||"")}</div></td>
+        <td class="num cy">${f2(m.over&&m.lambda_home||null)} / ${f2(m.lambda_away||null)}</td>
+        <td class="num" style="font-size:15px">${f2(m.buts)}</td>
+        <td class="num">${pct1(m.over&&m.over["3.5"])}</td>
+        <td class="num">${pct1(m.over&&m.over["4.5"])}</td>
+        <td><span class="tagv" style="background:rgba(0,245,155,.1);color:var(--green)">${pct1(m.fleuve)}</span></td>
+        <td class="num mu">${pct1(m.eclat_4plus)}</td>
+        <td><span class="tagv" style="background:var(--hi);color:var(--mut)">${esc(typ)}</span></td>
+        <td>${e==null?`<span class="mu">—</span>`:`<span class="pill"><span class="p ${clsEdge(e)}">${sgnEdge(e)}</span>
+          <span class="c">pari ${esc(m.meilleur_pari)} @${f2(m.cote_meilleur)}</span></span>`}</td></tr>`;
+    }
+    tbl+="</tbody></table></div>";
+  }
+  $("#main").innerHTML=`
+  <div class="band">
+    <div><div class="htitle"><h1>Scores fleuves & paires extrêmes</h1>
+      <span class="badge cy">SPECTRE DE VARIANCE & ANOMALIES OFFENSIVES</span>
+      <span class="badge gy"><span class="dot"></span>τ-CORRECTION ACTIVE</span></div>
+      <p class="desc">Détection des confrontations à espérance de buts extrême (E(buts) ≥ 3.80 ou ≤ 1.70),
+      entraîné sur ${fmtN(ETAT.bilan.volume.total_matchs)} matchs réels • modèle Dixon-Coles calibré & Poisson bivarié.
+      Les « edges marché » sont des écarts de probabilité, pas des gains promis : le backtest complet reste négatif.</p></div>
+    <div class="hbox"><div class="col"><span class="lbl">Seuil fat-tail</span>
+      <span class="num g">≥ 5 buts</span></div><div class="sep"></div>
+      <div class="col"><span class="lbl">Fenêtre</span><span class="num cy">${joursDisponibles()}</span></div></div>
+  </div>
+  <div class="grid g4">
+    ${kpi("MATCH LE PLUS EXPLOSIF",`<span class="tagv" style="background:rgba(0,245,155,.12);color:var(--green)">E(G) ${f2(expl&&expl.buts)}</span>`,
+      expl?`${esc(expl.home)} vs ${esc(expl.away)}`:"—",
+      expl?`Over 3.5 : <b class="g">${pct1(expl.over["3.5"])}</b> · Over 4.5 : <b class="g">${pct1(expl.over["4.5"])}</b>`:"",
+      [expl?esc(expl.ligue).toUpperCase():"—",expl?esc(expl.jour):""],"glow")}
+    ${kpi("COFFRE-FORT LE PLUS VERROUILLÉ",`<span class="tagv" style="background:rgba(76,215,246,.12);color:var(--cyan)">E(G) ${f2(coff&&coff.buts)}</span>`,
+      coff?`${esc(coff.home)} vs ${esc(coff.away)}`:"—",
+      coff?`Under 2.5 : <b class="cy">${pct1(coff.under["2.5"])}</b> · Under 1.5 : <b class="cy">${pct1(coff.under["1.5"])}</b>`:"",
+      [coff?esc(coff.ligue).toUpperCase():"—",coff?esc(coff.jour):""],"cy")}
+    ${kpi("ANOMALIE DE COTE LA PLUS FORTE",anom&&anom.meilleur_ecart>0?`<span class="tagv" style="background:rgba(0,245,155,.12);color:var(--green)">${sgnEdge(anom.meilleur_ecart)}</span>`:`<span class="tagv" style="background:rgba(244,63,94,.12);color:var(--red)">AUCUNE +EV</span>`,
+      anom?`${esc(anom.home)} vs ${esc(anom.away)}`:"—",
+      anom?`Le modèle dit ${esc(anom.meilleur_pari)} à ${pct1(anom.meilleur_ecart!=null?({1:anom.p1,X:anom.pX,2:anom.p2})[anom.meilleur_pari]:null)} quand le marché deviggé est plus bas`:"",
+      ["ÉCART VS COTES DEVIGGÉES",anom?sgnEdge(anom.meilleur_ecart):"",anom?clsEdge(anom.meilleur_ecart):"mu"])}
+    ${kpi("SATURATION OFFENSIVE",`<span class="tagv" style="background:var(--hi);color:var(--mut)">${ligues.length} LIGUES</span>`,
+      `<span class="num" style="font-size:22px">${f2(sat)}</span> <span class="mu">buts/match calibrés</span>`,
+      `Moyenne des E(buts) sur les ${ms.length} matchs de la fenêtre`,
+      ["MOYENNE HISTORIQUE 21 LIGUES : "+f2(hist),ms.length&&hist?sgnEdge(sat/hist-1):"—",sat&&hist&&sat>hist?"g":"rd"])}
+  </div>
+  <div style="margin-top:14px" class="subtabs">
+    <button class="stab ${ETAT.fsous==="over"?"on":""}" data-s="over">⬈ Festivals offensifs (over boostés)</button>
+    <button class="stab ${ETAT.fsous==="under"?"on":""}" data-s="under">🛡 Coffres-forts (under sévères)</button>
+    <button class="stab ${ETAT.fsous==="eclat"?"on":""}" data-s="eclat">⚡ Éclats & scorings rares (écart ≥ 4)</button>
+  </div>
+  <div class="filters"><span class="lbl">Filtre ligues :</span>
+    <button class="fchip ${ETAT.fligue==="toutes"?"on":""}" data-l="toutes">Toutes (${ligues.length})</button>
+    ${ligues.map(d=>{const L=ETAT.ligues.find(l=>l.div===d);
+      return `<button class="fchip ${ETAT.fligue===d?"on":""}" data-l="${esc(d)}">${esc(L?L.nom:d)}</button>`;}).join("")}</div>
+  <div class="split"><div>${tbl}
+    <div class="card" style="margin-top:12px" id="fatwrap"></div>
+  </div><div class="panel" id="panel">${panneauVide()}</div></div>`;
+  document.querySelectorAll(".stab").forEach(b=>b.onclick=()=>{ETAT.fsous=b.dataset.s;tabFleuves();});
+  document.querySelectorAll(".fchip").forEach(b=>b.onclick=()=>{ETAT.fligue=b.dataset.l;tabFleuves();});
+  brancherLignes();
+  if(ETAT.sel) chargerPanneau(ETAT.sel);
+  grapheFatTail(ETAT.selFat||null);
+}
+function grapheFatTailDefaut(){
+  const ms=ETAT.matchs.filter(m=>m.disponible&&m.over);
+  if(!ms.length){const w=$("#fatwrap"); if(w) w.innerHTML=`<span class="lbl">DISTRIBUTION DES TOTAUX DE BUTS</span>
+    <div class="empty">Aucun match à analyser dans la fenêtre actuelle.</div>`; return;}
+  const m=ms.slice().sort((a,b)=>b.buts-a.buts)[0];
+  ETAT.selFat=m; grapheFatTail(m);
+}
+/* Distribution du total de buts : Dixon-Coles τ vs Poisson naïf indépendant.
+   Comparaison RÉELLE et calculable : elle montre l'effet de la correction τ
+   sur la queue de distribution (les scores fleuves).                      */
+async function grapheFatTail(m){
+  const w=$("#fatwrap"); if(!w) return;
+  if(!m){grapheFatTailDefaut();return;}
+  let p;
+  try{p=await api(`/api/pronostic?div=${enc(m.div)}&home=${enc(m.home)}&away=${enc(m.away)}`);}catch(e){return;}
+  const M=p.matrice; const tot=[]; 
+  for(let t=0;t<=8;t++){let s=0;for(let i=0;i<8;i++){const j=t-i;if(j>=0&&j<8)s+=M[i][j];}tot.push(s);}
+  const lh=p.lambda_home,la=p.lambda_away;
+  const pois=k=>{const l=lh+la;return Math.exp(-l)*Math.pow(l,k)/fact(k);};
+  const fact=k=>{let r=1;for(let i=2;i<=k;i++)r*=i;return r;};
+  const labs=["0","1","2","3","4","5","6","7+"];
+  const val=t=>t<8?tot[t]:tot.slice(8).reduce((a,b)=>a+b,0);
+  const vp=t=>t<8?pois(t):1-[0,1,2,3,4,5,6,7].reduce((a,k)=>a+pois(k),0);
+  const mx=Math.max(...labs.map((_,i)=>Math.max(val(i),vp(i))))*1.15;
+  const W=640,Hh=210,bw=W/8;
+  let svg=`<svg viewBox="0 0 ${W} ${Hh}" style="width:100%;height:auto" role="img">`;
+  for(let i=0;i<8;i++){
+    const a=val(i)/mx*(Hh-40), b=vp(i)/mx*(Hh-40);
+    const x=i*bw+bw*0.18;
+    svg+=`<rect x="${x}" y="${Hh-24-a}" width="${bw*0.28}" height="${a}" fill="#4b5563" rx="2"/>`;
+    svg+=`<rect x="${x+bw*0.34}" y="${Hh-24-b}" width="${bw*0.28}" height="${b}" fill="${i>=5?"#00f59b":"#4cd7f6"}" rx="2"/>`;
+    svg+=`<text x="${i*bw+bw/2}" y="${Hh-8}" fill="#849588" font-size="10" text-anchor="middle" font-family="monospace">${labs[i]} but${i>1?"s":""}</text>`;
+    svg+=`<text x="${x+bw*0.34}" y="${Hh-28-b}" fill="#b9cbbd" font-size="9" text-anchor="middle" font-family="monospace">${(val(i)*100).toFixed(1)}</text>`;
+  }
+  svg+=`<rect x="${4.5*bw}" y="6" width="${3.4*bw}" height="${Hh-34}" fill="rgba(0,245,155,.05)" stroke="rgba(0,245,155,.25)" stroke-dasharray="4 3"/>
+    <text x="${6.2*bw}" y="20" fill="#00f59b" font-size="9" text-anchor="middle" font-family="monospace">ZONE FLEUVE (τ)</text></svg>`;
+  const q5=tot.slice(5).reduce((a,x)=>a+x,0);
+  const q5p=1-[0,1,2,3,4].reduce((a,k)=>a+pois(k),0);
+  w.innerHTML=`<div class="tblhead" style="margin:-14px -14px 12px;border-radius:8px 8px 0 0">
+      <span class="lbl" style="color:var(--txt)">DISTRIBUTION DES TOTAUX DE BUTS — ${esc(m.home)} vs ${esc(m.away)}</span>
+      <span class="legend"><span><i style="background:#4cd7f6"></i>DIXON-COLES τ</span>
+      <span><i style="background:#4b5563"></i>POISSON NAÏF</span></span></div>
+    ${svg}
+    <div class="grid g3" style="margin-top:12px">
+      <div class="card hi"><span class="lbl">Queue épaisse cumulée (5+)</span>
+        <div class="det" style="margin-top:6px">DC-τ : <b class="g">${pct1(q5)}</b> · Poisson naïf : <b class="mu">${pct1(q5p)}</b><br>
+        Écart : <b class="${q5-q5p>0?"g":"rd"}">${sgnEdge(q5-q5p)}</b> — c'est l'effet de la corrélation τ
+        sur les scores fleuves.</div></div>
+      <div class="card hi"><span class="lbl">Calibration du modèle</span>
+        <div class="det" style="margin-top:6px">LogLoss ${f3(ETAT.bilan.resultats.logloss_modele_1x2)} vs
+        Pinnacle ${f3(ETAT.bilan.resultats.logloss_pinnacle_1x2)}<br>
+        <b class="rd">léger retard sur le marché</b> — documenté, non caché.</div></div>
+      <div class="card hi"><span class="lbl">Réalité du backtest</span>
+        <div class="det" style="margin-top:6px">ROI en suivant les écarts :
+        <b class="rd">${pct1(ETAT.bilan.resultats.roi_edge2)} %</b><br>
+        Aucune stratégie testée n'est rentable après cotes. Outil d'analyse, pas de martingale.</div></div>
+    </div>`;
+}
+
+/* ================================================================ ONGLET 5
+   FAUTES, CORNERS & CARTONS — avec l'arbitre, qui change tout.            */
+function tabSec(){
+  const ms=ETAT.matchs.filter(m=>m.disponible&&m.sec&&m.sec.fautes!=null);
+  let tbl="";
+  if(!ms.length) tbl=`<div class="card empty"><b>Aucun match couvert</b></div>`;
+  else{
+    tbl=`<div class="tblwrap"><table><thead><tr><th>Fixture</th><th>Fautes att.</th>
+      <th>Over 21.5</th><th>Over 23.5</th><th>Corners att.</th><th>Over 9.5</th>
+      <th>Jaunes att.</th><th>Over 3.5</th><th>Arbitre</th></tr></thead><tbody>`;
+    for(const m of ms){
+      const id=esc(m.div+"|"+m.home+"|"+m.away);
+      const o=m.sec.over||{};
+      const sel=ETAT.sel&&ETAT.sel.id===id?" sel":"";
+      tbl+=`<tr class="row${sel}" data-id="${id}">
+        <td><div class="tname">${esc(m.home)} <span class="mu">vs</span> ${esc(m.away)}</div>
+          <div class="tsub">${esc(m.ligue)} · ${esc(m.jour)}</div></td>
+        <td class="num">${f2(m.sec.fautes)}</td>
+        <td class="num">${pct1(o.fautes&&o.fautes["21.5"])}</td>
+        <td class="num">${pct1(o.fautes&&o.fautes["23.5"])}</td>
+        <td class="num cy">${f2(m.sec.corners)}</td>
+        <td class="num cy">${pct1(o.corners&&o.corners["9.5"])}</td>
+        <td class="num am">${f2(m.sec.jaunes)}</td>
+        <td class="num am">${pct1(o.jaunes&&o.jaunes["3.5"])}</td>
+        <td><div class="tsub" style="margin:0;color:var(--mut)">${esc(m.arbitre||"non annoncé")}</div>
+          ${m.sec.arbitre_info?`<div class="tsub" style="margin:0">${m.sec.arbitre_info.n||0} matchs · ${f2(m.sec.arbitre_info.jaunes)} j/m</div>`:""}</td></tr>`;
+    }
+    tbl+="</tbody></table></div>";
+  }
+  $("#main").innerHTML=`<div class="band"><div><div class="htitle"><h1>Fautes, corners & cartons</h1>
+    <span class="badge cy">MODÈLES SECONDAIRES POISSON</span>
+    <span class="badge gy"><span class="dot"></span>ARBITRES : ${fmtN(ETAT.bilan.volume.total_arbitres)} ANALYSÉS</span></div>
+    <p class="desc">Chaque ligne intègre la tendance des deux équipes ET celle de l'arbitre annoncé.
+    Cliquez pour le détail complet dans le panneau.</p></div></div>
+  <div class="split"><div>${tbl}</div><div class="panel" id="panel">${panneauVide()}</div></div>`;
+  brancherLignes();
+  if(ETAT.sel) chargerPanneau(ETAT.sel);
+}
+
+/* ================================================================ ONGLET 6
+   CLASSEMENT DES CLUBS — puissance calculée, pas classement officiel.     */
+function tabClassement(){
+  const divs=ETAT.ligues;
+  if(!ETAT.clDiv&&divs.length) ETAT.clDiv=divs[0].div;
+  $("#main").innerHTML=`<div class="band"><div><div class="htitle"><h1>Classement des clubs</h1>
+    <span class="badge cy">FORCES ATTAQUE / DÉFENSE</span></div>
+    <p class="desc">Classement par puissance estimée par le moteur (régularisée vers la moyenne
+    pour les petits échantillons). Ce n'est pas le classement officiel du championnat.</p></div>
+    <div class="hbox"><span class="lbl">Ligue</span><select id="cD">
+      ${divs.map(l=>`<option value="${esc(l.div)}" ${l.div===ETAT.clDiv?"selected":""}>${esc(l.nom)}</option>`).join("")}
+    </select></div></div><div id="cWrap"><div class="card empty"><span class="spin"></span></div></div>`;
+  $("#cD").onchange=e=>{ETAT.clDiv=e.target.value;tabClassement();};
+  chargerClassement(ETAT.clDiv).then(c=>{
+    const w=$("#cWrap"); if(!w) return;
+    if(!c||!c.equipes||!c.equipes.length){w.innerHTML=`<div class="card empty"><b>Pas de classement pour cette ligue</b></div>`;return;}
+    const eq=c.equipes.slice().sort((a,b)=>b.puissance-a.puissance);
+    const mx=Math.max(...eq.map(x=>Math.abs(x.puissance||0)))||1;
+    w.innerHTML=`<div class="tblwrap"><div class="tblhead">
+      <span class="lbl" style="color:var(--txt)">${esc(c.ligue||ETAT.clDiv)} — ${eq.length} équipes · dernier match connu : ${esc(c.dernier_match||"—")}</span>
+      <span class="lbl">γ domicile ${f3(c.gamma)} · τ ${f3(c.rho)}</span></div>
+      <table><thead><tr><th>#</th><th>Équipe</th><th>Puissance</th><th>Attaque</th><th>Défense</th>
+      <th>Buts marqués / encaissés (match)</th><th>Forme</th><th>Confiance</th><th></th></tr></thead><tbody>`+
+      eq.map((x,i)=>`<tr><td class="num mu">${i+1}</td>
+        <td><div class="tname">${esc(x.equipe)}</div><div class="tsub">${x.matchs||0} matchs · ${x.n_eff??0} pondérés</div></td>
+        <td class="num ${x.puissance>0?"g":"rd"}" style="font-size:14px">${f3(x.puissance)}</td>
+        <td class="num cy">${f3(x.attaque)}</td><td class="num cy">${f3(x.defense)}</td>
+        <td class="num"><span class="g">${f2(x.marques)}</span> / <span class="rd">${f2(x.encaisses)}</span></td>
+        <td class="mono" style="font-size:11px;letter-spacing:2px">${esc(x.forme||"—")}</td>
+        <td><span class="tagv" style="color:${x.confiance==="haute"?"var(--green)":x.confiance==="moyenne"?"var(--amber)":"var(--red)"};background:rgba(148,163,184,.08)">${esc(x.confiance||"—")}</span></td>
+        <td style="min-width:110px"><div class="bar ${x.puissance<0?"cy":""}"><i style="width:${Math.max(Math.abs(x.puissance)/mx*100,2).toFixed(0)}%;${x.puissance<0?"background:var(--cyan)":""}"></i></div></td></tr>`).join("")+
+      `</tbody></table></div>`;
+  }).catch(()=>{const w=$("#cWrap"); if(w) w.innerHTML=`<div class="card empty"><b>Ligue non disponible</b></div>`;});
+}
+function chargerClassement(div){
+  ETAT.clCache2=ETAT.clCache2||{};
+  if(ETAT.clCache2[div]) return Promise.resolve(ETAT.clCache2[div]);
+  return api(`/api/classement?div=${enc(div)}`).then(c=>{ETAT.clCache2[div]=c;return c;});
+}
+
+/* ================================================================ ONGLET 7
+   FIABILITÉ — le bilan honnête, y compris ce qui ne marche pas.           */
+function tabBilan(){
+  const b=ETAT.bilan,r=b.resultats;
+  const ms2=b.marches_secondaires||{backtest:{}};
+  const pm=(ms2.backtest||{}).par_marche||{};
+  const cal=(b.calibration||[]).map(c=>`<tr><td class="num">${esc(c.plage)}</td>
+    <td class="num mu">${fmtN(c.n)}</td><td class="num">${pct1(c.reel)}</td>
+    <td class="num cy">${pct1(c.predite)}</td>
+    <td class="num ${Math.abs(c.ecart)<0.02?"g":"am"}">${sgnEdge(c.ecart)}</td></tr>`).join("");
+  $("#main").innerHTML=`<div class="band"><div><div class="htitle"><h1>Fiabilité du moteur</h1>
+    <span class="badge cy">BACKTEST WALK-FORWARD STRICT</span>
+    <span class="badge" style="background:rgba(244,63,94,.12);color:var(--red)">ROI NÉGATIF — ASSUMÉ</span></div>
+    <p class="desc">Protocole : réentraînement périodique, aucune donnée postérieure au match prédit.
+    Référence : cotes de clôture Pinnacle deviggées. Voici les vrais chiffres, bons et mauvais.</p></div></div>
+  <div class="grid g4">
+    <div class="card kpi"><div class="top"><span class="lbl">LogLoss 1X2</span></div>
+      <div class="val num">${f3(r.logloss_modele_1x2)}</div>
+      <div class="det">Pinnacle : <b class="cy">${f3(r.logloss_pinnacle_1x2)}</b><br>
+      Le marché reste devant : écart <b class="rd">${f3(r.logloss_modele_1x2-r.logloss_pinnacle_1x2)}</b></div></div>
+    <div class="card kpi"><div class="top"><span class="lbl">Précision du favori</span></div>
+      <div class="val num">${pct1(r.precision_favori_modele)}</div>
+      <div class="det">Pinnacle : <b class="cy">${pct1(r.precision_favori_pinnacle)}</b></div></div>
+    <div class="card kpi"><div class="top"><span class="lbl">ROI en suivant les écarts</span></div>
+      <div class="val num rd">${pct1(r.roi_edge2)} %</div>
+      <div class="det">Seuil 8 % : <b class="rd">${pct1(r.roi_edge8)}</b><br>CLV : <b class="rd">${pct1(r.clv)}</b></div></div>
+    <div class="card kpi"><div class="top"><span class="lbl">Volume d'entraînement</span></div>
+      <div class="val num">${fmtN(b.volume.total_matchs)}</div>
+      <div class="det">${ETAT.ligues.length} ligues · ${fmtN(b.volume.total_arbitres)} arbitres<br>
+      source gratuite football-data.co.uk</div></div>
+  </div>
+  <div class="split" style="margin-top:12px"><div>
+    <div class="tblwrap"><div class="tblhead"><span class="lbl" style="color:var(--txt)">CALIBRATION DES PROBABILITÉS ANNONCÉES</span></div>
+    <table><thead><tr><th>Plage prédite</th><th>n</th><th>Fréquence réelle</th><th>Prédite</th><th>Écart</th></tr></thead>
+    <tbody>${cal}</tbody></table></div>
+    <div class="card" style="margin-top:12px"><span class="lbl">MARCHÉS SECONDAIRES — ${fmtN(ms2.backtest.n_predictions)} PRÉDICTIONS WALK-FORWARD</span>
+    <div class="det" style="margin-top:8px;font-family:var(--fM);font-size:12px;line-height:2">
+      Gain de précision vs moyenne naïve :<br>
+      · Fautes : <b class="g">+${f2(pm.fautes&&pm.fautes.gain_pct)} %</b> (plafond ${f2(pm.fautes&&pm.fautes.plafond_pct)} %)<br>
+      · Corners : <b class="mu">+${f2(pm.corners&&pm.corners.gain_pct)} %</b> (plafond ${f2(pm.corners&&pm.corners.plafond_pct)} %)<br>
+      · Jaunes : <b class="mu">+${f2(pm.jaunes&&pm.jaunes.gain_pct)} %</b> (plafond ${f2(pm.jaunes&&pm.jaunes.plafond_pct)} %)<br>
+      · Arbitre ajouté : <b class="${(ms2.backtest.apport_arbitre_mae||0)<0?"g":"rd"}">${f3(ms2.backtest.apport_arbitre_mae)} MAE</b></div>
+    <div class="warn rd" style="margin-top:10px">${esc(ms2.limite_majeure||"")}</div></div>
+  </div><div class="panel">
+    <div class="card hi"><span class="lbl">VERDICT DU BACKTEST</span>
+      <div class="det" style="margin-top:8px;line-height:1.8;font-family:var(--fI);font-size:12.5px">
+      ${esc(b.verdict||"")}</div>
+      <div class="warn rd" style="margin-top:10px">${esc(b.avertissement||"Aucun modèle ne garantit de gain.")}</div></div>
+    <div class="card hi"><span class="lbl">CE QUE CET OUTIL NE FAIT PAS</span>
+      <div class="det" style="margin-top:8px;line-height:1.9;font-family:var(--fI);font-size:12.5px">
+      · Il ne <b class="rd">bat pas le marché</b> : sur 30 538 matchs backtestés, suivre le modèle
+      perd de l'argent face aux cotes Pinnacle.<br>
+      · Il ne connaît ni blessures, ni compositions, ni météo, ni enjeu.<br>
+      · Il ne prédit pas les minutes des buts (pas de données gratuites).<br>
+      · Les « edges » affichés sont des écarts de probabilité, utiles pour
+      <b>comprendre</b> un match, pas pour garantir un gain.<br><br>
+      <b class="g">Ce qu'il fait bien</b> : des probabilités calibrées, reproductibles,
+      mises à jour seules, gratuites — et une lecture honnête de chaque match.</div></div>
+  </div></div>`;
+}
+
+init();
+</script>
+</body>
+</html>

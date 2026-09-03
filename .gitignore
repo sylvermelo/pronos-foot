@@ -1,0 +1,56 @@
+# ============================================================================
+#  Ce qui est publié sur GitHub — et ce qui ne l'est pas
+# ============================================================================
+#  Principe : le CODE est publié, les DONNÉES volumineuses non.
+#  Les 175 fichiers CSV sont re-téléchargés par le workflow à la première
+#  exécution, puis conservés dans le cache de GitHub. Inutile de les publier.
+# ============================================================================
+
+# ---- données volumineuses ou régénérables -------------------------------
+data/*.csv
+data/modeles.json
+data/enrichi.csv
+data/config.json
+
+# ⚠️ data/backtest_secondaires.json est VOLONTAIREMENT CONSERVÉ :
+#    il pèse 4 Ko et fournit les chiffres de fiabilité affichés dans
+#    l'onglet « Fautes & cartons ». Sans lui, l'application afficherait
+#    « Backtest non disponible ».
+
+# ---- journaux ------------------------------------------------------------
+data/maj.log
+data/maj-stdout.log
+data/maj-stderr.log
+*.log
+
+# ---- fichiers temporaires ------------------------------------------------
+data/*.part
+*.part
+*.tmp
+
+# ---- Python --------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- fichiers de travail personnels --------------------------------------
+.DS_Store
+Thumbs.db
+*.swp
+
+# ---- gros fichiers de backtest (29 Mo, non nécessaires au fonctionnement) --
+backtest_v3.csv
+backtest_results.csv
+analyse_coupon.csv
+simu_combines.csv
+marches_secondaires.csv
+
+# ---- lanceur silencieux Windows (créé par installer_auto.bat) -------------
+maj_silencieux.vbs
+
+# ---- maquettes de design personnelles (fichiers de travail) -------------
+design/

@@ -1,0 +1,133 @@
+# ============================================================================
+#  MISE À JOUR QUOTIDIENNE AUTOMATIQUE — exécutée sur les serveurs de GitHub
+# ============================================================================
+#  Aucun ordinateur à laisser allumé : tout se passe ici.
+#
+#  Déclencheurs :
+#    · tous les jours à 06:30 UTC  (soit 07:30 à Cotonou, Bénin — UTC+1)
+#    · à chaque modification du code
+#    · à la demande, via le bouton « Run workflow » dans l'onglet Actions
+#
+#  Durée typique : 2 à 4 minutes.
+# ============================================================================
+
+name: Mise à jour quotidienne
+
+on:
+  schedule:
+    # ⚠️ GitHub utilise l'heure UTC, pas ton heure locale.
+    # 06:30 UTC = 07:30 au Bénin. Modifie ces deux nombres si tu veux une autre heure.
+    - cron: '30 6 * * *'
+  workflow_dispatch:        # bouton « Run workflow » dans l'onglet Actions
+  push:
+    branches: [ main ]
+
+# autorisations nécessaires pour publier le site et enregistrer le cache
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# une seule exécution à la fois : si deux se déclenchent, la plus ancienne s'arrête
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  mise-a-jour:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # environnement requis par actions/deploy-pages pour publier correctement
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          # garde les bibliothèques en cache d'une exécution à l'autre
+          cache: 'pip'
+
+      - name: Installer les bibliothèques de calcul
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy scipy pandas
+
+      # Les 175 fichiers CSV pèsent environ 25 Mo. Plutôt que de tout
+      # retélécharger chaque jour, on les conserve d'une exécution à l'autre.
+      - name: Restaurer les données de la dernière exécution
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: donnees-v1-${{ github.run_id }}
+          restore-keys: |
+            donnees-v1-
+
+      - name: Télécharger les nouveautés et ré-entraîner si nécessaire
+        run: python maj.py
+        # maj.py ne touche à rien s'il n'y a pas de nouveauté, et n'écrase
+        # jamais les données existantes en cas de coupure du site source.
+
+      - name: Régénérer l'application autonome
+        run: python genere_app.py
+        # exécuté systématiquement, même sans nouveauté, pour garantir
+        # qu'il y a toujours un fichier à publier (2 secondes)
+
+      - name: Vérifier que le fichier est valide
+        run: |
+          test -f pronos-foot-autonome.html || { echo "FICHIER ABSENT"; exit 1; }
+          SIZE=$(stat -c%s pronos-foot-autonome.html)
+          echo "Taille du fichier : $SIZE octets"
+          # un fichier sain pèse entre 300 Ko et 3 Mo ; en dessous, quelque chose
+          # s'est mal passé et il ne faut PAS publier une application vide
+          if [ "$SIZE" -lt 300000 ]; then
+            echo "ERREUR : fichier anormalement petit, publication annulée"
+            exit 1
+          fi
+          if [ "$SIZE" -gt 3000000 ]; then
+            echo "ERREUR : fichier anormalement gros, publication annulée"
+            exit 1
+          fi
+          grep -q "const DATA" pronos-foot-autonome.html || { echo "DONNÉES ABSENTES"; exit 1; }
+          echo "Vérifications passées."
+
+      - name: Préparer le dossier à publier
+        run: |
+          mkdir -p site
+          # GitHub Pages sert index.html à la racine : on renomme pour que
+          # l'adresse soit propre, sans nom de fichier à taper
+          cp pronos-foot-autonome.html site/index.html
+          # copie de secours sous son nom d'origine, téléchargeable
+          cp pronos-foot-autonome.html site/pronos-foot-autonome.html
+          cp GUIDE.md site/GUIDE.md 2>/dev/null || true
+          cp RAPPORT-BACKTEST.md site/RAPPORT-BACKTEST.md 2>/dev/null || true
+
+      - name: Configurer GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Envoyer le site
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+      - name: Publier
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Récapitulatif
+        if: always()
+        run: |
+          echo "## Résultat de la mise à jour" >> $GITHUB_STEP_SUMMARY
+          if [ -f data/maj.log ]; then
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -15 data/maj.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Ton application sera disponible quelques secondes après la fin," >> $GITHUB_STEP_SUMMARY
+          echo "à l'adresse indiquée dans Settings → Pages." >> $GITHUB_STEP_SUMMARY

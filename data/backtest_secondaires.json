@@ -1,0 +1,214 @@
+{
+ "protocole": "walk-forward par saison",
+ "saisons_testees": [
+  "2324",
+  "2425",
+  "2526",
+  "2627"
+ ],
+ "n_predictions": 42733,
+ "n_seuils": 213665,
+ "configs": {
+  "naif": {
+   "mae": 2.9243,
+   "brier": 0.2049,
+   "logvrais": -3.2261
+  },
+  "equipes": {
+   "mae": 2.8907,
+   "brier": 0.2022,
+   "logvrais": -3.2255
+  },
+  "arbitre": {
+   "mae": 2.8877,
+   "brier": 0.2018,
+   "logvrais": -3.2252
+  }
+ },
+ "gain_mae_pct": 1.25,
+ "apport_arbitre_mae": -0.003,
+ "calibration": [
+  {
+   "annonce": 0.077,
+   "realise": 0.099,
+   "n": 3082
+  },
+  {
+   "annonce": 0.157,
+   "realise": 0.176,
+   "n": 14988
+  },
+  {
+   "annonce": 0.253,
+   "realise": 0.264,
+   "n": 25754
+  },
+  {
+   "annonce": 0.35,
+   "realise": 0.362,
+   "n": 30776
+  },
+  {
+   "annonce": 0.45,
+   "realise": 0.464,
+   "n": 29720
+  },
+  {
+   "annonce": 0.549,
+   "realise": 0.559,
+   "n": 29153
+  },
+  {
+   "annonce": 0.65,
+   "realise": 0.66,
+   "n": 28453
+  },
+  {
+   "annonce": 0.748,
+   "realise": 0.75,
+   "n": 26146
+  },
+  {
+   "annonce": 0.847,
+   "realise": 0.848,
+   "n": 17773
+  },
+  {
+   "annonce": 0.932,
+   "realise": 0.923,
+   "n": 7820
+  }
+ ],
+ "par_saison": {
+  "2324": {
+   "naif": 2.9417,
+   "equipes": 2.9114,
+   "arbitre": 2.9112
+  },
+  "2425": {
+   "naif": 2.9223,
+   "equipes": 2.8932,
+   "arbitre": 2.8849
+  },
+  "2526": {
+   "naif": 2.9011,
+   "equipes": 2.859,
+   "arbitre": 2.8588
+  },
+  "2627": {
+   "naif": 3.0723,
+   "equipes": 3.0584,
+   "arbitre": 3.0489
+  }
+ },
+ "biais_division": {
+  "B1": {
+   "fautes": 0.39,
+   "corners": -0.11,
+   "jaunes": 0.05
+  },
+  "D1": {
+   "fautes": 1.48,
+   "corners": -0.21,
+   "jaunes": 0.06
+  },
+  "E0": {
+   "fautes": -0.55,
+   "corners": 0.0,
+   "jaunes": -0.25
+  },
+  "E1": {
+   "fautes": -0.19,
+   "corners": -0.1,
+   "jaunes": -0.03
+  },
+  "E2": {
+   "fautes": 0.1,
+   "corners": -0.05,
+   "jaunes": -0.17
+  },
+  "E3": {
+   "fautes": -0.05,
+   "corners": -0.18,
+   "jaunes": -0.2
+  },
+  "F1": {
+   "fautes": -0.03,
+   "corners": -0.06,
+   "jaunes": -0.11
+  },
+  "G1": {
+   "fautes": 1.35,
+   "corners": -0.06,
+   "jaunes": -0.14
+  },
+  "I1": {
+   "fautes": 0.3,
+   "corners": 0.14,
+   "jaunes": 0.45
+  },
+  "N1": {
+   "fautes": -0.36,
+   "corners": -0.16,
+   "jaunes": -0.1
+  },
+  "P1": {
+   "fautes": 0.41,
+   "corners": 0.26,
+   "jaunes": 0.21
+  },
+  "SC0": {
+   "fautes": 0.35,
+   "corners": -0.07,
+   "jaunes": -0.04
+  },
+  "SC1": {
+   "fautes": -0.87,
+   "corners": 0.36,
+   "jaunes": -0.3
+  },
+  "SC2": {
+   "fautes": -1.45,
+   "corners": 0.15,
+   "jaunes": -0.36
+  },
+  "SC3": {
+   "fautes": -0.82,
+   "corners": -0.29,
+   "jaunes": -0.23
+  },
+  "SP1": {
+   "fautes": 0.37,
+   "corners": -0.13,
+   "jaunes": 0.2
+  },
+  "T1": {
+   "fautes": -0.31,
+   "corners": -0.13,
+   "jaunes": -0.15
+  }
+ },
+ "par_marche": {
+  "fautes": {
+   "mae_naif": 4.3779,
+   "mae_modele": 4.2818,
+   "gain_pct": 2.19,
+   "plafond_pct": 6.7,
+   "n": 14244
+  },
+  "corners": {
+   "mae_naif": 2.719,
+   "mae_modele": 2.7159,
+   "gain_pct": 0.12,
+   "plafond_pct": 4.3,
+   "n": 14244
+  },
+  "jaunes": {
+   "mae_naif": 1.6761,
+   "mae_modele": 1.6654,
+   "gain_pct": 0.64,
+   "plafond_pct": 3.2,
+   "n": 14245
+  }
+ }
+}
