@@ -4,7 +4,7 @@
 #  Aucun ordinateur à laisser allumé : tout se passe ici.
 #
 #  Déclencheurs :
-#    · tous les jours à 06:30 UTC  (soit 07:30 à Cotonou, Bénin — UTC+1)
+#    · toutes les 3 h à :30 (06:30 UTC = 07:30 à Cotonou, Bénin — UTC+1)
 #    · à chaque modification du code
 #    · à la demande, via le bouton « Run workflow » dans l'onglet Actions
 #
@@ -16,8 +16,9 @@ name: Mise à jour quotidienne
 on:
   schedule:
     # ⚠️ GitHub utilise l'heure UTC, pas ton heure locale.
-    # 06:30 UTC = 07:30 au Bénin. Modifie ces deux nombres si tu veux une autre heure.
-    - cron: '30 6 * * *'
+    # 06:30 UTC = 07:30 au Bénin, puis toutes les 3 h : la fenêtre de matchs
+    # se rafraîchit jusqu'à 6 fois par jour sans rien faire.
+    - cron: '30 */3 * * *'
   workflow_dispatch:        # bouton « Run workflow » dans l'onglet Actions
   push:
     branches: [ main ]

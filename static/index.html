@@ -207,6 +207,10 @@ footer{border-top:1px solid rgba(59,74,63,.35);background:var(--surface);margin-
       <div class="hbox">
         <div class="col"><span class="lbl">Coupon</span><span class="num" id="hcp">0 sélection</span></div>
       </div>
+      <button class="hbox" id="btnMaj" title="Chercher les nouveaux matchs maintenant (mode serveur) — en mode web, explique comment forcer" style="cursor:pointer">
+        <span style="font-size:15px;line-height:1" id="btnMajIco">⟳</span>
+        <div class="col"><span class="lbl">Rafraîchir</span><span class="num cy" id="btnMajTxt">données</span></div>
+      </button>
     </div>
   </div>
   <nav id="nav"></nav>
@@ -243,7 +247,53 @@ const clsEdge=v=>v>0.02?"g":v<-0.02?"rd":"mu";
 const sgnEdge=v=>(v>0?"+":"")+pct1(v)+" %";
 
 const ETAT={onglet:"matchs",matchs:[],ligues:[],bilan:null,coupon:[],sel:null,
-            fsous:"over",fligue:"toutes",simDiv:"",simH:"",simA:"",clDiv:""};
+            fsous:"over",fligue:"toutes",simDiv:"",simH:"",simA:"",clDiv:"",
+            seuil:0.75,jourFiltre:"tous"};
+
+/* ---- bouton Rafraîchir ----------------------------------------------------
+   Mode serveur  : lance maj.py (télécharge la source, ré-entraîne s'il y a du
+                   neuf), recharge les données sans redémarrer, puis re-rend.
+   Mode autonome : un navigateur ne peut pas ré-entraîner → message honnête
+                   qui explique comment forcer la mise à jour côté GitHub.   */
+function brancherBoutonMaj(){
+  const b=$("#btnMaj"); if(!b) return;
+  b.onclick=async()=>{
+    const ico=$("#btnMajIco"), txt=$("#btnMajTxt");
+    b.disabled=true; ico.textContent="…"; txt.textContent="contact…";
+    let r=null;
+    try{ r=await api("/api/refresh"); }catch(e){}
+    if(r&&r.impossible){
+      b.disabled=false; ico.textContent="⟳"; txt.textContent="web : voir note";
+      $("#main").innerHTML=`<div class="band"><div><div class="htitle">
+        <h1>Mise à jour à la demande</h1></div></div></div>
+        <div class="card hi" style="max-width:760px"><span class="lbl">POURQUOI PAS DEPUIS LE NAVIGATEUR</span>
+        <div class="det" style="margin-top:8px;font-family:var(--fI);font-size:13px;line-height:1.8">
+        ${esc(r.message)}<br><br>
+        En pratique : va sur <span class="mono g">github.com/sylvermelo/pronos-foot/actions</span>,
+        bouton <b>Run workflow</b>, puis recharge cette page une fois le run vert (~4 min).
+        Le site se met aussi à jour tout seul à 07:30 puis toutes les 3 heures (heure de Cotonou).</div></div>`;
+      return;
+    }
+    txt.textContent="maj en cours…";
+    let m=null;
+    for(let i=0;i<240;i++){
+      await new Promise(res=>setTimeout(res,3000));
+      try{ m=await api("/api/maj"); }catch(e){ continue; }
+      if(m&&(m.etat==="termine"||m.etat==="erreur")) break;
+    }
+    try{
+      const [mt,lg,bl]=await Promise.all([api("/api/matchs"),api("/api/ligues"),api("/api/bilan")]);
+      ETAT.matchs=mt; ETAT.ligues=lg; ETAT.bilan=bl;
+    }catch(e){}
+    b.disabled=false; ico.textContent="⟳";
+    txt.textContent=m&&m.etat==="termine"?"à jour":"voir log";
+    rendu();
+    if(m&&m.etat==="erreur")
+      $("#main").insertAdjacentHTML("afterbegin",
+        `<div class="warn rd" style="margin:14px 0 0">La mise à jour a échoué (source injoignable ?).
+         Détail : <span class="mono">${esc((m.log||"").slice(-300))}</span></div>`);
+  };
+}
 
 async function api(p){const r=await fetch(p);if(!r.ok)throw new Error(p);return r.json();}
 
@@ -302,6 +352,10 @@ async function init(){
   const r=ETAT.bilan&&ETAT.bilan.resultats?ETAT.bilan.resultats:{};
   $("#hroi").textContent=(r.roi_edge2!=null?(r.roi_edge2*100).toFixed(1):"—")+" %";
   $("#hll").textContent=r.logloss_modele_1x2!=null?r.logloss_modele_1x2.toFixed(4):"—";
+  brancherBoutonMaj();
+  api("/api/maj").then(m=>{ if(m&&m.genere_le){
+    const t=$("#btnMajTxt"); if(t) t.textContent="base : "+m.genere_le.slice(5,16).replace("T"," ");
+  } }).catch(()=>{});
   rendu();
 }
 function fmtN(n){return n==null?"—":String(n).replace(/\B(?=(\d{3})+(?!\d))/g," ");}

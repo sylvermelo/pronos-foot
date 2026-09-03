@@ -276,6 +276,14 @@ async function api(p){
     case '/api/ligues':   return DATA.ligues;
     case '/api/matchs':   return DATA.matchs;
     case '/api/conseils': return conseilsJS(parseFloat(q.get('seuil')||'0.75'));
+    case '/api/refresh':
+    case '/api/maj':
+      return {impossible:true,
+        message:"Version web / autonome : les données sont embarquées dans le fichier, "+
+                "un navigateur ne peut pas ré-entraîner le modèle. La mise à jour est "+
+                "faite par GitHub (07:30 puis toutes les 3 h, heure de Cotonou). Pour "+
+                "forcer maintenant : onglet Actions du dépôt → Run workflow (2 clics, "+
+                "connecté à ton compte), puis recharge cette page."};
     case '/api/bilan':    return DATA.bilan;
     case '/api/classement': return DATA.classements[g('div')]||null;
     case '/api/fleuves':  return DATA.fleuves[g('div')]||null;

@@ -5,6 +5,7 @@ Stdlib uniquement (http.server) : aucune dependance a installer, demarrage insta
 Les modeles sont pre-entraines dans data/modeles.json -> reponse < 20 ms.
 """
 import json, os, sys, gzip, io, urllib.parse, datetime
+import threading, subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import numpy as np
@@ -274,6 +275,46 @@ def api_matchs():
     return out
 
 
+# ---------------------------------------------------------------------------
+# BOUTON RAFRAÎCHIR : mise à jour à la demande (mode serveur uniquement).
+# Lance maj.py en arrière-plan (téléchargement source + ré-entraînement si
+# nouveauté), puis recharge la base en mémoire sans redémarrer le serveur.
+# ---------------------------------------------------------------------------
+_MAJ = {"etat": "arrete", "log": "", "fin": None}
+_MAJ_VERROU = threading.Lock()
+
+
+def _lancer_maj():
+    global DB
+    try:
+        p = subprocess.run([sys.executable, os.path.join(RACINE, "maj.py")],
+                           capture_output=True, text=True, timeout=1500, cwd=RACINE)
+        _MAJ["log"] = (p.stdout or "")[-2000:] + (p.stderr or "")[-800:]
+        with open(os.path.join(RACINE, "data/modeles.json")) as f:
+            DB = json.load(f)
+        _MAJ["etat"] = "termine"
+    except Exception as e:                      # source injoignable, etc.
+        _MAJ["log"] = str(e)
+        _MAJ["etat"] = "erreur"
+    _MAJ["fin"] = datetime.datetime.now().isoformat(timespec="seconds")
+
+
+def api_refresh():
+    with _MAJ_VERROU:
+        if _MAJ["etat"] == "en_cours":
+            return {"etat": "en_cours"}
+        _MAJ["etat"] = "en_cours"
+        threading.Thread(target=_lancer_maj, daemon=True).start()
+        return {"etat": "demarre"}
+
+
+def api_maj():
+    return {"etat": _MAJ["etat"], "fin": _MAJ["fin"], "log": _MAJ["log"][-1200:],
+            "genere_le": datetime.datetime.fromtimestamp(
+                os.path.getmtime(os.path.join(RACINE, "data/modeles.json")))
+                .isoformat(timespec="minutes")}
+
+
 def api_conseils(seuil=0.75):
     """Sélection conseillée : pour chaque match à venir, l'option la plus
     probable parmi un panier de marchés « pariables » (1X2, over/under
@@ -442,6 +483,8 @@ ROUTES = {"/api/ligues": lambda q: api_ligues(),
           "/api/fleuves": lambda q: api_fleuves(q.get("div", [""])[0], int(q.get("top", ["12"])[0])),
           "/api/matchs": lambda q: api_matchs(),
           "/api/conseils": lambda q: api_conseils(float(q.get("seuil", ["0.75"])[0])),
+          "/api/refresh": lambda q: api_refresh(),
+          "/api/maj": lambda q: api_maj(),
           "/api/bilan": lambda q: api_bilan()}
 
 
