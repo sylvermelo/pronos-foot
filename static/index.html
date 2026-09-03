@@ -248,7 +248,7 @@ const ETAT={onglet:"matchs",matchs:[],ligues:[],bilan:null,coupon:[],sel:null,
 async function api(p){const r=await fetch(p);if(!r.ok)throw new Error(p);return r.json();}
 
 /* ---------------------------------------------------------------- onglets */
-const ONGLETS=[["matchs","Matchs à venir"],["coupon","Mon coupon"],["sim","Simulateur"],
+const ONGLETS=[["matchs","Matchs à venir"],["conseils","Sélection conseillée"],["coupon","Mon coupon"],["sim","Simulateur"],
   ["fleuves","Scores fleuves"],["sec","Fautes & cartons"],["classement","Classement des clubs"],
   ["bilan","Fiabilité du moteur"]];
 
@@ -307,8 +307,66 @@ async function init(){
 function fmtN(n){return n==null?"—":String(n).replace(/\B(?=(\d{3})+(?!\d))/g," ");}
 
 function rendu(){renduNav();
-  ({matchs:tabMatchs,coupon:tabCoupon,sim:tabSim,fleuves:tabFleuves,sec:tabSec,
+  ({matchs:tabMatchs,conseils:tabConseils,coupon:tabCoupon,sim:tabSim,fleuves:tabFleuves,sec:tabSec,
     classement:tabClassement,bilan:tabBilan})[ETAT.onglet]();}
+
+/* ================================================================ ONGLET 2
+   SÉLECTION CONSEILLÉE — chaque jour, les matchs dont l'option la plus
+   probable atteint le seuil choisi (70 / 75 / 80 %). Liste honnête :
+   probabilité ≠ gain garanti.                                            */
+function tabConseils(){
+  ETAT.seuil=ETAT.seuil||0.75;
+  $("#main").innerHTML=`<div class="band"><div><div class="htitle"><h1>Sélection conseillée</h1>
+    <span class="badge gy"><span class="dot"></span>SEUIL ${Math.round(ETAT.seuil*100)} %</span>
+    <span class="badge cy">LISTE PAR JOUR</span></div>
+    <p class="desc">Pour chaque match à venir, le moteur regarde toutes ses options
+    (victoire, nul, over/under 1.5 à 3.5, les deux équipes marquent, double chance)
+    et retient la plus probable. Si elle atteint le seuil, le match entre dans la liste
+    du jour avec son option idéale. Aucun match au-dessus du seuil → « aucun ».</p></div>
+    <div class="hbox"><span class="lbl">Seuil</span>
+      ${[0.70,0.75,0.80].map(s=>`<button class="fchip ${ETAT.seuil===s?"on":""}" data-s="${s}">${s*100} %</button>`).join("")}
+    </div></div>
+    <div id="consWrap"><div class="card empty"><span class="spin"></span> calcul…</div></div>`;
+  document.querySelectorAll("[data-s]").forEach(b=>b.onclick=()=>{ETAT.seuil=parseFloat(b.dataset.s);tabConseils();});
+  api(`/api/conseils?seuil=${ETAT.seuil}`).then(r=>{
+    const w=$("#consWrap"); if(!w) return;
+    const total=r.jours.reduce((a,j)=>a+j.nb,0);
+    let h="";
+    if(!r.jours.length){
+      h=`<div class="card empty"><b>Aucun</b>
+        Dans la fenêtre actuelle de la source (~3 jours), aucun match n'atteint
+        ${Math.round(ETAT.seuil*100)} % sur sa meilleure option.
+        ${ETAT.matchs.length?`(${ETAT.matchs.length} matchs analysés.)`:
+        "Et la source ne publie aucun match à venir en ce moment (trêve internationale)."}
+        Abaissez le seuil ou revenez après la reprise des championnats.</div>`;
+    }
+    for(const j of r.jours){
+      h+=`<div class="dayhead"><span class="lbl">${esc(j.jour)}</span>
+        <span class="lbl mu">${esc(j.date)}</span><span class="line"></span>
+        <span class="lbl ${j.nb?"g":"mu"}">${j.nb?j.nb+" sélection"+(j.nb>1?"s":""):"aucun"}</span></div>`;
+      if(!j.nb) continue;
+      h+=`<div class="tblwrap"><table><thead><tr><th>Heure</th><th>Match</th>
+        <th>Option conseillée</th><th>Probabilité</th><th>Cote juste</th>
+        <th>Cote marché</th><th>E(buts)</th><th>Conf.</th></tr></thead><tbody>`;
+      for(const s of j.selections){
+        h+=`<tr><td class="num">${esc(s.heure||"—")}</td>
+          <td><div class="tname">${esc(s.home)} <span class="mu">vs</span> ${esc(s.away)}</div>
+            <div class="tsub">${esc(s.ligue)}</div></td>
+          <td><span class="tagv" style="background:rgba(0,245,155,.12);color:var(--green)">${esc(s.option)}</span></td>
+          <td class="num g" style="font-size:15px">${pct1(s.p)} %</td>
+          <td class="num cy">${f2(s.cote_juste)}</td>
+          <td class="num ${s.cote_marche&&s.cote_marche>=s.cote_juste?"g":"mu"}">${s.cote_marche?f2(s.cote_marche):"—"}</td>
+          <td class="num mu">${f2(s.buts)}</td>
+          <td><span class="tagv" style="color:${s.confiance==="haute"?"var(--green)":s.confiance==="moyenne"?"var(--amber)":"var(--red)"};background:rgba(148,163,184,.08)">${esc(s.confiance||"—")}</span></td></tr>`;
+      }
+      h+="</tbody></table></div>";
+    }
+    if(r.jours.length) h+=`<div class="warn" style="margin-top:12px">${esc(r.note)}
+      Total fenêtre actuelle : <b>${total} sélection${total>1?"s":""}</b>
+      sur ${ETAT.matchs.length} matchs analysés.</div>`;
+    w.innerHTML=h;
+  }).catch(()=>{const w=$("#consWrap"); if(w) w.innerHTML=`<div class="card empty"><b>Indisponible</b></div>`;});
+}
 
 /* ================================================================ ONGLET 1
    MATCHS À VENIR — triés aujourd'hui → demain → J+n, jamais de match passé.
@@ -316,7 +374,10 @@ function rendu(){renduNav();
 function tabMatchs(){
   const parJour={};
   for(const m of ETAT.matchs)(parJour[m.jour_delta]=parJour[m.jour_delta]||[]).push(m);
-  const jours=Object.keys(parJour).map(Number).sort((a,b)=>a-b);
+  const tous=Object.keys(parJour).map(Number).sort((a,b)=>a-b);
+  if(ETAT.jourFiltre==null) ETAT.jourFiltre="tous";
+  if(ETAT.jourFiltre!=="tous"&&!tous.includes(ETAT.jourFiltre)) ETAT.jourFiltre="tous";
+  const jours=ETAT.jourFiltre==="tous"?tous:tous.filter(d=>d===ETAT.jourFiltre);
   let liste="";
   if(!jours.length){
     liste=`<div class="card empty"><b>Aucun match à venir dans la fenêtre de la source</b>
@@ -364,7 +425,15 @@ function tabMatchs(){
       <span class="num g">${ETAT.matchs.length}</span></div><div class="sep"></div>
       <div class="col"><span class="lbl">Journées</span><span class="num">${jours.length}</span></div></div>
   </div>
+  <div class="filters"><span class="lbl">Jour :</span>
+    <button class="fchip ${ETAT.jourFiltre==="tous"?"on":""}" data-j="tous">Tous</button>
+    ${tous.map(d=>{const ms=parJour[d];
+      return `<button class="fchip ${ETAT.jourFiltre===d?"on":""}" data-j="${d}">${esc(ms[0].jour)} (${ms.length})</button>`;}).join("")}
+    ${tous.length<2?`<span class="lbl mu" style="text-transform:none;letter-spacing:0">La source gratuite ne publie que ~3 jours de calendrier ; en ce moment elle n'en contient qu'un (trêve internationale).</span>`:""}
+  </div>
   <div class="split"><div>${liste}</div><div class="panel" id="panel">${panneauVide()}</div></div>`;
+  document.querySelectorAll("[data-j]").forEach(b=>b.onclick=()=>{
+    ETAT.jourFiltre=b.dataset.j==="tous"?"tous":parseInt(b.dataset.j,10);tabMatchs();});
   brancherLignes();
   if(ETAT.sel) chargerPanneau(ETAT.sel);
 }

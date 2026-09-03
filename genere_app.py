@@ -225,6 +225,45 @@ function pronosticJS(div,h,a){
   return out;
 }
 
+/* Sélection conseillée : même formule que le serveur Python (parité garantie). */
+function conseilsJS(seuil){
+  const jours={};
+  for(const m of DATA.matchs){
+    if(!m.disponible||!m.over) continue;
+    const o=m.over,u=m.under,dc=m.double_chance||{};
+    const cands=[["1",m.p1],["X",m.pX],["2",m.p2],
+      ["over 1.5",o["1.5"]],["over 2.5",o["2.5"]],["over 3.5",o["3.5"]],
+      ["under 1.5",u["1.5"]],["under 2.5",u["2.5"]],["under 3.5",u["3.5"]],
+      ["les deux marquent",m.btts],
+      ["les deux ne marquent pas",m.btts!=null?+(1-m.btts).toFixed(4):null],
+      ["double chance 1X",dc["1X"]],["double chance 12",dc["12"]],["double chance X2",dc["X2"]]]
+      .filter(c=>c[1]!=null);
+    let opt=cands[0],best=cands[0];
+    for(const c of cands) if(c[1]>best[1]) best=c;
+    opt=best;
+    if(opt[1]<seuil) continue;
+    const item={div:m.div,ligue:m.ligue,pays:m.pays,date:m.date,heure:m.heure,
+      jour:m.jour,jour_delta:m.jour_delta,home:m.home,away:m.away,
+      option:opt[0],p:+opt[1].toFixed(4),cote_juste:opt[1]>0?+(1/opt[1]).toFixed(2):null,
+      confiance:m.confiance,buts:m.buts};
+    if(opt[0]==="1")item.cote_marche=m.cote_1;
+    else if(opt[0]==="X")item.cote_marche=m.cote_X;
+    else if(opt[0]==="2")item.cote_marche=m.cote_2;
+    else if(opt[0]==="over 2.5")item.cote_marche=m.cote_over;
+    else if(opt[0]==="under 2.5")item.cote_marche=m.cote_under;
+    (jours[m.jour_delta]=jours[m.jour_delta]||[]).push(item);
+  }
+  const liste=Object.keys(jours).map(Number).sort((a,b)=>a-b).map(d=>{
+    const sel=jours[d].sort((a,b)=>b.p-a.p);
+    return {jour:sel[0].jour,jour_delta:d,date:sel[0].date,nb:sel.length,selections:sel};
+  });
+  return {seuil:seuil,jours:liste,
+    note:"Probabilités du modèle Dixon-Coles calibré sur 29 295 matchs. "+
+         "Une option à 75 % se réalise environ 3 fois sur 4 en moyenne, "+
+         "pas à chaque fois. Rentabilité face aux cotes non démontrée "+
+         "(voir l'onglet Fiabilité)."};
+}
+
 /* ---------------------------------------------------------------------------
    api() LOCAL : remplace les appels au serveur par un calcul sur place.
    L'interface est inchangée, seul ce point d'entrée diffère.
@@ -236,6 +275,7 @@ async function api(p){
   switch(chemin){
     case '/api/ligues':   return DATA.ligues;
     case '/api/matchs':   return DATA.matchs;
+    case '/api/conseils': return conseilsJS(parseFloat(q.get('seuil')||'0.75'));
     case '/api/bilan':    return DATA.bilan;
     case '/api/classement': return DATA.classements[g('div')]||null;
     case '/api/fleuves':  return DATA.fleuves[g('div')]||null;

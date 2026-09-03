@@ -274,6 +274,61 @@ def api_matchs():
     return out
 
 
+def api_conseils(seuil=0.75):
+    """Sélection conseillée : pour chaque match à venir, l'option la plus
+    probable parmi un panier de marchés « pariables » (1X2, over/under
+    1.5-3.5, les deux équipes marquent, double chance). Si la probabilité
+    de la meilleure option atteint le seuil, le match entre dans la liste.
+    Rappel honnête : une probabilité élevée n'est pas un gain garanti."""
+    seuil = float(seuil)
+    jours = {}
+    for m in api_matchs():
+        if not m.get("disponible") or not m.get("over"):
+            continue
+        o, u, dc = m["over"], m["under"], m.get("double_chance", {})
+        cands = [("1", m["p1"]), ("X", m["pX"]), ("2", m["p2"]),
+                 ("over 1.5", o.get("1.5")), ("over 2.5", o.get("2.5")),
+                 ("over 3.5", o.get("3.5")), ("under 1.5", u.get("1.5")),
+                 ("under 2.5", u.get("2.5")), ("under 3.5", u.get("3.5")),
+                 ("les deux marquent", m.get("btts")),
+                 ("les deux ne marquent pas", round(1 - m["btts"], 4) if m.get("btts") is not None else None),
+                 ("double chance 1X", dc.get("1X")), ("double chance 12", dc.get("12")),
+                 ("double chance X2", dc.get("X2"))]
+        cands = [(k, v) for k, v in cands if v is not None]
+        opt, p = max(cands, key=lambda z: z[1])
+        if p < seuil:
+            continue
+        item = {"div": m["div"], "ligue": m["ligue"], "pays": m["pays"],
+                "date": m["date"], "heure": m["heure"], "jour": m["jour"],
+                "jour_delta": m["jour_delta"],
+                "home": m["home"], "away": m["away"],
+                "option": opt, "p": round(p, 4),
+                "cote_juste": round(1 / p, 2) if p > 0 else None,
+                "confiance": m.get("confiance"), "buts": m.get("buts")}
+        # cote réelle du marché quand elle existe pour cette option
+        if opt == "1":
+            item["cote_marche"] = m.get("cote_1")
+        elif opt == "X":
+            item["cote_marche"] = m.get("cote_X")
+        elif opt == "2":
+            item["cote_marche"] = m.get("cote_2")
+        elif opt == "over 2.5":
+            item["cote_marche"] = m.get("cote_over")
+        elif opt == "under 2.5":
+            item["cote_marche"] = m.get("cote_under")
+        jours.setdefault(m["jour_delta"], []).append(item)
+    liste = []
+    for delta in sorted(jours):
+        sel = sorted(jours[delta], key=lambda x: -x["p"])
+        liste.append({"jour": sel[0]["jour"], "jour_delta": delta,
+                      "date": sel[0]["date"], "nb": len(sel), "selections": sel})
+    return {"seuil": seuil, "jours": liste,
+            "note": "Probabilités du modèle Dixon-Coles calibré sur 29 295 matchs. "
+                    "Une option à 75 % se réalise environ 3 fois sur 4 en moyenne, "
+                    "pas à chaque fois. Rentabilité face aux cotes non démontrée "
+                    "(voir l'onglet Fiabilité)."}
+
+
 def api_bilan():
     return {
         "source": "football-data.co.uk (gratuit, sans cle API)",
@@ -386,6 +441,7 @@ ROUTES = {"/api/ligues": lambda q: api_ligues(),
                                                 q.get("home", [""])[0], q.get("away", [""])[0]),
           "/api/fleuves": lambda q: api_fleuves(q.get("div", [""])[0], int(q.get("top", ["12"])[0])),
           "/api/matchs": lambda q: api_matchs(),
+          "/api/conseils": lambda q: api_conseils(float(q.get("seuil", ["0.75"])[0])),
           "/api/bilan": lambda q: api_bilan()}
 
 

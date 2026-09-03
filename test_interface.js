@@ -84,7 +84,7 @@ const propre = t => !/NaN|undefined/.test(t || '');
 
   /* --- chaque onglet --- */
   console.log('\n=== 2. Rendu des 7 onglets ===');
-  for (const id of ['matchs', 'coupon', 'sim', 'fleuves', 'sec', 'classement', 'bilan']) {
+  for (const id of ['matchs', 'conseils', 'coupon', 'sim', 'fleuves', 'sec', 'classement', 'bilan']) {
     try {
       elements.clear();
       vm.runInContext(`ETAT.onglet=${JSON.stringify(id)};rendu();`, ctx, { timeout: 30000 });
@@ -92,7 +92,8 @@ const propre = t => !/NaN|undefined/.test(t || '');
       // le DOM simulé n'a pas de parenté : on concatene les zones connues
       const html = (elements.get('#main') ? elements.get('#main').innerHTML : '')
         + (elements.get('#cWrap') ? elements.get('#cWrap').innerHTML : '')
-        + (elements.get('#panel') ? elements.get('#panel').innerHTML : '');
+        + (elements.get('#panel') ? elements.get('#panel').innerHTML : '')
+        + (elements.get('#consWrap') ? elements.get('#consWrap').innerHTML : '');
       const nav = elements.get('#nav') ? elements.get('#nav').innerHTML : '';
       const lignes = (html.match(/<tr/g) || []).length;
       if (!propre(html))            ko(`onglet ${id} : contient NaN ou undefined`);
