@@ -74,6 +74,12 @@ jobs:
         # maj.py ne touche à rien s'il n'y a pas de nouveauté, et n'écrase
         # jamais les données existantes en cas de coupure du site source.
 
+      - name: Reconstruire le calendrier multi-sources
+        run: python maj_calendrier.py || echo "calendrier inchangé (sources injoignables ?)"
+        # ESPN + TheSportsDB + OpenLigaDB, sans clé ni compte. Étape séparée :
+        # elle s'exécute même si football-data.co.uk est injoignable.
+        # (maj.py la lance déjà ; celle-ci est une sécurité, elle est idempotente.)
+
       - name: Régénérer l'application autonome
         run: python genere_app.py
         # exécuté systématiquement, même sans nouveauté, pour garantir

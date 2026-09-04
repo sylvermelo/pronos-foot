@@ -20,8 +20,8 @@ Celui-ci :
 Fonctionne à l'identique sur Windows, Mac et Linux.
 
 Usage :
-    python3 maj.py             mise à jour normale (ne fait rien si rien n'a changé)
-    python3 maj.py --force     ré-entraîne même si les données n'ont pas changé
+    python3 maj.py             mise à jour normale (source co.uk si changée,
+                               calendrier multi-sources toujours reconstruit)
     python3 maj.py --check     regarde seulement s'il y a du nouveau, ne touche à rien
     python3 maj.py --config    choisit le dossier de synchronisation
 """
@@ -336,13 +336,10 @@ def main():
 
     changés, fx_changé, échecs = maj_donnees()
 
-    if changés == 0 and not fx_changé and "--force" not in args:
-        log("aucune nouveauté sur la source : rien à faire.")
-        if APP.exists():
-            âge = (dt.date.today()
-                   - dt.date.fromtimestamp(APP.stat().st_mtime)).days
-            log(f"application autonome inchangée, générée il y a {âge} jour(s)")
-        return 0
+    if changés == 0 and not fx_changé:
+        log("aucune nouveauté sur la source co.uk — le calendrier multi-sources "
+            "(ESPN + TheSportsDB + OpenLigaDB) est quand même reconstruit, "
+            "car il évolue tous les jours.")
 
     if changés > 0 and cfg.get("entrainer_si_changement", True):
         if not lancer("entraine.py", "≈35 s"):
@@ -351,6 +348,10 @@ def main():
             return 1
     elif fx_changé:
         log("seule la liste des matchs à venir a changé : pas besoin de ré-entraîner")
+
+    if not lancer("maj_calendrier.py", "≈40 s"):
+        log("calendrier multi-sources ÉCHOUÉ (sources injoignables ?) : "
+            "le calendrier existant est conservé.", "WARN")
 
     if not lancer("genere_app.py", "≈2 s"):
         log("génération du fichier autonome échouée", "ERROR")

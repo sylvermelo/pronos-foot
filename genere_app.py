@@ -18,6 +18,7 @@ import json
 import os
 from pathlib import Path
 
+os.environ["PRONOS_SANS_CALENDRIER"] = "1"   # pas de re-téléchargement ESPN ici
 import serveur as S
 
 RACINE = Path(__file__).resolve().parent
@@ -37,6 +38,7 @@ def precalculer():
         "moteur": {},
         "arbitres": S.DB.get("arbitres", {}),
         "meta": S.DB.get("meta", {}),
+        "calendrier": S.DB.get("calendrier_log") or {},
     }
     for div, L in S.DB["ligues"].items():
         try:

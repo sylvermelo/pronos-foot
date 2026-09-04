@@ -9,6 +9,7 @@
 # ---- données volumineuses ou régénérables -------------------------------
 data/*.csv
 data/modeles.json
+data/calendrier.json
 data/enrichi.csv
 data/config.json
 

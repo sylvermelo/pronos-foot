@@ -102,6 +102,11 @@ tr.row.sel{background:var(--hi2);box-shadow:inset 3px 0 0 var(--green)}
 .tname{font:600 13px/1.35 var(--fI)}
 .tsub{font:500 10px/1.5 var(--fM);letter-spacing:.04em;color:var(--mut2);text-transform:uppercase;margin-top:3px}
 .tagv{display:inline-block;font:600 10px/1 var(--fM);letter-spacing:.05em;padding:3px 6px;border-radius:3px;text-transform:uppercase}
+.srcb{display:inline-block;margin-left:6px;padding:1px 5px;border-radius:3px;font:600 9px/1.7 var(--fM);letter-spacing:.05em;vertical-align:1px}
+.srcb.e{background:rgba(3,181,211,.12);color:var(--cyan)}
+.srcb.o{background:rgba(245,158,11,.13);color:var(--amber)}
+.srcb.t{background:rgba(0,245,155,.1);color:var(--green)}
+.srcb.c{background:rgba(148,163,184,.12);color:var(--mut2)}
 .pill{display:inline-flex;flex-direction:column;align-items:center;gap:2px;background:var(--hi);
   border:1px solid var(--bord);border-radius:5px;padding:5px 9px;min-width:64px}
 .pill .p{font:700 12px/1 var(--fM)}
@@ -242,6 +247,7 @@ const pct=x=>x==null?"—":(x*100).toFixed(1)+" %";
 const pct1=x=>x==null?"—":(x*100).toFixed(1);
 const f2=x=>x==null?"—":Number(x).toFixed(2);
 const f3=x=>x==null?"—":Number(x).toFixed(3);
+function srcb(m){const s=m.source||"co.uk";const c=s==="ESPN"?"e":s==="OpenLigaDB"?"o":s==="TheSportsDB"?"t":"c";return `<span class="srcb ${c}">${esc(s)}</span>`;}
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const clsEdge=v=>v>0.02?"g":v<-0.02?"rd":"mu";
 const sgnEdge=v=>(v>0?"+":"")+pct1(v)+" %";
@@ -388,11 +394,11 @@ function tabConseils(){
     let h="";
     if(!r.jours.length){
       h=`<div class="card empty"><b>Aucun</b>
-        Dans la fenêtre actuelle de la source (~3 jours), aucun match n'atteint
+        Dans la fenêtre actuelle du calendrier (~8 jours), aucun match n'atteint
         ${Math.round(ETAT.seuil*100)} % sur sa meilleure option.
         ${ETAT.matchs.length?`(${ETAT.matchs.length} matchs analysés.)`:
-        "Et la source ne publie aucun match à venir en ce moment (trêve internationale)."}
-        Abaissez le seuil ou revenez après la reprise des championnats.</div>`;
+        "Et aucune source du calendrier ne publie de match à venir en ce moment."}
+        Abaissez le seuil ou revenez plus tard.</div>`;
     }
     for(const j of r.jours){
       h+=`<div class="dayhead"><span class="lbl">${esc(j.jour)}</span>
@@ -434,10 +440,11 @@ function tabMatchs(){
   const jours=ETAT.jourFiltre==="tous"?tous:tous.filter(d=>d===ETAT.jourFiltre);
   let liste="";
   if(!jours.length){
-    liste=`<div class="card empty"><b>Aucun match à venir dans la fenêtre de la source</b>
-      La source gratuite (football-data.co.uk) publie un calendrier glissant de ~3 jours.
-      En période de trêve internationale, elle peut ne contenir que très peu de matchs,
-      voire aucun. Réessayez après la reprise des championnats.</div>`;
+    liste=`<div class="card empty"><b>Aucun match à venir dans la fenêtre du calendrier</b>
+      Le calendrier est reconstruit plusieurs fois par jour à partir d'ESPN,
+      TheSportsDB et OpenLigaDB (fenêtre ~8 jours), les cotes venant de
+      football-data.co.uk. Si cette liste est vide, aucune source n'a publié de
+      match : ce n'est pas un bug, réessayez après le prochain rafraîchissement.</div>`;
   }
   for(const j of jours){
     const ms=parJour[j];
@@ -453,7 +460,7 @@ function tabMatchs(){
       liste+=`<tr class="row${sel}" data-id="${id}">
         <td class="num">${esc(m.heure||"—")}</td>
         <td><div class="tname">${esc(m.home)} <span class="mu">vs</span> ${esc(m.away)}</div>
-            <div class="tsub">${esc(m.ligue)} · ${esc(m.pays)}</div></td>
+            <div class="tsub">${esc(m.ligue)} · ${esc(m.pays)}${srcb(m)}</div></td>
         <td class="num">${pct1(m.p1)}</td><td class="num mu">${pct1(m.pX)}</td><td class="num">${pct1(m.p2)}</td>
         <td class="num g">${pct1(m.over&&m.over["1.5"])}</td>
         <td class="num g">${pct1(m.over25)}</td>
@@ -469,7 +476,8 @@ function tabMatchs(){
   <div class="band">
     <div>
       <div class="htitle"><h1>Matchs à venir</h1>
-        <span class="badge cy">FENÊTRE SOURCE : ~3 JOURS GLISSANTS</span>
+        <span class="badge cy">CALENDRIER : ESPN + THESPORTSDB + OPENLIGADB</span>
+        <span class="badge cy">COTES : FOOTBALL-DATA.CO.UK</span>
         <span class="badge gy"><span class="dot"></span>FILTRAGE ANTI-PASSÉ ACTIF</span></div>
       <p class="desc">Calendrier trié du jour le plus proche au plus lointain : aujourd'hui, demain, puis J+2…
       Les matchs déjà joués sont exclus automatiquement. Cliquez sur une ligne pour ouvrir
@@ -483,7 +491,7 @@ function tabMatchs(){
     <button class="fchip ${ETAT.jourFiltre==="tous"?"on":""}" data-j="tous">Tous</button>
     ${tous.map(d=>{const ms=parJour[d];
       return `<button class="fchip ${ETAT.jourFiltre===d?"on":""}" data-j="${d}">${esc(ms[0].jour)} (${ms.length})</button>`;}).join("")}
-    ${tous.length<2?`<span class="lbl mu" style="text-transform:none;letter-spacing:0">La source gratuite ne publie que ~3 jours de calendrier ; en ce moment elle n'en contient qu'un (trêve internationale).</span>`:""}
+    ${tous.length<2?`<span class="lbl mu" style="text-transform:none;letter-spacing:0">Le calendrier multi-sources couvre ~8 jours ; en ce moment, une seule journée est publiée.</span>`:""}
   </div>
   <div class="split"><div>${liste}</div><div class="panel" id="panel">${panneauVide()}</div></div>`;
   document.querySelectorAll("[data-j]").forEach(b=>b.onclick=()=>{
@@ -576,6 +584,10 @@ function panneauMatch(p,sec,s){
   if(m) html+=`<div style="margin-top:8px" class="warn">Comparaison au marché (cotes deviggées) :
     un écart positif ne veut PAS dire gain garanti. Sur le backtest complet, suivre ces écarts
     donne un ROI de <b class="rd">${pct1(ETAT.bilan.resultats.roi_edge2)} %</b>.</div>`;
+  else html+=`<div style="margin-top:8px" class="warn">Cotes pas encore publiées pour ce match :
+    la comparaison au marché apparaîtra dès que football-data.co.uk les fournira.
+    Rappel honnête : sur le backtest complet, suivre les écarts du modèle donne un ROI de
+    <b class="rd">${pct1(ETAT.bilan.resultats.roi_edge2)} %</b> — aucun gain n'est garanti.</div>`;
   html+=`<div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
     <button class="btn" id="cpO">+ Ajouter Over 2.5 (${pct1(p.over["2.5"])}) au coupon</button>
     <button class="btn ghost" id="cpU">+ Ajouter Under 2.5 (${pct1(p.under["2.5"])}) au coupon</button>
@@ -712,8 +724,8 @@ function tabFleuves(){
   let tbl="";
   if(!tri.length){
     tbl=`<div class="card empty"><b>Aucun match dans cette fenêtre</b>
-      La source gratuite ne publie que ~3 jours de calendrier. Pendant les trêves
-      internationales, il peut n'y avoir aucun match : ce n'est pas un bug.</div>`;
+      Le calendrier couvre ~8 jours glissants. S'il est vide, aucune source n'a
+      publié de match pour le moment : ce n'est pas un bug.</div>`;
   }else{
     tbl=`<div class="tblwrap"><div class="tblhead">
       <span class="lbl" style="color:var(--txt)">TABLEAU DES PAIRES EXTRÊMES : MODÉLISATION DIXON-COLES</span>
@@ -728,7 +740,7 @@ function tabFleuves(){
       const e=m.meilleur_ecart;
       tbl+=`<tr class="row${sel}" data-id="${id}">
         <td><div class="tname">${esc(m.home)} <span class="mu">vs</span> ${esc(m.away)}</div>
-          <div class="tsub">${esc(m.ligue)} · ${esc(m.jour)} · ${esc(m.heure||"")}</div></td>
+          <div class="tsub">${esc(m.ligue)} · ${esc(m.jour)} · ${esc(m.heure||"")}${srcb(m)}</div></td>
         <td class="num cy">${f2(m.over&&m.lambda_home||null)} / ${f2(m.lambda_away||null)}</td>
         <td class="num" style="font-size:15px">${f2(m.buts)}</td>
         <td class="num">${pct1(m.over&&m.over["3.5"])}</td>

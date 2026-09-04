@@ -233,6 +233,9 @@ def main():
                 "cote_over_max": _num(r.get("Max>2.5")), "cote_under_max": _num(r.get("Max<2.5")),
             })
     out["fixtures"] = fix
+    # référence brute des cotes co.uk : le calendrier multi-sources
+    # (maj_calendrier.py) fait la jonction à partir de cette liste.
+    out["fixtures_cotes"] = fix
     out["meta"] = {"total_matchs": total_matchs, "n_ligues": len(out["ligues"]),
                    "n_fixtures": len(fix), "duree_s": round(time.time() - t0, 1)}
     json.dump(out, open("data/modeles.json", "w"))

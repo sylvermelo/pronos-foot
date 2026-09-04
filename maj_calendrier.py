@@ -1,0 +1,86 @@
+"""
+Reconstruit le calendrier multi-sources (ESPN + TheSportsDB + OpenLigaDB)
+et le fusionne dans data/modeles.json. Les cotes restent celles de
+football-data.co.uk (jonction par équipes). Sauvegarde aussi
+data/calendrier.json pour l'application autonome.
+
+Léger et sans ré-entraînement : exécutable à chaque mise à jour, même quand
+la source co.uk n'a pas bougé (les calendriers ESPN, eux, changent souvent).
+"""
+import csv, json, os, sys, datetime
+
+RACINE = os.path.dirname(os.path.abspath(__file__))
+os.chdir(RACINE)
+sys.path.insert(0, RACINE)
+
+import calendrier
+
+CHEMIN_DB = os.path.join("data", "modeles.json")
+
+
+def _num(x):
+    try:
+        v = float(str(x).strip())
+        return v if v > 1.0 else None
+    except (TypeError, ValueError):
+        return None
+
+
+def lire_cotes_co_uk(chemin=os.path.join("data", "fixtures.csv")):
+    """Relit le fixtures.csv fraîchement téléchargé : même quand co.uk a publié
+    de nouvelles cotes sans nouveauté historique, maj.py ne ré-entraîne pas et
+    modeles.json garderait les ANCIENNES cotes. On repart donc toujours du
+    fichier brut. Aucun échec n'est bloquant : None → repli sur la base."""
+    if not os.path.exists(chemin):
+        return None
+    out = []
+    try:
+        with open(chemin, encoding="utf-8-sig", newline="") as f:
+            for r in csv.DictReader(f):
+                d = (r.get("Date") or "").strip()
+                date_iso = ""
+                try:                      # format co.uk : JJ/MM/AAAA
+                    jj, mm, aa = d.split("/")
+                    date_iso = f"{aa}-{mm}-{jj}"
+                except ValueError:
+                    pass
+                out.append({
+                    "div": (r.get("Div") or "").strip(), "date": date_iso,
+                    "heure": (r.get("Time") or "").strip()[:5],
+                    "home": (r.get("HomeTeam") or "").strip(),
+                    "away": (r.get("AwayTeam") or "").strip(),
+                    "arbitre": (r.get("Referee") or "").strip() or None,
+                    "cote_1": _num(r.get("AvgH")), "cote_X": _num(r.get("AvgD")),
+                    "cote_2": _num(r.get("AvgA")),
+                    "cote_max_1": _num(r.get("MaxH")), "cote_max_X": _num(r.get("MaxD")),
+                    "cote_max_2": _num(r.get("MaxA")),
+                    "cote_over": _num(r.get("Avg>2.5")), "cote_under": _num(r.get("Avg<2.5")),
+                    "cote_over_max": _num(r.get("Max>2.5")), "cote_under_max": _num(r.get("Max<2.5")),
+                    "source": "co.uk",
+                })
+    except OSError:
+        return None
+    return out or None
+
+
+def main():
+    with open(CHEMIN_DB) as f:
+        db = json.load(f)
+    t0 = datetime.datetime.now()
+    log = calendrier.appliquer(db, cotes=lire_cotes_co_uk())
+    with open(CHEMIN_DB, "w") as f:
+        json.dump(db, f)
+    with open(os.path.join("data", "calendrier.json"), "w") as f:
+        json.dump({"matchs": db.get("fixtures", []), "journal": log,
+                   "genere_le": datetime.datetime.now().isoformat(timespec="minutes")}, f)
+    duree = (datetime.datetime.now() - t0).total_seconds()
+    src = log.get("sources", {})
+    print(f"calendrier : {log.get('total', 0)} matchs "
+          f"(ESPN {src.get('ESPN', 0)}, TheSportsDB {src.get('TheSportsDB', 0)}, "
+          f"OpenLigaDB {src.get('OpenLigaDB', 0)}) | cotes co.uk : {log.get('avec_cotes', 0)} "
+          f"| non traduits : {len(log.get('noms_non_traduits', {}))} | {duree:.0f} s | {log.get('statut')}")
+    return 0 if log.get("statut") == "ok" else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

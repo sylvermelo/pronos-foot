@@ -11,6 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import numpy as np
 from scipy.stats import poisson
 import modeles_secondaires as MS
+import calendrier as CAL
 
 MAXG = 10
 PORT = int(os.environ.get("PORT", 8000))
@@ -18,6 +19,25 @@ RACINE = os.path.dirname(os.path.abspath(__file__))
 
 with open(os.path.join(RACINE, "data/modeles.json")) as f:
     DB = json.load(f)
+
+
+def integrer_calendrier():
+    """Reconstruit le calendrier multi-sources (ESPN + TheSportsDB +
+    OpenLigaDB) et remplace DB["fixtures"]. Les cotes restent celles de
+    football-data.co.uk (jonction par équipes). Lancé en arrière-plan au
+    démarrage pour ne pas bloquer l'ouverture du serveur."""
+    try:
+        log = CAL.appliquer(DB)
+    except Exception as e:
+        log = {"statut": f"erreur : {e}", "total": 0}
+        DB["calendrier_log"] = log
+    return log
+
+
+# au démarrage du serveur uniquement — pas quand genere_app.py importe ce
+# module (les fixtures viennent alors déjà fraîches de maj_calendrier.py).
+if not os.environ.get("PRONOS_SANS_CALENDRIER"):
+    threading.Thread(target=integrer_calendrier, daemon=True).start()
 
 # backtest walk-forward des marches secondaires (genere par backtest_secondaires.py)
 # chargement paresseux avec cache base sur la date de modification : apres avoir
@@ -236,6 +256,7 @@ def api_matchs():
                 "home": fx["home"], "away": fx["away"], "arbitre": fx["arbitre"],
                 "cote_1": fx["cote_1"], "cote_X": fx["cote_X"], "cote_2": fx["cote_2"],
                 "cote_over": fx["cote_over"], "cote_under": fx["cote_under"],
+                "source": fx.get("source") or "co.uk", "ou_line": fx.get("ou_line"),
                 "disponible": p is not None}
         # libelle de journee : aujourd'hui, demain, puis J+2, J+3...
         try:
@@ -310,6 +331,7 @@ def api_refresh():
 
 def api_maj():
     return {"etat": _MAJ["etat"], "fin": _MAJ["fin"], "log": _MAJ["log"][-1200:],
+            "calendrier": DB.get("calendrier_log") or {},
             "genere_le": datetime.datetime.fromtimestamp(
                 os.path.getmtime(os.path.join(RACINE, "data/modeles.json")))
                 .isoformat(timespec="minutes")}
