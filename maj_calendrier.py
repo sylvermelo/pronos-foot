@@ -68,6 +68,19 @@ def main():
         db = json.load(f)
     t0 = datetime.datetime.now()
     log = calendrier.appliquer(db, cotes=lire_cotes_co_uk())
+    # Cotes EN DIRECT (The Odds API → Pinnacle) : écrase les cotes moyennes
+    # co.uk des matchs reconnus (48 prochaines heures). La clé vient du secret
+    # GitHub ODDS_API_KEY — jamais du dépôt. Une seule vraie mise à jour par
+    # jour (cache 20 h, 500 crédits/mois). Échec non bloquant.
+    try:
+        import cotes_live
+        n_sp = cotes_live.rafraichir(db)
+        n_fx = cotes_live.appliquer(db)
+        print(f"cotes live : {'cache mis à jour' if n_sp else 'cache encore frais'}"
+              f" ({n_sp} sport(s)) | {n_fx} fixture(s) en cotes Pinnacle")
+    except Exception as e:
+        print(f"cotes live : ÉCHEC non bloquant ({e}) — cotes co.uk conservées",
+              file=sys.stderr)
     with open(CHEMIN_DB, "w") as f:
         json.dump(db, f)
     with open(os.path.join("data", "calendrier.json"), "w") as f:

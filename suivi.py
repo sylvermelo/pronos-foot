@@ -213,7 +213,7 @@ def _pnl(s):
 def _combines_vue(combines):
     """Combinés du jour + gain simulé (1 unité) quand la cote est connue."""
     out = {}
-    for nom in ("safe", "risque"):
+    for nom in ("safe", "safe_weekend", "risque"):
         c = combines.get(nom)
         if not isinstance(c, dict):
             continue

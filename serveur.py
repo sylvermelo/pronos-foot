@@ -32,6 +32,17 @@ def integrer_calendrier():
     except Exception as e:
         log = {"statut": f"erreur : {e}", "total": 0}
         DB["calendrier_log"] = log
+    # La reconstruction du calendrier écrase les fixtures : ré-appliquer les
+    # cotes Pinnacle en direct depuis le CACHE local (aucun appel réseau ici —
+    # le téléchargement est fait par maj_calendrier.py avec le secret CI).
+    try:
+        import cotes_live
+        n_pin = cotes_live.appliquer(DB)
+        if n_pin:
+            log = dict(log or {})
+            log["cotes_pinnacle"] = n_pin
+    except Exception:
+        pass
     try:                                        # suivi des pronostics
         d = suivi.archiver(api_conseils(suivi.SEUIL_ARCHIVE))
         d, n = suivi.resoudre(d, DB)
@@ -266,6 +277,7 @@ def api_matchs():
                 "cote_1": fx["cote_1"], "cote_X": fx["cote_X"], "cote_2": fx["cote_2"],
                 "cote_over": fx["cote_over"], "cote_under": fx["cote_under"],
                 "source": fx.get("source") or "co.uk", "ou_line": fx.get("ou_line"),
+                "source_cotes": fx.get("source_cotes") or "co.uk",
                 "disponible": p is not None}
         # libelle de journee : aujourd'hui, demain, puis J+2, J+3...
         try:
@@ -357,27 +369,48 @@ def api_maj():
 MARGES_MARCHE = {"under 3.5": 0.13, "under 2.5": 0.05, "under 1.5": 0.02}
 
 
-def _combinaisons(sels, seuil, pool_risque):
-    """« Safe du jour » et « Risque du jour » : combinés de 2 ou 3 matchs.
+def _jours_weekend(aujourdhui=None):
+    """Dates ISO du vendredi, samedi et dimanche du week-end courant
+    (ou du week-end à venir si on est entre lundi et jeudi)."""
+    d = aujourdhui or datetime.date.today()
+    wd = d.weekday()                       # lundi=0 … vendredi=4, samedi=5, dimanche=6
+    if wd <= 3:                            # lun-jeu : le week-end qui vient
+        ven = d + datetime.timedelta(days=4 - wd)
+    elif wd == 4:                          # vendredi : c'est aujourd'hui
+        ven = d
+    else:                                  # sam/dim : celui en cours
+        ven = d - datetime.timedelta(days=wd - 4)
+    return [(ven + datetime.timedelta(days=i)).isoformat() for i in range(3)]
 
-    Safe   : les probabilités les plus hautes parmi les sélections conseillées,
-             en variant les ligues si possible.
-    Risque : les COTES les plus hautes parmi les options cotées du modèle
-             (1/X/2, over/under 2.5) avec planchers de probabilité (55 %,
-             65 % pour un under 2.5 — les unders sont fragiles, cf. suivi),
-             en excluant les matchs déjà présents dans le combiné SAFE.
-    Probabilité combinée = produit des probabilités (hypothèse d'indépendance,
-    approximation — les matchs d'un même championnat peuvent être corrélés).
-    Règles déterministes : même entrée → exactement même combiné.
+
+def _combinaisons(sels, seuil, pool_risque, aujourdhui=None):
+    """Trois combinés aux règles déterministes (même entrée → même sortie).
+
+    SAFE DU JOUR   : 3 matchs MAXIMUM, tous du MÊME jour (aujourd'hui).
+                     Moins de 3 éligibles → on prend ce qu'il y a (1 ou 2).
+                     Zéro → None (l'interface affiche « 0 »). Jamais le robot
+                     ne va chercher un match du jour suivant pour compléter.
+    SAFE WEEK-END  : vendredi + samedi + dimanche (week-end à venir si on est
+                     lun-jeu), 3 matchs maximum PAR JOUR → 9 au total si les 9
+                     sont disponibles. Même règle par jour : ce qui existe,
+                     rien de forcé. Les jours sans sélection comptent 0.
+    RISQUE DU JOUR : les COTES les plus hautes parmi les options cotées
+                     (aujourd'hui + demain), planchers de probabilité 55 %
+                     (65 % pour un under 2.5, fragile d'après le suivi),
+                     minimum 2 jambes, matchs des SAFE exclus.
+    Probabilité combinée = produit des probabilités (indépendance supposée,
+    approximation — des matchs d'un même championnat peuvent être corrélés).
     """
-    def construire(pool_, cle, mini_p):
+    def construire(pool_, cle, mini_p, max_legs=3):
+        """Les max_legs meilleures options du pool, en variant les ligues si
+        possible. Retourne une liste (éventuellement vide), jamais forcée."""
         legs = []
         for diversifie in (True, False):
             legs, vus, ligues = [], set(), set()
             tri = sorted(pool_, key=lambda z: (-(z.get(cle) or 0), -z["p"],
                                                z["date"], z["home"], z["away"]))
             for s in tri:
-                if len(legs) >= 3:
+                if len(legs) >= max_legs:
                     break
                 if not (s.get(cle) or 0) > 0 or s["p"] < mini_p:
                     continue
@@ -387,7 +420,10 @@ def _combinaisons(sels, seuil, pool_risque):
                 legs.append(s); vus.add(mid); ligues.add(s["ligue"])
             if len(legs) >= 2:
                 break
-        if len(legs) < 2:
+        return legs
+
+    def finaliser(legs, par_jour=None):
+        if not legs:
             return None
         p, cote, toutes_cotes = 1.0, 1.0, True
         for s in legs:
@@ -396,16 +432,37 @@ def _combinaisons(sels, seuil, pool_risque):
                 cote *= s["cote_marche"]
             else:
                 toutes_cotes = False
-        return {"legs": legs, "p_combine": round(p, 4),
-                "cote_combine": round(cote, 2) if toutes_cotes else None}
+        out = {"legs": legs, "p_combine": round(p, 4),
+               "cote_combine": round(cote, 2) if toutes_cotes else None}
+        if par_jour is not None:
+            out["par_jour"] = par_jour
+        return out
 
-    pool = [s for s in sels if s.get("jour_delta", 9) <= 1]
-    safe = construire(pool, "p", seuil)
+    auj = aujourdhui or datetime.date.today()
+    auj_iso = auj.isoformat()
+
+    # --- SAFE DU JOUR : aujourd'hui UNIQUEMENT -------------------------------
+    safe = finaliser(construire([s for s in sels if s.get("date") == auj_iso],
+                                "p", seuil))
+
+    # --- SAFE WEEK-END : 3 par jour (ven/sam/dim), jamais au-delà ------------
+    legs_w, par_jour = [], {}
+    for d in _jours_weekend(auj):
+        legs_d = construire([s for s in sels if s.get("date") == d], "p", seuil)
+        par_jour[d] = len(legs_d)
+        legs_w.extend(legs_d)
+    safe_weekend = finaliser(legs_w, par_jour=par_jour)
+
+    # --- RISQUE : aujourd'hui + demain, options cotées, SAFE exclus ----------
+    exclus = {(l["date"], l["home"], l["away"]) for l in legs_w}
     if safe:
-        exclus = {(l["date"], l["home"], l["away"]) for l in safe["legs"]}
-        pool_risque = [s for s in pool_risque
-                       if (s["date"], s["home"], s["away"]) not in exclus]
-    return {"safe": safe, "risque": construire(pool_risque, "cote_marche", 0.55)}
+        exclus |= {(l["date"], l["home"], l["away"]) for l in safe["legs"]}
+    pool_risque = [s for s in pool_risque
+                   if (s["date"], s["home"], s["away"]) not in exclus]
+    legs_r = construire(pool_risque, "cote_marche", 0.55)
+    risque = finaliser(legs_r) if len(legs_r) >= 2 else None
+
+    return {"safe": safe, "safe_weekend": safe_weekend, "risque": risque}
 
 
 def api_conseils(seuil=0.75):
@@ -435,7 +492,8 @@ def api_conseils(seuil=0.75):
                 "date": m["date"], "heure": m["heure"], "jour": m["jour"],
                 "jour_delta": m["jour_delta"],
                 "home": m["home"], "away": m["away"],
-                "confiance": m.get("confiance"), "buts": m.get("buts")}
+                "confiance": m.get("confiance"), "buts": m.get("buts"),
+                "cotes_source": m.get("source_cotes")}
         # pool du combiné « risque » : meilleure option COTÉE de chaque match
         # (aujourd'hui/demain), avec planchers de probabilité honnêtes.
         if m["jour_delta"] <= 1:

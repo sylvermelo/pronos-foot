@@ -107,6 +107,7 @@ tr.row.sel{background:var(--hi2);box-shadow:inset 3px 0 0 var(--green)}
 .srcb.o{background:rgba(245,158,11,.13);color:var(--amber)}
 .srcb.t{background:rgba(0,245,155,.1);color:var(--green)}
 .srcb.c{background:rgba(148,163,184,.12);color:var(--mut2)}
+.srcb.p{background:rgba(168,85,247,.15);color:#c084fc}
 th.triable{cursor:pointer;user-select:none}
 th.triable:hover{color:var(--txt)}
 .triind{margin-left:4px;color:var(--cyan);font-size:8px}
@@ -377,19 +378,32 @@ function rendu(){renduNav();
    SÉLECTION CONSEILLÉE — chaque jour, les matchs dont l'option la plus
    probable atteint le seuil choisi (70 / 75 / 80 %). Liste honnête :
    probabilité ≠ gain garanti.                                            */
-function carteCombine(titre,c,couleur,avert){
-  if(!c) return `<div class="card"><div class="top"><span class="lbl" style="color:${couleur}">${esc(titre)}</span></div>
-    <div class="det" style="margin-top:8px">Pas assez de sélections éligibles (aujourd'hui + demain) pour former
-    ce combiné : le robot s'abstient plutôt que de forcer une combinaison.</div></div>`;
-  let h=`<div class="card"><div class="top"><span class="lbl" style="color:${couleur}">${esc(titre)}</span>
-    <span class="lbl">${c.legs.length} matchs</span></div>`;
-  for(const l of c.legs){
-    h+=`<div class="ligne" style="margin-top:8px"><div class="l">
+function carteCombine(titre,c,couleur,avert,videTxt,groupe){
+  if(!c||!c.legs||!c.legs.length) return `<div class="card"><div class="top">
+    <span class="lbl" style="color:${couleur}">${esc(titre)}</span>
+    <span class="lbl" style="font-size:22px;color:var(--txt)">0</span></div>
+    <div class="det" style="margin-top:8px">${esc(videTxt||"Aucune sélection éligible : le robot s'abstient plutôt que de forcer une combinaison.")}</div></div>`;
+  const ligne=l=>`<div class="ligne" style="margin-top:8px"><div class="l">
       <b>${esc(l.home)} <span class="mu">vs</span> ${esc(l.away)}</b>
       <div class="sub">${esc(l.date)} · ${esc(l.heure||"—")} · ${esc(l.ligue)} ·
         <span style="color:${couleur}">${esc(l.option)}</span></div></div>
       <div class="r"><div class="p" style="color:${couleur}">${pct1(l.p)} %</div>
       <div class="sub">${l.cote_marche?"@ "+f2(l.cote_marche):"sans cote"}</div></div></div>`;
+  let h=`<div class="card"><div class="top"><span class="lbl" style="color:${couleur}">${esc(titre)}</span>
+    <span class="lbl">${c.legs.length} match${c.legs.length>1?"s":""}</span></div>`;
+  if(groupe&&c.par_jour){
+    const lib=["vendredi","samedi","dimanche"];
+    let i=0;
+    for(const d of Object.keys(c.par_jour)){
+      const n=c.par_jour[d]||0;
+      h+=`<div class="dayhead" style="margin-top:10px">
+        <span class="lbl mu">${lib[i]||""} ${esc(d)}</span><span class="line"></span>
+        <span class="lbl ${n?"g":"mu"}">${n?n+" match"+(n>1?"s":""):"aucune sélection"}</span></div>`;
+      for(const l of c.legs.filter(x=>x.date===d)) h+=ligne(l);
+      i++;
+    }
+  }else{
+    for(const l of c.legs) h+=ligne(l);
   }
   h+=`<div class="det" style="margin-top:10px">Probabilité combinée :
       <b class="g" style="font-size:15px">${pct1(c.p_combine)} %</b>`+
@@ -418,10 +432,15 @@ function tabConseils(){
     let h="";
     const cb=r.combines||{};
     h+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;margin-bottom:14px">
-      ${carteCombine("SAFE DU JOUR — combiné de 2-3 matchs",cb.safe,"var(--green)",
-        "Probabilité combinée = produit des probabilités (indépendance supposée, approximation). Trois jambes à ~85 % donnent ~61 % : environ 2 échecs sur 5. Aucun gain garanti.")}
+      ${carteCombine("SAFE DU JOUR — 3 matchs max, aujourd'hui uniquement",cb.safe,"var(--green)",
+        "Probabilité combinée = produit des probabilités (indépendance supposée, approximation). Trois jambes à ~85 % donnent ~61 % : environ 2 échecs sur 5. Aucun gain garanti.",
+        "0 — aucune sélection au-dessus du seuil AUJOURD'HUI. Le robot ne va jamais chercher un match des jours suivants pour compléter.")}
+      ${carteCombine("SAFE WEEK-END — ven + sam + dim, 3 par jour (9 max)",cb.safe_weekend,"var(--cyan)",
+        "Même principe que le SAFE DU JOUR, étalé sur les trois jours du week-end : 3 matchs maximum par jour, jamais plus, rien de forcé. Attention : à 9 jambes, même très probables une par une, la probabilité combinée chute vite — c'est mathématique. Aucun gain garanti.",
+        "0 — aucune sélection éligible ce week-end (ni vendredi, ni samedi, ni dimanche).",true)}
       ${carteCombine("RISQUE DU JOUR — combiné de 2-3 matchs",cb.risque,"var(--amber)",
-        "Cotes élevées = probabilité faible : ce combiné perdra plus souvent qu'il ne gagnera. Sur le backtest, le modèle ne bat pas les bookmakers (ROI −8,8 %). Divertissement uniquement — ne misez jamais plus que ce que vous acceptez de perdre.")}
+        "Cotes élevées = probabilité faible : ce combiné perdra plus souvent qu'il ne gagnera. Sur le backtest, le modèle ne bat pas les bookmakers (ROI −8,8 %). Divertissement uniquement — ne misez jamais plus que ce que vous acceptez de perdre.",
+        "Pas assez d'options cotées éligibles (aujourd'hui + demain) : le robot s'abstient.")}
     </div>`;
     if(!r.jours.length){
       h=`<div class="card empty"><b>Aucun</b>
@@ -446,7 +465,7 @@ function tabConseils(){
           <td><span class="tagv" style="background:rgba(0,245,155,.12);color:var(--green)">${esc(s.option)}</span></td>
           <td class="num g" style="font-size:15px">${pct1(s.p)} %</td>
           <td class="num cy">${f2(s.cote_juste)}</td>
-          <td class="num ${s.cote_marche&&s.cote_marche>=s.cote_juste?"g":"mu"}">${s.cote_marche?f2(s.cote_marche):"—"}</td>
+          <td class="num ${s.cote_marche&&s.cote_marche>=s.cote_juste?"g":"mu"}" title="${s.cotes_source==="pinnacle"?"Cote Pinnacle en direct":"Cote moyenne football-data.co.uk"}">${s.cote_marche?f2(s.cote_marche):"—"}</td>
           <td class="num mu">${f2(s.buts)}</td>
           <td><span class="tagv" style="color:${s.confiance==="haute"?"var(--green)":s.confiance==="moyenne"?"var(--amber)":"var(--red)"};background:rgba(148,163,184,.08)">${esc(s.confiance||"—")}</span></td></tr>`;
       }
@@ -532,7 +551,7 @@ function renduSuivi(){
     <span class="lbl mu">prédit le ${esc(j.jour_prono)}${j.genere_le?" à "+esc(j.genere_le.slice(11,16)):""} · seuil ${Math.round((j.seuil||0.75)*100)} %</span><span class="line"></span>
     <span class="lbl ${j.nb_resolus?"g":"mu"}">${j.nb_resolus?j.nb_touches+"/"+j.nb_resolus+" touché"+(j.nb_resolus>1?"s":""):"rien de résolu encore"}${j.nb>j.nb_resolus?" · "+(j.nb-j.nb_resolus)+" en attente":""}</span></div>`;
   const cbj=j.combines||{};
-  for(const [nom,c] of [["Combiné SAFE DU JOUR",cbj.safe],["Combiné RISQUE DU JOUR",cbj.risque]]){
+  for(const [nom,c] of [["Combiné SAFE DU JOUR",cbj.safe],["Combiné SAFE WEEK-END",cbj.safe_weekend],["Combiné RISQUE DU JOUR",cbj.risque]]){
     if(!c||!c.legs) continue;
     const rr=c.resultat;
     h+=`<div class="warn" style="margin:6px 0"><b>${nom}</b> · ${c.legs.length} matchs ·
@@ -584,7 +603,9 @@ function tabMatchs(){
     liste=`<div class="card empty"><b>Aucun match à venir dans la fenêtre du calendrier</b>
       Le calendrier est reconstruit plusieurs fois par jour à partir d'ESPN,
       TheSportsDB et OpenLigaDB (fenêtre ~8 jours), les cotes venant de
-      football-data.co.uk. Si cette liste est vide, aucune source n'a publié de
+      football-data.co.uk, complétées par les cotes Pinnacle en direct
+      (The Odds API) sur les matchs des 48 prochaines heures quand elles
+      sont disponibles. Si cette liste est vide, aucune source n'a publié de
       match : ce n'est pas un bug, réessayez après le prochain rafraîchissement.</div>`;
   }
   for(const j of jours){
@@ -601,7 +622,7 @@ function tabMatchs(){
       liste+=`<tr class="row${sel}" data-id="${id}">
         <td class="num">${esc(m.heure||"—")}</td>
         <td><div class="tname">${esc(m.home)} <span class="mu">vs</span> ${esc(m.away)}</div>
-            <div class="tsub">${esc(m.ligue)} · ${esc(m.pays)}${srcb(m)}</div></td>
+            <div class="tsub">${esc(m.ligue)} · ${esc(m.pays)}${srcb(m)}${m.source_cotes==="pinnacle"?'<span class="srcb p" title="Cotes Pinnacle en direct (The Odds API, mises à jour toutes les 20 h)">PINNACLE</span>':""}</div></td>
         <td class="num">${pct1(m.p1)}</td><td class="num mu">${pct1(m.pX)}</td><td class="num">${pct1(m.p2)}</td>
         <td class="num g">${pct1(m.over&&m.over["1.5"])}</td>
         <td class="num g">${pct1(m.over25)}</td>
@@ -618,7 +639,7 @@ function tabMatchs(){
     <div>
       <div class="htitle"><h1>Matchs à venir</h1>
         <span class="badge cy">CALENDRIER : ESPN + THESPORTSDB + OPENLIGADB</span>
-        <span class="badge cy">COTES : FOOTBALL-DATA.CO.UK</span>
+        <span class="badge cy">COTES : CO.UK + PINNACLE EN DIRECT</span>
         <span class="badge gy"><span class="dot"></span>FILTRAGE ANTI-PASSÉ ACTIF</span></div>
       <p class="desc">Calendrier trié du jour le plus proche au plus lointain : aujourd'hui, demain, puis J+2…
       Les matchs déjà joués sont exclus automatiquement. Cliquez sur une ligne pour ouvrir

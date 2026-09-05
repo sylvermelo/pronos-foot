@@ -18,6 +18,9 @@ data/config.json
 #    l'onglet « Fautes & cartons ». Sans lui, l'application afficherait
 #    « Backtest non disponible ».
 
+# cache régénérable des cotes en direct (The Odds API)
+data/cotes_live.json
+
 # ---- journaux ------------------------------------------------------------
 data/maj.log
 data/maj-stdout.log

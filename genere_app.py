@@ -235,17 +235,34 @@ function pronosticJS(div,h,a){
    fréquences historiques co.uk 2023-2026. */
 const MARGES_MARCHE={"under 3.5":0.13,"under 2.5":0.05,"under 1.5":0.02};
 
+function joursWeekendJS(auj){
+  /* vendredi, samedi, dimanche du week-end courant (ou à venir si lun-jeu).
+     Miroir exact de serveur._jours_weekend : lundi=0 … dimanche=6. */
+  const wd=(auj.getDay()+6)%7;
+  const j0=new Date(auj.getFullYear(),auj.getMonth(),auj.getDate());
+  let ven;
+  if(wd<=3) ven=new Date(j0.getFullYear(),j0.getMonth(),j0.getDate()+(4-wd));
+  else if(wd===4) ven=j0;
+  else ven=new Date(j0.getFullYear(),j0.getMonth(),j0.getDate()-(wd-4));
+  const p=n=>String(n).padStart(2,"0");
+  const iso=d=>d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());
+  return [0,1,2].map(i=>iso(new Date(ven.getFullYear(),ven.getMonth(),ven.getDate()+i)));
+}
+
 function combinaisonsJS(sels,seuil,poolRisque){
-  const pool=sels.filter(s=>(s.jour_delta==null?9:s.jour_delta)<=1);
+  const auj=new Date();
+  const p=n=>String(n).padStart(2,"0");
+  const aujIso=auj.getFullYear()+"-"+p(auj.getMonth()+1)+"-"+p(auj.getDate());
   function cmp(a,b){return a<b?-1:a>b?1:0;}
-  function construire(pool_,cle,miniP){
+  function construire(pool_,cle,miniP,maxLegs){
+    maxLegs=maxLegs||3;
     let legs=[];
     for(const diversifie of [true,false]){
       legs=[];const vus=new Set(),ligues=new Set();
       const tri=pool_.slice().sort((a,b)=>((b[cle]||0)-(a[cle]||0))||(b.p-a.p)||
         cmp(a.date,b.date)||cmp(a.home,b.home)||cmp(a.away,b.away));
       for(const s of tri){
-        if(legs.length>=3)break;
+        if(legs.length>=maxLegs)break;
         if(!((s[cle]||0)>0)||s.p<miniP)continue;
         const mid=s.date+"|"+s.home+"|"+s.away;
         if(vus.has(mid)||(diversifie&&ligues.has(s.ligue)))continue;
@@ -253,18 +270,33 @@ function combinaisonsJS(sels,seuil,poolRisque){
       }
       if(legs.length>=2)break;
     }
-    if(legs.length<2)return null;
-    let p=1,cote=1,toutes=true;
-    for(const s of legs){p*=s.p;if(s.cote_marche)cote*=s.cote_marche;else toutes=false;}
-    return {legs:legs,p_combine:+p.toFixed(4),cote_combine:toutes?+cote.toFixed(2):null};
+    return legs;
   }
-  const safe=construire(pool,"p",seuil);
-  let pr=(poolRisque||[]).slice();
-  if(safe){
-    const ex=new Set(safe.legs.map(l=>l.date+"|"+l.home+"|"+l.away));
-    pr=pr.filter(s=>!ex.has(s.date+"|"+s.home+"|"+s.away));
+  function finaliser(legs,parJour){
+    if(!legs.length)return null;
+    let pr_=1,cote=1,toutes=true;
+    for(const s of legs){pr_*=s.p;if(s.cote_marche)cote*=s.cote_marche;else toutes=false;}
+    const out={legs:legs,p_combine:+pr_.toFixed(4),cote_combine:toutes?+cote.toFixed(2):null};
+    if(parJour)out.par_jour=parJour;
+    return out;
   }
-  return {safe:safe,risque:construire(pr,"cote_marche",0.55)};
+  /* SAFE DU JOUR : aujourd'hui UNIQUEMENT, 1 à 3 jambes, jamais le lendemain */
+  const safe=finaliser(construire(sels.filter(s=>s.date===aujIso),"p",seuil));
+  /* SAFE WEEK-END : ven+sam+dim, 3 maximum par jour, 9 au total */
+  const jw=joursWeekendJS(auj);
+  let legsW=[];const parJour={};
+  for(const d of jw){
+    const ld=construire(sels.filter(s=>s.date===d),"p",seuil);
+    parJour[d]=ld.length;
+    legsW=legsW.concat(ld);
+  }
+  const safeWeekend=finaliser(legsW,parJour);
+  /* RISQUE : aujourd'hui+demain, options cotées, jambes des SAFE exclues */
+  const exclus=new Set(legsW.map(l=>l.date+"|"+l.home+"|"+l.away));
+  if(safe)for(const l of safe.legs)exclus.add(l.date+"|"+l.home+"|"+l.away);
+  const pr=(poolRisque||[]).filter(s=>!exclus.has(s.date+"|"+s.home+"|"+s.away));
+  const lr=construire(pr,"cote_marche",0.55);
+  return {safe:safe,safe_weekend:safeWeekend,risque:lr.length>=2?finaliser(lr):null};
 }
 
 function conseilsJS(seuil){
@@ -278,7 +310,7 @@ function conseilsJS(seuil){
     const o=m.over,u=m.under,dc=m.double_chance||{};
     const base={div:m.div,ligue:m.ligue,pays:m.pays,date:m.date,heure:m.heure,
       jour:m.jour,jour_delta:m.jour_delta,home:m.home,away:m.away,
-      confiance:m.confiance,buts:m.buts};
+      confiance:m.confiance,buts:m.buts,cotes_source:m.source_cotes};
     if((m.jour_delta==null?9:m.jour_delta)<=1){
       const oc=[["1",m.p1,m.cote_1],["X",m.pX,m.cote_X],["2",m.p2,m.cote_2],
         ["over 2.5",o["2.5"],m.cote_over],["under 2.5",u["2.5"],m.cote_under]];

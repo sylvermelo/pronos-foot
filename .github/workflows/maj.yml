@@ -38,6 +38,11 @@ jobs:
   mise-a-jour:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      # Clé The Odds API (cotes Pinnacle en direct). Secrète : stockée dans
+      # Settings → Secrets and variables → Actions, JAMAIS dans le dépôt.
+      # Sans elle, tout continue de fonctionner avec les cotes co.uk.
+      ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
     # environnement requis par actions/deploy-pages pour publier correctement
     environment:
       name: github-pages
