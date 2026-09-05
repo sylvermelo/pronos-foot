@@ -75,9 +75,18 @@ jobs:
             donnees-v1-
 
       - name: Télécharger les nouveautés et ré-entraîner si nécessaire
-        run: python maj.py
+        run: |
+          python maj.py && code=0 || code=$?
+          if [ "$code" -eq 2 ]; then
+            echo "::warning::football-data.co.uk est injoignable — on continue avec les données existantes (calendrier ESPN, cotes en cache). Rien n'est perdu."
+          elif [ "$code" -ne 0 ]; then
+            exit "$code"
+          fi
         # maj.py ne touche à rien s'il n'y a pas de nouveauté, et n'écrase
         # jamais les données existantes en cas de coupure du site source.
+        # Code 2 = « source injoignable » : ce n'est pas une erreur bloquante,
+        # les étapes suivantes (calendrier ESPN, cotes Pinnacle, génération)
+        # fonctionnent très bien avec les données déjà présentes.
 
       - name: Reconstruire le calendrier multi-sources
         run: python maj_calendrier.py || echo "calendrier inchangé (sources injoignables ?)"
