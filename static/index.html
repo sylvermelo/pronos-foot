@@ -377,6 +377,27 @@ function rendu(){renduNav();
    SÉLECTION CONSEILLÉE — chaque jour, les matchs dont l'option la plus
    probable atteint le seuil choisi (70 / 75 / 80 %). Liste honnête :
    probabilité ≠ gain garanti.                                            */
+function carteCombine(titre,c,couleur,avert){
+  if(!c) return `<div class="card"><div class="top"><span class="lbl" style="color:${couleur}">${esc(titre)}</span></div>
+    <div class="det" style="margin-top:8px">Pas assez de sélections éligibles (aujourd'hui + demain) pour former
+    ce combiné : le robot s'abstient plutôt que de forcer une combinaison.</div></div>`;
+  let h=`<div class="card"><div class="top"><span class="lbl" style="color:${couleur}">${esc(titre)}</span>
+    <span class="lbl">${c.legs.length} matchs</span></div>`;
+  for(const l of c.legs){
+    h+=`<div class="ligne" style="margin-top:8px"><div class="l">
+      <b>${esc(l.home)} <span class="mu">vs</span> ${esc(l.away)}</b>
+      <div class="sub">${esc(l.date)} · ${esc(l.heure||"—")} · ${esc(l.ligue)} ·
+        <span style="color:${couleur}">${esc(l.option)}</span></div></div>
+      <div class="r"><div class="p" style="color:${couleur}">${pct1(l.p)} %</div>
+      <div class="sub">${l.cote_marche?"@ "+f2(l.cote_marche):"sans cote"}</div></div></div>`;
+  }
+  h+=`<div class="det" style="margin-top:10px">Probabilité combinée :
+      <b class="g" style="font-size:15px">${pct1(c.p_combine)} %</b>`+
+     (c.cote_combine?` &nbsp;·&nbsp; Cote combinée : <b class="cy" style="font-size:15px">${f2(c.cote_combine)}</b>`:"")+`</div>
+    <div class="det mu" style="margin-top:6px;line-height:1.6">${avert}</div></div>`;
+  return h;
+}
+
 function tabConseils(){
   ETAT.seuil=ETAT.seuil||0.75;
   $("#main").innerHTML=`<div class="band"><div><div class="htitle"><h1>Sélection conseillée</h1>
@@ -395,6 +416,13 @@ function tabConseils(){
     const w=$("#consWrap"); if(!w) return;
     const total=r.jours.reduce((a,j)=>a+j.nb,0);
     let h="";
+    const cb=r.combines||{};
+    h+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;margin-bottom:14px">
+      ${carteCombine("SAFE DU JOUR — combiné de 2-3 matchs",cb.safe,"var(--green)",
+        "Probabilité combinée = produit des probabilités (indépendance supposée, approximation). Trois jambes à ~85 % donnent ~61 % : environ 2 échecs sur 5. Aucun gain garanti.")}
+      ${carteCombine("RISQUE DU JOUR — combiné de 2-3 matchs",cb.risque,"var(--amber)",
+        "Cotes élevées = probabilité faible : ce combiné perdra plus souvent qu'il ne gagnera. Sur le backtest, le modèle ne bat pas les bookmakers (ROI −8,8 %). Divertissement uniquement — ne misez jamais plus que ce que vous acceptez de perdre.")}
+    </div>`;
     if(!r.jours.length){
       h=`<div class="card empty"><b>Aucun</b>
         Dans la fenêtre actuelle du calendrier (~8 jours), aucun match n'atteint
@@ -488,6 +516,14 @@ function renduSuivi(){
     return;
   }
   let h="";
+  if(r.par_marche&&Object.keys(r.par_marche).length){
+    h+=`<div class="tblwrap" style="margin-bottom:12px"><table><thead><tr>
+      <th>Réussite réelle par marché</th><th>Résolus</th><th>Touchés</th><th>Taux</th></tr></thead><tbody>`;
+    for(const k of Object.keys(r.par_marche)){const v=r.par_marche[k];
+      h+=`<tr><td>${esc(k)}</td><td class="num">${v.resolus}</td><td class="num">${v.touches}</td>
+        <td class="num ${v.taux>=0.75?"g":v.taux>=0.65?"am":"rd"}">${pct1(v.taux)} %</td></tr>`;}
+    h+=`</tbody></table></div>`;
+  }
   if(j.retro) h+=`<div class="warn" style="margin-bottom:10px">Comblement rétroactif : ces sélections ont été
     <b>recalculées après coup</b> avec le modèle actuel, qui n'avait <b>pas été entraîné</b> sur ces matchs
     (la source hebdomadaire ne les contenait pas encore). Journée marquée « rétro » — à partir d'aujourd'hui,
@@ -495,6 +531,18 @@ function renduSuivi(){
   h+=`<div class="dayhead"><span class="lbl">${esc(j.libelle)}</span>
     <span class="lbl mu">prédit le ${esc(j.jour_prono)}${j.genere_le?" à "+esc(j.genere_le.slice(11,16)):""} · seuil ${Math.round((j.seuil||0.75)*100)} %</span><span class="line"></span>
     <span class="lbl ${j.nb_resolus?"g":"mu"}">${j.nb_resolus?j.nb_touches+"/"+j.nb_resolus+" touché"+(j.nb_resolus>1?"s":""):"rien de résolu encore"}${j.nb>j.nb_resolus?" · "+(j.nb-j.nb_resolus)+" en attente":""}</span></div>`;
+  const cbj=j.combines||{};
+  for(const [nom,c] of [["Combiné SAFE DU JOUR",cbj.safe],["Combiné RISQUE DU JOUR",cbj.risque]]){
+    if(!c||!c.legs) continue;
+    const rr=c.resultat;
+    h+=`<div class="warn" style="margin:6px 0"><b>${nom}</b> · ${c.legs.length} matchs ·
+      probabilité combinée ${pct1(c.p_combine)} %${c.cote_combine?` · cote ${f2(c.cote_combine)}`:""}<br>
+      ${c.legs.map(l=>`${esc(l.home)}/${esc(l.away)} : <b>${esc(l.option)}</b>`).join(" + ")}<br>
+      ${rr?`Verdict : <b class="${rr.touche?"g":"rd"}">${rr.touche?"✓ GAGNÉ":"✗ PERDU"}</b> — `+
+           rr.legs.map(l=>`${esc(l.home)}/${esc(l.away)} ${esc(l.score)} ${l.touche?"✓":"✗"}`).join(" · ")+
+           (c.pnl!=null?` · gain simulé : <b class="${c.pnl>=0?"g":"rd"}">${c.pnl>0?"+":""}${f2(c.pnl)} u</b>`:"")
+        :`<span class="mu">en attente — le verdict apparaîtra quand tous les matchs seront finis.</span>`}</div>`;
+  }
   h+=`<div class="tblwrap"><table><thead><tr><th>Heure</th><th>Match</th><th>Ligue</th>
     <th>Option conseillée</th><th>Probabilité</th><th>Cote juste</th><th>Cote marché</th>
     <th>Confiance</th><th>Score final</th><th>Verdict</th><th>Gain (1u)</th></tr></thead><tbody>`;

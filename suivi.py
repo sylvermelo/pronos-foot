@@ -102,9 +102,26 @@ def archiver(conseils, d=None, jour=None, retro=False):
     for s in sels:
         r = anciens.get((s["date"], s["home"], s["away"]))
         s["resultat"] = r                      # None tant que non résolu
+    # combinés : reporter les jambes déjà résolues (évite de re-interroger ESPN)
+    anciens_comb = {}
+    for c in (entree.get("combines") or {}).values():
+        if isinstance(c, dict):
+            for l in c.get("legs") or []:
+                if l.get("resultat"):
+                    anciens_comb[(l.get("date"), l.get("home"), l.get("away"),
+                                  l.get("option"))] = l["resultat"]
+    comb = conseils.get("combines") or {}
+    for c in comb.values():
+        if isinstance(c, dict):
+            for l in c.get("legs") or []:
+                r = anciens_comb.get((l.get("date"), l.get("home"), l.get("away"),
+                                      l.get("option")))
+                if r:
+                    l["resultat"] = r
     d["jours"][jour] = {
         "genere_le": datetime.datetime.now().isoformat(timespec="minutes"),
-        "seuil": SEUIL_ARCHIVE, "retro": bool(retro), "selections": sels}
+        "seuil": SEUIL_ARCHIVE, "retro": bool(retro), "selections": sels,
+        "combines": comb}
     return d
 
 
@@ -112,50 +129,78 @@ def archiver(conseils, d=None, jour=None, retro=False):
 def resoudre(d, db):
     """Récupère les scores finaux (ESPN) des matchs archivés non résolus.
 
-    Retourne (d, n_nouveaux). Ne modifie rien d'autre ; un match sans score
-    disponible reste en attente et sera retenté au passage suivant.
+    Résout les sélections ET chaque jambe des combinés (une jambe peut être
+    une option cotée qui n'est pas dans la sélection conseillée du match).
+    Retourne (d, n_nouveaux). Un match sans score disponible reste en attente
+    et sera retenté au passage suivant.
     """
     auj = datetime.date.today()
     eq = {div: sorted(L["forces"].keys()) for div, L in db.get("ligues", {}).items()}
     map_ = CAL.Mappeur(eq)
     cache = {}                                 # (div, date) → {(h, a): (bh, ba)}
+
+    def score_de(div, date_m, home, away):
+        if not div or not date_m or not home or not away:
+            return None
+        try:
+            dm = datetime.date.fromisoformat(date_m)
+        except ValueError:
+            return None
+        if dm > auj:
+            return None                        # pas encore joué
+        cle = (div, date_m)
+        if cle not in cache:
+            idx = {}
+            slug = CAL.ESPN_SLUGS.get(div)
+            if slug:
+                for r in CAL.espn_resultats(slug, date_m):
+                    h = map_.traduire(div, r["home_src"])
+                    a = map_.traduire(div, r["away_src"])
+                    if h and a:
+                        idx[(h, a)] = (r["buts_home"], r["buts_away"])
+            cache[cle] = idx
+        return cache[cle].get((home, away))
+
+    def marquer(s):
+        sc = score_de(s.get("div"), s.get("date"), s.get("home"), s.get("away"))
+        if not sc:
+            return False
+        bh, ba = sc
+        s["resultat"] = {"buts_home": bh, "buts_away": ba,
+                         "touche": touche(s.get("option"), bh, ba),
+                         "resolu_le": auj.isoformat()}
+        return True
+
     n = 0
     for jour, entree in d["jours"].items():
         for s in entree.get("selections", []):
-            if s.get("resultat") or not s.get("date"):
+            if not s.get("resultat") and marquer(s):
+                n += 1
+        # combinés : chaque jambe est résolue indépendamment, puis le verdict
+        for c in (entree.get("combines") or {}).values():
+            if not isinstance(c, dict):
                 continue
-            try:
-                dm = datetime.date.fromisoformat(s["date"])
-            except ValueError:
-                continue
-            if dm > auj:
-                continue                       # pas encore joué
-            cle = (s.get("div"), s["date"])
-            if cle not in cache:
-                idx = {}
-                slug = CAL.ESPN_SLUGS.get(s.get("div"))
-                if slug:
-                    for r in CAL.espn_resultats(slug, s["date"]):
-                        h = map_.traduire(s["div"], r["home_src"])
-                        a = map_.traduire(s["div"], r["away_src"])
-                        if h and a:
-                            idx[(h, a)] = (r["buts_home"], r["buts_away"])
-                cache[cle] = idx
-            sc = cache[cle].get((s.get("home"), s.get("away")))
-            if not sc:
-                continue
-            bh, ba = sc
-            s["resultat"] = {"buts_home": bh, "buts_away": ba,
-                             "touche": touche(s.get("option"), bh, ba),
-                             "resolu_le": auj.isoformat()}
-            n += 1
+            legs = c.get("legs") or []
+            for l in legs:
+                if not l.get("resultat") and marquer(l):
+                    n += 1
+            if legs and all(l.get("resultat") for l in legs):
+                c["resultat"] = {
+                    "touche": all(bool(l["resultat"].get("touche")) for l in legs),
+                    "legs": [{"home": l.get("home"), "away": l.get("away"),
+                              "option": l.get("option"),
+                              "score": "{}:{}".format(l["resultat"]["buts_home"],
+                                                      l["resultat"]["buts_away"]),
+                              "touche": bool(l["resultat"].get("touche"))}
+                             for l in legs]}
+            else:
+                c.pop("resultat", None)
     # purge des jours trop anciens
     coupe = (auj - datetime.timedelta(days=GARDE_JOURS)).isoformat()
     d["jours"] = {k: v for k, v in d["jours"].items() if k >= coupe}
     return d, n
 
 
-# ---------------------------------------------------------------- vue API
 def _pnl(s):
     """Gain simulé : 1 unité misée si une cote marché existe, sinon None."""
     r = s.get("resultat")
@@ -163,6 +208,21 @@ def _pnl(s):
     if not r or not c:
         return None
     return round(c - 1.0, 2) if r.get("touche") else -1.0
+
+
+def _combines_vue(combines):
+    """Combinés du jour + gain simulé (1 unité) quand la cote est connue."""
+    out = {}
+    for nom in ("safe", "risque"):
+        c = combines.get(nom)
+        if not isinstance(c, dict):
+            continue
+        r = c.get("resultat")
+        pnl = None
+        if r and c.get("cote_combine"):
+            pnl = round(c["cote_combine"] - 1.0, 2) if r.get("touche") else -1.0
+        out[nom] = {**c, "pnl": pnl}
+    return out
 
 
 def vue():
@@ -191,7 +251,23 @@ def vue():
             "taux": round(len(touch) / len(res), 4) if res else None,
             "pnl": round(sum(pnl), 2) if pnl else None,
             "selections": [{**s, "pnl": _pnl(s)} for s in sels],
+            "combines": _combines_vue(e.get("combines") or {}),
         })
+    fam = {}
+    for j in jours:
+        for s in j["selections"]:
+            r = s.get("resultat")
+            if not r:
+                continue
+            o = s.get("option") or ""
+            cle = ("under" if o.startswith("under") else
+                   "over" if o.startswith("over") else o)
+            t = fam.setdefault(cle, [0, 0])
+            t[0] += 1
+            t[1] += 1 if r.get("touche") else 0
+    par_marche = {k: {"resolus": v[0], "touches": v[1],
+                      "taux": round(v[1] / v[0], 4)}
+                  for k, v in sorted(fam.items(), key=lambda z: -z[1][0])}
     t_res = sum(j["nb_resolus"] for j in jours)
     t_tou = sum(j["nb_touches"] for j in jours)
     t_pnl = [j["pnl"] for j in jours if j["pnl"] is not None]
@@ -201,6 +277,7 @@ def vue():
                   "touches": t_tou,
                   "taux": round(t_tou / t_res, 4) if t_res else None,
                   "pnl": round(sum(t_pnl), 2) if t_pnl else None},
+        "par_marche": par_marche,
         "depuis": min((j["jour_prono"] for j in jours), default=None),
         "note": ("Suivi réel : chaque sélection conseillée (seuil 75 %) est archivée "
                  "puis comparée au score final officiel (ESPN). Une option à 75 % "

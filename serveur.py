@@ -345,6 +345,68 @@ def api_maj():
                 .isoformat(timespec="minutes")}
 
 
+# Marges exigées POUR LES MARCHÉS FRAGILES, en plus du seuil de base.
+# Justification mesurée (suivi réel + historiques co.uk 2023-2026) :
+#  · unders touchés à 58 % contre 92 % aux overs dans le suivi en direct ;
+#  · la fréquence RÉELLE d'un under 3.5 par division (58 à 75 %) est presque
+#    toujours inférieure à ce que Dixon-Coles annonce — le modèle sous-estime
+#    les matchs à 4-5 buts (queues de distribution trop fines).
+# On durcit donc les unders au lieu de les supprimer : un under 3.5 doit être
+# annoncé à seuil + 13 points pour entrer dans la sélection conseillée.
+MARGES_MARCHE = {"under 3.5": 0.13, "under 2.5": 0.05, "under 1.5": 0.02}
+
+
+def _combinaisons(sels, seuil, pool_risque):
+    """« Safe du jour » et « Risque du jour » : combinés de 2 ou 3 matchs.
+
+    Safe   : les probabilités les plus hautes parmi les sélections conseillées,
+             en variant les ligues si possible.
+    Risque : les COTES les plus hautes parmi les options cotées du modèle
+             (1/X/2, over/under 2.5) avec planchers de probabilité (55 %,
+             65 % pour un under 2.5 — les unders sont fragiles, cf. suivi),
+             en excluant les matchs déjà présents dans le combiné SAFE.
+    Probabilité combinée = produit des probabilités (hypothèse d'indépendance,
+    approximation — les matchs d'un même championnat peuvent être corrélés).
+    Règles déterministes : même entrée → exactement même combiné.
+    """
+    def construire(pool_, cle, mini_p):
+        legs = []
+        for diversifie in (True, False):
+            legs, vus, ligues = [], set(), set()
+            tri = sorted(pool_, key=lambda z: (-(z.get(cle) or 0), -z["p"],
+                                               z["date"], z["home"], z["away"]))
+            for s in tri:
+                if len(legs) >= 3:
+                    break
+                if not (s.get(cle) or 0) > 0 or s["p"] < mini_p:
+                    continue
+                mid = (s["date"], s["home"], s["away"])
+                if mid in vus or (diversifie and s["ligue"] in ligues):
+                    continue
+                legs.append(s); vus.add(mid); ligues.add(s["ligue"])
+            if len(legs) >= 2:
+                break
+        if len(legs) < 2:
+            return None
+        p, cote, toutes_cotes = 1.0, 1.0, True
+        for s in legs:
+            p *= s["p"]
+            if s.get("cote_marche"):
+                cote *= s["cote_marche"]
+            else:
+                toutes_cotes = False
+        return {"legs": legs, "p_combine": round(p, 4),
+                "cote_combine": round(cote, 2) if toutes_cotes else None}
+
+    pool = [s for s in sels if s.get("jour_delta", 9) <= 1]
+    safe = construire(pool, "p", seuil)
+    if safe:
+        exclus = {(l["date"], l["home"], l["away"]) for l in safe["legs"]}
+        pool_risque = [s for s in pool_risque
+                       if (s["date"], s["home"], s["away"]) not in exclus]
+    return {"safe": safe, "risque": construire(pool_risque, "cote_marche", 0.55)}
+
+
 def api_conseils(seuil=0.75):
     """Sélection conseillée : pour chaque match à venir, l'option la plus
     probable parmi un panier de marchés « pariables » (1X2, over/under
@@ -353,10 +415,42 @@ def api_conseils(seuil=0.75):
     Rappel honnête : une probabilité élevée n'est pas un gain garanti."""
     seuil = float(seuil)
     jours = {}
+    pool_risque = []
+    # heure actuelle à Cotonou (UTC+1) : une sélection conseillée doit être
+    # AVANT le coup d'envoi, jamais pendant — question d'honnêteté du suivi.
+    now_cotonou = (datetime.datetime.now(datetime.timezone.utc)
+                   + datetime.timedelta(hours=1)).replace(tzinfo=None)
     for m in api_matchs():
         if not m.get("disponible") or not m.get("over"):
             continue
+        if m.get("heure") and m.get("date"):
+            try:
+                if f"{m['date']}T{m['heure']}" < now_cotonou.isoformat(timespec="minutes"):
+                    continue                  # match déjà commencé
+            except (ValueError, TypeError):
+                pass
         o, u, dc = m["over"], m["under"], m.get("double_chance", {})
+        base = {"div": m["div"], "ligue": m["ligue"], "pays": m["pays"],
+                "date": m["date"], "heure": m["heure"], "jour": m["jour"],
+                "jour_delta": m["jour_delta"],
+                "home": m["home"], "away": m["away"],
+                "confiance": m.get("confiance"), "buts": m.get("buts")}
+        # pool du combiné « risque » : meilleure option COTÉE de chaque match
+        # (aujourd'hui/demain), avec planchers de probabilité honnêtes.
+        if m["jour_delta"] <= 1:
+            opts_cotes = [("1", m["p1"], m.get("cote_1")),
+                          ("X", m["pX"], m.get("cote_X")),
+                          ("2", m["p2"], m.get("cote_2")),
+                          ("over 2.5", o.get("2.5"), m.get("cote_over")),
+                          ("under 2.5", u.get("2.5"), m.get("cote_under"))]
+            elig = [(k, p_, c_) for k, p_, c_ in opts_cotes
+                    if c_ and p_ is not None
+                    and p_ >= (0.65 if k == "under 2.5" else 0.55)]
+            if elig:
+                k, p_, c_ = max(elig, key=lambda z: z[1])
+                pool_risque.append({**base, "option": k, "p": round(p_, 4),
+                                    "cote_juste": round(1 / p_, 2) if p_ > 0 else None,
+                                    "cote_marche": c_})
         cands = [("1", m["p1"]), ("X", m["pX"]), ("2", m["p2"]),
                  ("over 1.5", o.get("1.5")), ("over 2.5", o.get("2.5")),
                  ("over 3.5", o.get("3.5")), ("under 1.5", u.get("1.5")),
@@ -367,15 +461,10 @@ def api_conseils(seuil=0.75):
                  ("double chance X2", dc.get("X2"))]
         cands = [(k, v) for k, v in cands if v is not None]
         opt, p = max(cands, key=lambda z: z[1])
-        if p < seuil:
-            continue
-        item = {"div": m["div"], "ligue": m["ligue"], "pays": m["pays"],
-                "date": m["date"], "heure": m["heure"], "jour": m["jour"],
-                "jour_delta": m["jour_delta"],
-                "home": m["home"], "away": m["away"],
-                "option": opt, "p": round(p, 4),
-                "cote_juste": round(1 / p, 2) if p > 0 else None,
-                "confiance": m.get("confiance"), "buts": m.get("buts")}
+        if p < seuil + MARGES_MARCHE.get(opt, 0.0) - 1e-9:
+            continue        # seuil de base + marge pour les marchés fragiles
+        item = {**base, "option": opt, "p": round(p, 4),
+                "cote_juste": round(1 / p, 2) if p > 0 else None}
         # cote réelle du marché quand elle existe pour cette option
         if opt == "1":
             item["cote_marche"] = m.get("cote_1")
@@ -393,11 +482,15 @@ def api_conseils(seuil=0.75):
         sel = sorted(jours[delta], key=lambda x: -x["p"])
         liste.append({"jour": sel[0]["jour"], "jour_delta": delta,
                       "date": sel[0]["date"], "nb": len(sel), "selections": sel})
+    a_plat = [s for j in liste for s in j["selections"]]
     return {"seuil": seuil, "jours": liste,
+            "combines": _combinaisons(a_plat, seuil, pool_risque),
             "note": "Probabilités du modèle Dixon-Coles calibré sur 29 295 matchs. "
                     "Une option à 75 % se réalise environ 3 fois sur 4 en moyenne, "
-                    "pas à chaque fois. Rentabilité face aux cotes non démontrée "
-                    "(voir l'onglet Fiabilité)."}
+                    "pas à chaque fois. Les unders sont DURCIS (marge exigée au-dessus "
+                    "du seuil) : le suivi réel et les fréquences historiques montrent "
+                    "que le modèle les surestime — il sous-estime les matchs à 4-5 buts. "
+                    "Rentabilité face aux cotes non démontrée (voir l'onglet Fiabilité)."}
 
 
 def api_bilan():

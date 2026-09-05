@@ -229,11 +229,68 @@ function pronosticJS(div,h,a){
 }
 
 /* Sélection conseillée : même formule que le serveur Python (parité garantie). */
+/* Mêmes marges que le serveur Python : les unders sont durcis car le modèle
+   les surestime (queues trop fines sur les matchs à 4-5 buts). Mesuré sur le
+   suivi réel (58 % de réussite aux unders vs 92 % aux overs) et sur les
+   fréquences historiques co.uk 2023-2026. */
+const MARGES_MARCHE={"under 3.5":0.13,"under 2.5":0.05,"under 1.5":0.02};
+
+function combinaisonsJS(sels,seuil,poolRisque){
+  const pool=sels.filter(s=>(s.jour_delta==null?9:s.jour_delta)<=1);
+  function cmp(a,b){return a<b?-1:a>b?1:0;}
+  function construire(pool_,cle,miniP){
+    let legs=[];
+    for(const diversifie of [true,false]){
+      legs=[];const vus=new Set(),ligues=new Set();
+      const tri=pool_.slice().sort((a,b)=>((b[cle]||0)-(a[cle]||0))||(b.p-a.p)||
+        cmp(a.date,b.date)||cmp(a.home,b.home)||cmp(a.away,b.away));
+      for(const s of tri){
+        if(legs.length>=3)break;
+        if(!((s[cle]||0)>0)||s.p<miniP)continue;
+        const mid=s.date+"|"+s.home+"|"+s.away;
+        if(vus.has(mid)||(diversifie&&ligues.has(s.ligue)))continue;
+        legs.push(s);vus.add(mid);ligues.add(s.ligue);
+      }
+      if(legs.length>=2)break;
+    }
+    if(legs.length<2)return null;
+    let p=1,cote=1,toutes=true;
+    for(const s of legs){p*=s.p;if(s.cote_marche)cote*=s.cote_marche;else toutes=false;}
+    return {legs:legs,p_combine:+p.toFixed(4),cote_combine:toutes?+cote.toFixed(2):null};
+  }
+  const safe=construire(pool,"p",seuil);
+  let pr=(poolRisque||[]).slice();
+  if(safe){
+    const ex=new Set(safe.legs.map(l=>l.date+"|"+l.home+"|"+l.away));
+    pr=pr.filter(s=>!ex.has(s.date+"|"+s.home+"|"+s.away));
+  }
+  return {safe:safe,risque:construire(pr,"cote_marche",0.55)};
+}
+
 function conseilsJS(seuil){
   const jours={};
+  const poolRisque=[];
+  /* heure de Cotonou (UTC+1) : jamais de conseil pour un match déjà commencé */
+  const nowC=new Date(Date.now()+3600000).toISOString().slice(0,16);
   for(const m of DATA.matchs){
     if(!m.disponible||!m.over) continue;
+    if(m.heure&&m.date&&(m.date+"T"+m.heure)<nowC) continue;
     const o=m.over,u=m.under,dc=m.double_chance||{};
+    const base={div:m.div,ligue:m.ligue,pays:m.pays,date:m.date,heure:m.heure,
+      jour:m.jour,jour_delta:m.jour_delta,home:m.home,away:m.away,
+      confiance:m.confiance,buts:m.buts};
+    if((m.jour_delta==null?9:m.jour_delta)<=1){
+      const oc=[["1",m.p1,m.cote_1],["X",m.pX,m.cote_X],["2",m.p2,m.cote_2],
+        ["over 2.5",o["2.5"],m.cote_over],["under 2.5",u["2.5"],m.cote_under]];
+      let bq=null;
+      for(const c of oc){
+        if(!c[2]||c[1]==null) continue;
+        if(c[1]<(c[0]==="under 2.5"?0.65:0.55)) continue;
+        if(!bq||c[1]>bq[1]) bq=c;
+      }
+      if(bq) poolRisque.push(Object.assign({},base,{option:bq[0],p:+bq[1].toFixed(4),
+        cote_juste:bq[1]>0?+(1/bq[1]).toFixed(2):null,cote_marche:bq[2]}));
+    }
     const cands=[["1",m.p1],["X",m.pX],["2",m.p2],
       ["over 1.5",o["1.5"]],["over 2.5",o["2.5"]],["over 3.5",o["3.5"]],
       ["under 1.5",u["1.5"]],["under 2.5",u["2.5"]],["under 3.5",u["3.5"]],
@@ -244,11 +301,9 @@ function conseilsJS(seuil){
     let opt=cands[0],best=cands[0];
     for(const c of cands) if(c[1]>best[1]) best=c;
     opt=best;
-    if(opt[1]<seuil) continue;
-    const item={div:m.div,ligue:m.ligue,pays:m.pays,date:m.date,heure:m.heure,
-      jour:m.jour,jour_delta:m.jour_delta,home:m.home,away:m.away,
-      option:opt[0],p:+opt[1].toFixed(4),cote_juste:opt[1]>0?+(1/opt[1]).toFixed(2):null,
-      confiance:m.confiance,buts:m.buts};
+    if(opt[1]<seuil+(MARGES_MARCHE[opt[0]]||0)-1e-9) continue;
+    const item=Object.assign({},base,{option:opt[0],p:+opt[1].toFixed(4),
+      cote_juste:opt[1]>0?+(1/opt[1]).toFixed(2):null});
     if(opt[0]==="1")item.cote_marche=m.cote_1;
     else if(opt[0]==="X")item.cote_marche=m.cote_X;
     else if(opt[0]==="2")item.cote_marche=m.cote_2;
@@ -260,11 +315,14 @@ function conseilsJS(seuil){
     const sel=jours[d].sort((a,b)=>b.p-a.p);
     return {jour:sel[0].jour,jour_delta:d,date:sel[0].date,nb:sel.length,selections:sel};
   });
-  return {seuil:seuil,jours:liste,
+  const aPlat=[];for(const j of liste)for(const s of j.selections)aPlat.push(s);
+  return {seuil:seuil,jours:liste,combines:combinaisonsJS(aPlat,seuil,poolRisque),
     note:"Probabilités du modèle Dixon-Coles calibré sur 29 295 matchs. "+
          "Une option à 75 % se réalise environ 3 fois sur 4 en moyenne, "+
-         "pas à chaque fois. Rentabilité face aux cotes non démontrée "+
-         "(voir l'onglet Fiabilité)."};
+         "pas à chaque fois. Les unders sont DURCIS (marge exigée au-dessus "+
+         "du seuil) : le suivi réel et les fréquences historiques montrent "+
+         "que le modèle les surestime — il sous-estime les matchs à 4-5 buts. "+
+         "Rentabilité face aux cotes non démontrée (voir l'onglet Fiabilité)."};
 }
 
 /* ---------------------------------------------------------------------------
