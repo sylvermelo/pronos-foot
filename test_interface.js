@@ -83,8 +83,8 @@ const propre = t => !/NaN|undefined/.test(t || '');
   ouComplet ? ok('over/under 1.5+ présents dans chaque match') : ko('over/under 1.5+ manquants');
 
   /* --- chaque onglet --- */
-  console.log('\n=== 2. Rendu des 7 onglets ===');
-  for (const id of ['matchs', 'conseils', 'coupon', 'sim', 'fleuves', 'sec', 'classement', 'bilan']) {
+  console.log('\n=== 2. Rendu des 9 onglets ===');
+  for (const id of ['matchs', 'conseils', 'suivi', 'coupon', 'sim', 'fleuves', 'sec', 'classement', 'bilan']) {
     try {
       elements.clear();
       vm.runInContext(`ETAT.onglet=${JSON.stringify(id)};rendu();`, ctx, { timeout: 30000 });
@@ -93,7 +93,8 @@ const propre = t => !/NaN|undefined/.test(t || '');
       const html = (elements.get('#main') ? elements.get('#main').innerHTML : '')
         + (elements.get('#cWrap') ? elements.get('#cWrap').innerHTML : '')
         + (elements.get('#panel') ? elements.get('#panel').innerHTML : '')
-        + (elements.get('#consWrap') ? elements.get('#consWrap').innerHTML : '');
+        + (elements.get('#consWrap') ? elements.get('#consWrap').innerHTML : '')
+        + (elements.get('#suiviWrap') ? elements.get('#suiviWrap').innerHTML : '');
       const nav = elements.get('#nav') ? elements.get('#nav').innerHTML : '';
       const lignes = (html.match(/<tr/g) || []).length;
       if (!propre(html))            ko(`onglet ${id} : contient NaN ou undefined`);

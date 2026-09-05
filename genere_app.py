@@ -39,6 +39,7 @@ def precalculer():
         "arbitres": S.DB.get("arbitres", {}),
         "meta": S.DB.get("meta", {}),
         "calendrier": S.DB.get("calendrier_log") or {},
+        "suivi": __import__("suivi").vue(),
     }
     for div, L in S.DB["ligues"].items():
         try:
@@ -287,6 +288,7 @@ async function api(p){
                 "forcer maintenant : onglet Actions du dépôt → Run workflow (2 clics, "+
                 "connecté à ton compte), puis recharge cette page."};
     case '/api/bilan':    return DATA.bilan;
+    case '/api/suivi':    return DATA.suivi;
     case '/api/classement': return DATA.classements[g('div')]||null;
     case '/api/fleuves':  return DATA.fleuves[g('div')]||null;
     case '/api/pronostic':{

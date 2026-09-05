@@ -12,6 +12,7 @@ import numpy as np
 from scipy.stats import poisson
 import modeles_secondaires as MS
 import calendrier as CAL
+import suivi
 
 MAXG = 10
 PORT = int(os.environ.get("PORT", 8000))
@@ -31,6 +32,13 @@ def integrer_calendrier():
     except Exception as e:
         log = {"statut": f"erreur : {e}", "total": 0}
         DB["calendrier_log"] = log
+    try:                                        # suivi des pronostics
+        d = suivi.archiver(api_conseils(suivi.SEUIL_ARCHIVE))
+        d, n = suivi.resoudre(d, DB)
+        suivi.sauver(d)
+        log["suivi"] = {"jours": len(d["jours"]), "nouveaux_resultats": n}
+    except Exception as e:
+        log["suivi"] = {"erreur": str(e)}
     return log
 
 
@@ -507,7 +515,8 @@ ROUTES = {"/api/ligues": lambda q: api_ligues(),
           "/api/conseils": lambda q: api_conseils(float(q.get("seuil", ["0.75"])[0])),
           "/api/refresh": lambda q: api_refresh(),
           "/api/maj": lambda q: api_maj(),
-          "/api/bilan": lambda q: api_bilan()}
+          "/api/bilan": lambda q: api_bilan(),
+          "/api/suivi": lambda q: suivi.vue()}
 
 
 class H(BaseHTTPRequestHandler):

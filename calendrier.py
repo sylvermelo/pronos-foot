@@ -258,6 +258,46 @@ def _espn_jour(slug, date_iso):
     return out
 
 
+def espn_resultats(slug, date_iso):
+    """Scores FINAUX des matchs terminés d'une date (ESPN, sans clé).
+
+    Retourne [{home_src, away_src, date, heure, buts_home, buts_away}].
+    Les dates/heures sont converties en heure de Cotonou (UTC+1), comme le
+    calendrier : c'est ce qui permet de retrouver les matchs du suivi.
+    """
+    d = _curl_json(f"https://site.api.espn.com/apis/site/v2/sports/soccer/"
+                   f"{slug}/scoreboard?dates={date_iso.replace('-', '')}")
+    out = []
+    if not d:
+        return out
+    for e in d.get("events", []):
+        if not e.get("status", {}).get("type", {}).get("completed", False):
+            continue
+        comp = (e.get("competitions") or [{}])[0]
+        h = a = None
+        bh = ba = None
+        for co in comp.get("competitors", []):
+            nom = co.get("team", {}).get("displayName")
+            try:
+                buts = int(co.get("score"))
+            except (TypeError, ValueError):
+                buts = None
+            if co.get("homeAway") == "home":
+                h, bh = nom, buts
+            elif co.get("homeAway") == "away":
+                a, ba = nom, buts
+        if not (h and a) or bh is None or ba is None:
+            continue
+        try:
+            dt = datetime.datetime.fromisoformat(e["date"].replace("Z", "+00:00"))
+        except (ValueError, KeyError):
+            continue
+        loc = dt + datetime.timedelta(hours=1)
+        out.append({"home_src": h, "away_src": a, "date": loc.date().isoformat(),
+                    "heure": loc.strftime("%H:%M"), "buts_home": bh, "buts_away": ba})
+    return out
+
+
 def _tsd_prochain(div):
     lid = TSD_IDS.get(div)
     if not lid:

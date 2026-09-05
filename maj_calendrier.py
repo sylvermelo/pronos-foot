@@ -73,6 +73,19 @@ def main():
     with open(os.path.join("data", "calendrier.json"), "w") as f:
         json.dump({"matchs": db.get("fixtures", []), "journal": log,
                    "genere_le": datetime.datetime.now().isoformat(timespec="minutes")}, f)
+    # suivi des pronostics : archive la sélection conseillée du jour et
+    # compare les matchs archivés déjà joués aux scores FINAUX (ESPN).
+    try:
+        os.environ["PRONOS_SANS_CALENDRIER"] = "1"
+        import serveur as S
+        import suivi
+        d = suivi.archiver(S.api_conseils(suivi.SEUIL_ARCHIVE))
+        d, n = suivi.resoudre(d, db)
+        suivi.sauver(d)
+        print(f"suivi : {len(d['jours'])} jour(s) archivé(s) | {n} résultat(s) résolu(s)")
+    except Exception as e:
+        print(f"suivi : ÉCHEC ({e}) — sans effet sur le calendrier", file=sys.stderr)
+
     duree = (datetime.datetime.now() - t0).total_seconds()
     src = log.get("sources", {})
     print(f"calendrier : {log.get('total', 0)} matchs "

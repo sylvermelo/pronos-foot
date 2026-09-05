@@ -147,9 +147,9 @@ const evalJS = (code) => vm.runInContext(code, ctx, { timeout: 30000 });
   else warn('aucun marché secondaire à comparer dans l\'échantillon');
 
   /* ---------------- 4. les 7 onglets s'affichent-ils hors-ligne ? ---------------- */
-  console.log('\n=== 4. Rendu des 7 onglets en mode autonome ===');
+  console.log('\n=== 4. Rendu des 9 onglets en mode autonome ===');
   await new Promise(r => setTimeout(r, 3500));   // laisse init() terminer ses chargements
-  for (const id of ['matchs','conseils','coupon','sim','fleuves','sec','classement','bilan']) {
+  for (const id of ['matchs','conseils','suivi','coupon','sim','fleuves','sec','classement','bilan']) {
     try {
       elements.clear();
       evalJS(`ETAT.onglet=${JSON.stringify(id)};rendu();`);
@@ -159,7 +159,8 @@ const evalJS = (code) => vm.runInContext(code, ctx, { timeout: 30000 });
               + (elements.get('#cWrap')?.innerHTML||'')
               + (elements.get('#panel')?.innerHTML||'')
               + (elements.get('#fatwrap')?.innerHTML||'')
-              + (elements.get('#consWrap')?.innerHTML||'');
+              + (elements.get('#consWrap')?.innerHTML||'')
+              + (elements.get('#suiviWrap')?.innerHTML||'');
       const nan = /NaN|undefined/.test(c);
       if (nan) ko(`onglet ${id} : contient NaN ou undefined`);
       else if (c.length > 400) ok(`onglet ${id} : ${c.length.toLocaleString('fr-FR')} caracteres`);

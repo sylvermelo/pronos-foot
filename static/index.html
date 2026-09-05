@@ -107,6 +107,9 @@ tr.row.sel{background:var(--hi2);box-shadow:inset 3px 0 0 var(--green)}
 .srcb.o{background:rgba(245,158,11,.13);color:var(--amber)}
 .srcb.t{background:rgba(0,245,155,.1);color:var(--green)}
 .srcb.c{background:rgba(148,163,184,.12);color:var(--mut2)}
+th.triable{cursor:pointer;user-select:none}
+th.triable:hover{color:var(--txt)}
+.triind{margin-left:4px;color:var(--cyan);font-size:8px}
 .pill{display:inline-flex;flex-direction:column;align-items:center;gap:2px;background:var(--hi);
   border:1px solid var(--bord);border-radius:5px;padding:5px 9px;min-width:64px}
 .pill .p{font:700 12px/1 var(--fM)}
@@ -252,7 +255,7 @@ const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&g
 const clsEdge=v=>v>0.02?"g":v<-0.02?"rd":"mu";
 const sgnEdge=v=>(v>0?"+":"")+pct1(v)+" %";
 
-const ETAT={onglet:"matchs",matchs:[],ligues:[],bilan:null,coupon:[],sel:null,
+const ETAT={onglet:"matchs",matchs:[],ligues:[],bilan:null,coupon:[],sel:null,suiviData:null,suiviJour:"",
             fsous:"over",fligue:"toutes",simDiv:"",simH:"",simA:"",clDiv:"",
             seuil:0.75,jourFiltre:"tous"};
 
@@ -304,7 +307,7 @@ function brancherBoutonMaj(){
 async function api(p){const r=await fetch(p);if(!r.ok)throw new Error(p);return r.json();}
 
 /* ---------------------------------------------------------------- onglets */
-const ONGLETS=[["matchs","Matchs à venir"],["conseils","Sélection conseillée"],["coupon","Mon coupon"],["sim","Simulateur"],
+const ONGLETS=[["matchs","Matchs à venir"],["conseils","Sélection conseillée"],["suivi","Pronos vs Résultats"],["coupon","Mon coupon"],["sim","Simulateur"],
   ["fleuves","Scores fleuves"],["sec","Fautes & cartons"],["classement","Classement des clubs"],
   ["bilan","Fiabilité du moteur"]];
 
@@ -367,7 +370,7 @@ async function init(){
 function fmtN(n){return n==null?"—":String(n).replace(/\B(?=(\d{3})+(?!\d))/g," ");}
 
 function rendu(){renduNav();
-  ({matchs:tabMatchs,conseils:tabConseils,coupon:tabCoupon,sim:tabSim,fleuves:tabFleuves,sec:tabSec,
+  ({matchs:tabMatchs,conseils:tabConseils,suivi:tabSuivi,coupon:tabCoupon,sim:tabSim,fleuves:tabFleuves,sec:tabSec,
     classement:tabClassement,bilan:tabBilan})[ETAT.onglet]();}
 
 /* ================================================================ ONGLET 2
@@ -426,6 +429,96 @@ function tabConseils(){
       sur ${ETAT.matchs.length} matchs analysés.</div>`;
     w.innerHTML=h;
   }).catch(()=>{const w=$("#consWrap"); if(w) w.innerHTML=`<div class="card empty"><b>Indisponible</b></div>`;});
+}
+
+/* ================================================================ ONGLET 2b
+   PRONOS VS RÉSULTATS — les sélections conseillées archivées (la veille et
+   les jours précédents) confrontées aux scores FINAUX réels (source ESPN).
+   Le suivi est honnête : chaque sélection est archivée AVANT le match, à
+   chaque mise à jour, et n'est plus modifiable ensuite.                    */
+function tabSuivi(){
+  $("#main").innerHTML=`<div class="band"><div><div class="htitle"><h1>Pronos vs Résultats</h1>
+    <span class="badge cy">SUIVI RÉEL DES SÉLECTIONS</span>
+    <span class="badge gy"><span class="dot"></span>ARCHIVÉ AVANT LES MATCHS</span></div>
+    <p class="desc">La sélection conseillée de la veille — et des jours précédents — comparée
+    aux résultats réels. Chaque prédiction est archivée à chaque mise à jour, AVANT le match,
+    puis confrontée au score final officiel récupéré chez ESPN. Cliquez sur n'importe quel
+    en-tête de colonne pour trier. Rien n'est réinventé après coup.</p></div>
+    <div class="hbox" id="suiviKpi"></div></div>
+    <div class="filters" id="suiviFiltres"></div>
+    <div id="suiviWrap"><div class="card empty"><span class="spin"></span> chargement du suivi…</div></div>`;
+  api("/api/suivi").then(r=>{
+    ETAT.suiviData=r;
+    if(!r.jours.some(j=>j.jour_prono===ETAT.suiviJour)){
+      const pref=r.jours.find(j=>j.nb_resolus>0)||r.jours[0];
+      ETAT.suiviJour=pref?pref.jour_prono:"";
+    }
+    renduSuivi();
+  }).catch(()=>{const w=$("#suiviWrap");
+    if(w) w.innerHTML=`<div class="card empty"><b>Suivi indisponible</b>
+      Impossible de charger le journal des prédictions.</div>`;});
+}
+function renduSuivi(){
+  const r=ETAT.suiviData; if(!r) return;
+  const kp=$("#suiviKpi");
+  if(kp){const t=r.total||{};
+    kp.innerHTML=`<div class="col"><span class="lbl">Sélections archivées</span>
+        <span class="num">${t.selections||0}</span></div><div class="sep"></div>
+      <div class="col"><span class="lbl">Résolues</span><span class="num">${t.resolus||0}</span></div><div class="sep"></div>
+      <div class="col"><span class="lbl">Taux de réussite</span>
+        <span class="num ${t.taux!=null&&t.taux>=0.75?"g":"am"}">${t.taux!=null?pct1(t.taux)+" %":"—"}</span></div><div class="sep"></div>
+      <div class="col"><span class="lbl">Gain simulé (1u/sélec. cotée)</span>
+        <span class="num ${t.pnl==null?"":(t.pnl>=0?"g":"rd")}">${t.pnl!=null?(t.pnl>0?"+":"")+f2(t.pnl):"—"}</span></div>`;}
+  const fl=$("#suiviFiltres");
+  if(fl){
+    fl.innerHTML=`<span class="lbl">Jour de prédiction :</span>`+
+      (r.jours.length?r.jours.map(j=>`<button class="fchip ${ETAT.suiviJour===j.jour_prono?"on":""}" data-jp="${j.jour_prono}">${esc(j.libelle)} · ${esc(j.jour_prono)} (${j.nb_touches}/${j.nb_resolus})</button>`).join("")
+                     :`<span class="lbl mu" style="text-transform:none;letter-spacing:0">Aucune archive pour le moment.</span>`);
+    fl.querySelectorAll("[data-jp]").forEach(b=>b.onclick=()=>{ETAT.suiviJour=b.dataset.jp;renduSuivi();});
+  }
+  const w=$("#suiviWrap"); if(!w) return;
+  const j=r.jours.find(x=>x.jour_prono===ETAT.suiviJour);
+  if(!j){
+    w.innerHTML=`<div class="card empty"><b>Le suivi démarre</b>
+      Les sélections conseillées sont archivées automatiquement à chaque mise à jour
+      (toutes les 3 heures). Les premières comparaisons apparaîtront dès que les matchs
+      prédits seront terminés : une sélection archivée aujourd'hui est vérifiée contre
+      le score réel demain. Aucune donnée n'est inventée rétroactivement —
+      ce qui n'a pas été prédit avant le match n'est pas compté.</div>`;
+    return;
+  }
+  let h="";
+  if(j.retro) h+=`<div class="warn" style="margin-bottom:10px">Comblement rétroactif : ces sélections ont été
+    <b>recalculées après coup</b> avec le modèle actuel, qui n'avait <b>pas été entraîné</b> sur ces matchs
+    (la source hebdomadaire ne les contenait pas encore). Journée marquée « rétro » — à partir d'aujourd'hui,
+    tout est archivé en direct avant les matchs.</div>`;
+  h+=`<div class="dayhead"><span class="lbl">${esc(j.libelle)}</span>
+    <span class="lbl mu">prédit le ${esc(j.jour_prono)}${j.genere_le?" à "+esc(j.genere_le.slice(11,16)):""} · seuil ${Math.round((j.seuil||0.75)*100)} %</span><span class="line"></span>
+    <span class="lbl ${j.nb_resolus?"g":"mu"}">${j.nb_resolus?j.nb_touches+"/"+j.nb_resolus+" touché"+(j.nb_resolus>1?"s":""):"rien de résolu encore"}${j.nb>j.nb_resolus?" · "+(j.nb-j.nb_resolus)+" en attente":""}</span></div>`;
+  h+=`<div class="tblwrap"><table><thead><tr><th>Heure</th><th>Match</th><th>Ligue</th>
+    <th>Option conseillée</th><th>Probabilité</th><th>Cote juste</th><th>Cote marché</th>
+    <th>Confiance</th><th>Score final</th><th>Verdict</th><th>Gain (1u)</th></tr></thead><tbody>`;
+  for(const s of j.selections){
+    const rs=s.resultat;
+    const score=rs?rs.buts_home+":"+rs.buts_away:null;
+    h+=`<tr>
+      <td class="num">${esc(s.heure||"—")}</td>
+      <td><div class="tname">${esc(s.home)} <span class="mu">vs</span> ${esc(s.away)}</div>
+        <div class="tsub">${esc(s.date)}</div></td>
+      <td class="mu" style="font-size:11px">${esc(s.ligue)}</td>
+      <td><span class="tagv" style="background:rgba(0,245,155,.12);color:var(--green)">${esc(s.option)}</span></td>
+      <td class="num g" style="font-size:15px">${pct1(s.p)} %</td>
+      <td class="num cy">${f2(s.cote_juste)}</td>
+      <td class="num ${s.cote_marche&&s.cote_juste&&s.cote_marche>=s.cote_juste?"g":"mu"}">${s.cote_marche?f2(s.cote_marche):"—"}</td>
+      <td><span class="tagv" style="color:${s.confiance==="haute"?"var(--green)":s.confiance==="moyenne"?"var(--amber)":"var(--red)"};background:rgba(148,163,184,.08)">${esc(s.confiance||"—")}</span></td>
+      <td class="num"${score?` data-v="${rs.buts_home+rs.buts_away}"`:""}>${score||'<span class="mu">en attente</span>'}</td>
+      <td>${rs?(rs.touche?'<span class="tagv" style="background:rgba(0,245,155,.12);color:var(--green)">✓ touché</span>':'<span class="tagv" style="background:rgba(244,63,94,.12);color:var(--red)">✗ manqué</span>'):'<span class="mu">—</span>'}</td>
+      <td class="num ${s.pnl==null?"mu":(s.pnl>=0?"g":"rd")}">${s.pnl!=null?(s.pnl>0?"+":"")+f2(s.pnl):"—"}</td>
+    </tr>`;
+  }
+  h+="</tbody></table></div>";
+  h+=`<div class="warn" style="margin-top:12px">${esc(r.note)}</div>`;
+  w.innerHTML=h;
 }
 
 /* ================================================================ ONGLET 1
@@ -998,6 +1091,56 @@ function tabBilan(){
       <b class="g">Ce qu'il fait bien</b> : des probabilités calibrées, reproductibles,
       mises à jour seules, gratuites — et une lecture honnête de chaque match.</div></div>
   </div></div>`;
+}
+
+/* ---------------------------------------------------------------- tri des tableaux
+   Clic sur un en-tête de colonne : 1er clic = tri croissant, 2e = décroissant.
+   Fonctionne dans TOUS les onglets (branché automatiquement à chaque rendu).
+   Les cellules vides (« — ») restent toujours en bas.                        */
+function valTri(td){
+  if(!td) return null;
+  let t=(td.dataset.v!==undefined?td.dataset.v:td.textContent).trim();
+  if(!t||t==="—") return null;
+  const hm=t.match(/^(\d{1,2}):(\d{2})$/);
+  if(hm) return (+hm[1])*60+(+hm[2]);
+  if(/^\d{4}-\d{2}-\d{2}/.test(t)) return t;
+  const n=parseFloat(t.replace(/[\s%€]/g,"").replace(",","."));
+  return isNaN(n)?t.toLowerCase():n;
+}
+function brancherTri(){
+  document.querySelectorAll("#main table").forEach(tbl=>{
+    if(tbl.dataset.tri) return;
+    const ths=tbl.querySelectorAll("thead th");
+    const tb=tbl.querySelector("tbody");
+    if(!ths.length||!tb) return;
+    tbl.dataset.tri="1";
+    ths.forEach((th,idx)=>{
+      th.classList.add("triable");
+      th.title="Trier cette colonne (clic : croissant, re-clic : décroissant)";
+      th.addEventListener("click",ev=>{
+        ev.stopPropagation();
+        const dir=th.dataset.dir==="asc"?"desc":"asc";
+        ths.forEach(o=>{delete o.dataset.dir;const a=o.querySelector(".triind");if(a)a.remove();});
+        th.dataset.dir=dir;
+        th.insertAdjacentHTML("beforeend",'<span class="triind">'+(dir==="asc"?"▲":"▼")+"</span>");
+        const rows=[...tb.querySelectorAll("tr")];
+        rows.sort((a,b)=>{
+          const va=valTri(a.children[idx]),vb=valTri(b.children[idx]);
+          if(va==null&&vb==null) return 0;
+          if(va==null) return 1;
+          if(vb==null) return -1;
+          if(typeof va==="number"&&typeof vb==="number") return dir==="asc"?va-vb:vb-va;
+          const sa=String(va),sb=String(vb);
+          return dir==="asc"?sa.localeCompare(sb):sb.localeCompare(sa);
+        });
+        rows.forEach(rw=>tb.appendChild(rw));
+      });
+    });
+  });
+}
+if(typeof MutationObserver!=="undefined"&&typeof document.getElementById==="function"){
+  const mn=document.getElementById("main");
+  if(mn&&mn.nodeType===1) new MutationObserver(()=>brancherTri()).observe(mn,{childList:true,subtree:true});
 }
 
 init();
