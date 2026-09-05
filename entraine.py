@@ -27,6 +27,51 @@ PAYS = {"E": "Angleterre", "SP": "Espagne", "I": "Italie", "D": "Allemagne",
         "T": "Turquie", "G": "Grece", "SC": "Ecosse"}
 STATS = ["hg", "ag", "HS", "AS", "HST", "AST", "HF", "AF", "HC", "AC", "HY", "AY"]
 
+# Divisions couvertes par les xG RÉELS d'Understat (test A/B validé : le modèle
+# xG recalé bat le modèle buts seuls, t = -2.6 sur 7 118 matchs, 2022-2026).
+XG_REEL_DIVS = {"E0", "SP1", "I1", "D1", "F1"}
+
+
+def fusionner_xg_reel(df):
+    """Joint les xG réels Understat (data/xg_understat.json) sur df, par
+    (division, équipes, date ± 1 jour). Colonnes xgRH / xgRA (NaN sinon).
+    Aucun échec n'est bloquant : sans le fichier, df revient inchangé."""
+    df["xgRH"] = np.nan
+    df["xgRA"] = np.nan
+    chemin = os.path.join("data", "xg_understat.json")
+    if not os.path.exists(chemin):
+        return df
+    try:
+        with open(chemin) as f:
+            xg = json.load(f)
+    except Exception:
+        return df
+    lut = {}
+    for div, matchs in xg.items():
+        for m in matchs:
+            try:
+                d = pd.Timestamp(m["date"]).normalize()
+            except Exception:
+                continue
+            lut[(div, m["home"], m["away"], d)] = (
+                min(max(float(m["xg_h"]), 0.05), 6.0),
+                min(max(float(m["xg_a"]), 0.05), 6.0))
+    if not lut:
+        return df
+    cible = df.index[df["league"].isin({k[0] for k in lut})]
+    rh = np.full(len(cible), np.nan)
+    ra = np.full(len(cible), np.nan)
+    for i, row in enumerate(df.loc[cible].itertuples()):
+        for dl in (0, -1, 1):
+            k = (row.league, row.home, row.away,
+                 row.date.normalize() + pd.Timedelta(days=dl))
+            if k in lut:
+                rh[i], ra[i] = lut[k]
+                break
+    df.loc[cible, "xgRH"] = rh
+    df.loc[cible, "xgRA"] = ra
+    return df
+
 
 def charger():
     """Charge TOUTES les saisons disponibles, toutes divisions."""
@@ -71,7 +116,8 @@ def charger():
         frames.append(x[["date", "league", "season", "home", "away", "hg", "ag", "Referee"] + STATS[2:]])
     df = pd.concat(frames, ignore_index=True).drop_duplicates(
         subset=["date", "league", "home", "away"])
-    return df.sort_values("date").reset_index(drop=True)
+    df = df.sort_values("date").reset_index(drop=True)
+    return fusionner_xg_reel(df)
 
 
 def stats_equipe(hist, team, jours=400):
@@ -96,7 +142,17 @@ def stats_equipe(hist, team, jours=400):
                     ext.assign(pts=np.where(ext["ag"] > ext["hg"], 3, np.where(ext["ag"] == ext["hg"], 1, 0)))]
                    ).sort_values("date").tail(5)
     forme = "".join("V" if p == 3 else "N" if p == 1 else "D" for p in m5["pts"])
+    # xG réels (Understat) des 400 derniers jours, si disponibles
+    xg_pour = xg_contre = None
+    if "xgRH" in h.columns:
+        sp = pd.concat([dom["xgRH"], ext["xgRA"]]).dropna()
+        sc = pd.concat([dom["xgRA"], ext["xgRH"]]).dropna()
+        if len(sp):
+            xg_pour = round(float(sp.mean()), 2)
+        if len(sc):
+            xg_contre = round(float(sc.mean()), 2)
     return {
+        "xg_pour": xg_pour, "xg_contre": xg_contre,
         "matchs": int(n), "victoires": v, "nuls": d, "defaites": int(n - v - d),
         "marques": round(marque / n, 2), "encaisses": round(encaisse / n, 2),
         "points": int(v * 3 + d), "forme": forme,
@@ -134,6 +190,37 @@ def main():
         except Exception as e:
             print(f"  {div} ECHEC: {e}")
             continue
+        # ---- xG RÉELS (Understat) : validé en A/B, uniquement pour les 5 ligues
+        # couvertes. Variante REELCAL du test : forces estimées sur les xG réels
+        # (w=0), niveau de buts recalé sur les buts RÉELS de la fenêtre (k),
+        # rho conservé du modèle Dixon-Coles. Les 16 autres divisions gardent
+        # le modèle buts (le proxy tirs y est significativement pire).
+        moteur = "Dixon-Coles (buts réels)"
+        if div in XG_REEL_DIVS and "xgRH" in hist_fit.columns:
+            hr = hist_fit[hist_fit["xgRH"].notna()]
+            if len(hr) >= 300:
+                hr2 = hr.copy()
+                hr2["xgH"] = hr2["xgRH"]
+                hr2["xgA"] = hr2["xgRA"]
+                try:
+                    mx = V.fit_xg(hr2, teams_fit)
+                except Exception:
+                    mx = None
+                if mx is not None:
+                    hc = hist_fit[hist_fit["home"].isin(mx["idx"])
+                                  & hist_fit["away"].isin(mx["idx"])]
+                    hi_ = hc["home"].map(mx["idx"]).values
+                    aw_ = hc["away"].map(mx["idx"]).values
+                    pred = (mx["gh"] * mx["att"][hi_] * mx["dfn"][aw_]
+                            + mx["ga"] * mx["att"][aw_] * mx["dfn"][hi_])
+                    if len(pred) >= 200 and pred.mean() > 0:
+                        k = float((hc["hg"].values + hc["ag"].values).mean()
+                                  / pred.mean())
+                        mo = dict(V.combine(mo, mx, 0.0))
+                        mo["gamma"] = mo["gamma"] * k
+                        mo["s"] = mo["s"] * k
+                        moteur = (f"xG réels Understat recalés (k={k:.3f}, "
+                                  f"{len(hr)} matchs xG)")
         # nombre de matchs EFFECTIFS par equipe dans la fenetre d'entrainement
         ref = hist_fit["date"].max()
         ww = np.exp(-V.XI_WEEK * (ref - hist_fit["date"]).dt.days.values / 7.0)
@@ -180,6 +267,7 @@ def main():
             "saison": derniere, "equipes_actuelles": teams_act,
             "gamma": round(mo["gamma"], 4), "s_away": round(mo["s"], 4),
             "rho": round(mo["rho"], 4), "n_historique": int(len(hist_fit)),
+            "moteur": moteur,
             "forces": forces, "stats": stats, "secondaires": sec,
             "dernier_match": str(sub["date"].max().date()),
         }

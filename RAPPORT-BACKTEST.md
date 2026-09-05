@@ -134,7 +134,7 @@ utilisant que des données 100 % gratuites.** La fondation est saine.
 | Priorité | Feature à ajouter | Gain attendu | Coût |
 |---|---|---|---|
 | 1 | **Paramètre d'échelle `s`** | ✅ Déjà validé : −35 % d'écart | 0 FCFA |
-| 2 | **xG au lieu des buts réels** | Fort — les buts sont bruités, l'xG ne l'est pas | 0 FCFA (Understat) à 30 000 FCFA/mois |
+| 2 | **xG au lieu des buts réels** | ✅ Fait en sept. 2026 : gain modeste mais significatif (section 5 sexies) | 0 FCFA (Understat) |
 | 3 | **Compositions + blessés + suspendus** | Fort — le marché réagit violemment aux absences | ≈ 11 500 FCFA/mois |
 | 4 | **Niveau de buts par ligue et par saison** | Moyen — corrige la dérive temporelle | 0 FCFA |
 | 5 | **Facteur d'enjeu** (fin de saison, matchs sans intérêt) | Moyen | 0 FCFA |
@@ -544,6 +544,83 @@ Cette vérification compte : sans elle, chaque mise à jour quotidienne aurait
 produit des chiffres légèrement différents sans aucune raison, ce qui aurait
 rendu impossible toute comparaison d'un jour à l'autre.
 
+## 5 sexies. Les xG RÉELS d'Understat — débloqués, testés, adoptés
+
+La section 5 bis concluait que le scraping d'Understat était bloqué (page HTML de
+18 Ko vidée de ses données). Ce n'était qu'à moitié vrai : les données ne sont plus
+dans le HTML, mais un **point d'entrée JSON propre** existe
+(`understat.com/getLeagueData/{ligue}/{saison}`, sans compte ni clé). Il a été
+découvert et validé en septembre 2026.
+
+**9 015 matchs avec xG réels** ont été téléchargés (saisons 2021/22 à 2026/27,
+Big 5 : Premier League, Liga, Serie A, Bundesliga, Ligue 1), soit une couverture
+de 100 % des matchs évalués. Les noms d'équipes sont traduits vers la nomenclature
+football-data.co.uk (`xg.py`), le cache est rafraîchi au plus tous les 7 jours par
+la mise à jour automatique GitHub.
+
+### Protocole (identique au backtest v3, aucune donnée future)
+
+Walk-forward strict sur les 5 ligues, août 2022 → septembre 2026, **7 118 matchs
+évalués**, ré-entraînement toutes les 4 semaines. Variantes testées :
+
+- **BUTS** : le moteur de production (Dixon-Coles sur les buts réels) ;
+- **PROXY** : mélange buts + proxy xG de tirs (section 5 bis) ;
+- **REEL** : mélange buts + xG réels, poids `w` sur les buts ;
+- **REELCAL** : xG réels seuls (w=0), **niveau de buts recalé** sur la moyenne
+  réelle de la fenêtre d'entraînement (correctif `k` — le modèle log-linéaire
+  sous-estime mécaniquement le total, et les xG bruts ne sont pas des buts).
+
+### Résultats — LogLoss 1X2 (plus bas = meilleur)
+
+| Variante | w buts | LogLoss 1X2 | RPS | LL O/U 2,5 | Biais buts | t apparié vs BUTS |
+|---|---|---|---|---|---|---|
+| Marché (Pinnacle clôture) | — | **0,9636** | — | — | — | référence |
+| BUTS (moteur actuel) | 1,00 | 0,9903 | 0,1345 | 0,7582 | −0,116 | — |
+| PROXY | 0,50 | 0,9977 | 0,1363 | 0,7488 | −0,086 | +4,7 (pire) |
+| PROXY | 0,00 | 1,0049 | 0,1377 | 0,7267 | −0,395 | **+5,7 (nettement pire)** |
+| REEL | 0,50 | 0,9919 | 0,1349 | 0,7656 | −0,013 | +1,0 (neutre) |
+| REEL | 0,25 | 0,9896 | 0,1345 | 0,7603 | −0,088 | −0,4 (neutre) |
+| REEL | 0,00 | **0,9849** | **0,1335** | **0,7469** | −0,281 | **−2,6 (significatif)** |
+| REELCAL | 0,00 + k | 0,9855 | 0,1336 | 0,7548 | **−0,013** | −2,25 (significatif) |
+
+Par ligue (LogLoss 1X2, BUTS → REEL w=0) : Premier League 0,9896 → 0,9819,
+La Liga 0,9784 → 0,9705, Bundesliga 0,9993 → 0,9844, Serie A 0,9864 → 0,9869
+(neutre), Ligue 1 1,0012 → 1,0034 (neutre). 3 ligues sur 5 progressent, aucune
+ne se dégrade franchement.
+
+### Lecture honnête
+
+1. **Les xG réels améliorent le moteur, de façon faible mais statistiquement
+   solide** (test apparié, t = −2,6 sur 7 118 matchs). L'écart avec Pinnacle
+   passe de 0,0267 à 0,0211 de log-loss : **≈ 21 % de l'écart comblé**, pour
+   0 FCFA. Ce n'est pas un basculement : le marché reste nettement devant et la
+   rentabilité n'est toujours pas démontrée.
+2. **Le proxy de tirs est confirmé mauvais** (t = +5,7) : le verdict de la
+   section 5 bis est valable, il ne faut pas le réhabiliter.
+3. Curieuse anomalie : le proxy donne le meilleur LL sur le seul marché O/U 2,5
+   (0,7267) tout en étant très mauvais sur 1X2. Un modèle ne se juge pas sur un
+   marché isolé ; il n'a pas été retenu.
+4. Les mélanges (w = 0,25-0,5) n'apportent rien de significatif : l'information
+   des buts réels est déjà contenue dans les xG, l'inverse non.
+
+### Décision d'intégration (septembre 2026)
+
+- **Big 5** : forces des équipes estimées sur les xG réels (w=0), **recalées**
+  sur les buts réels de la fenêtre d'entraînement (variante REELCAL,
+  k = 1,047 à 1,095 selon la ligue). Le ρ de Dixon-Coles est conservé du modèle
+  buts. Le recalage est indispensable : sans lui le modèle sous-estime les
+  totaux de 0,28 but, ce qui gonflerait mécaniquement les sélections « under »
+  déjà sous surveillance (marges dédiées).
+- **16 autres divisions** : inchangées (Dixon-Coles buts réels) — aucun xG
+  gratuit fiable n'y est disponible, et le proxy y est rejeté.
+- Transparence : chaque ligue expose son moteur (`modeles.json → ligues.*.moteur`,
+  badge dans l'onglet Classement) et les xG moyens par équipe (créés/concédés)
+  sont affichés quand ils existent.
+- Reproduction : `xg.py` (téléchargement + cache), `test_xg_reel.py` (le test
+  A/B complet, ≈ 9 min), intégration dans `entraine.py` (fonction
+  `fusionner_xg_reel` + bloc « xG RÉELS »), rafraîchissement automatique dans
+  `maj.py`.
+
 ## 6. Bilan
 
 | Question | Réponse |
@@ -553,9 +630,10 @@ rendu impossible toute comparaison d'un jour à l'autre.
 | Le moteur produit-il des probabilités saines ? | **Oui** — calibration à ±1,5 point sur 17 093 matchs |
 | Bat-il le marché en l'état ? | **Non** — +0,0289 de log-loss, ROI −8,8 %, CLV négatif |
 | Le marché est-il battable en principe ? | **Oui, mais pas avec ces seules données** — Pinnacle bat une constante naïve partout |
-| Le proxy xG gratuit améliore-t-il le modèle ? | **Non, rien de démontré** — hypothèse testée et rejetée |
+| Le proxy xG gratuit améliore-t-il le modèle ? | **Non** — significativement pire (t = +5,7), rejeté |
+| Les xG RÉELS (Understat, 0 FCFA) l'améliorent-ils ? | **Oui, modestement mais solidement** — log-loss −0,005 (t = −2,6), adoptés sur le Big 5 |
 | Peut-il être amélioré ? | **Oui** — 13 % de l'écart comblé avec 1 paramètre (`s`) |
-| Que faut-il pour le rendre compétitif ? | **Compositions, blessures et vrais xG** (donc une API payante) |
+| Que faut-il pour le rendre compétitif ? | **Compositions et blessures** (API payante) — les vrais xG du Big 5 sont déjà intégrés, gratuitement |
 
 **Conclusion : la fondation est valide, gratuite et bien calibrée. Ce qui séparera ce
 projet d'un gadget, c'est l'accès aux compositions et aux vrais xG — soit environ

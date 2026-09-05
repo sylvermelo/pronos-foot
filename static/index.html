@@ -1060,14 +1060,15 @@ function tabClassement(){
     const mx=Math.max(...eq.map(x=>Math.abs(x.puissance||0)))||1;
     w.innerHTML=`<div class="tblwrap"><div class="tblhead">
       <span class="lbl" style="color:var(--txt)">${esc(c.ligue||ETAT.clDiv)} — ${eq.length} équipes · dernier match connu : ${esc(c.dernier_match||"—")}</span>
-      <span class="lbl">γ domicile ${f3(c.gamma)} · τ ${f3(c.rho)}</span></div>
+      <span class="lbl">γ domicile ${f3(c.gamma)} · τ ${f3(c.rho)}${c.moteur&&c.moteur.indexOf("xG")===0?' · <b style="color:var(--cyan)">'+esc(c.moteur)+'</b>':''}</span></div>
       <table><thead><tr><th>#</th><th>Équipe</th><th>Puissance</th><th>Attaque</th><th>Défense</th>
-      <th>Buts marqués / encaissés (match)</th><th>Forme</th><th>Confiance</th><th></th></tr></thead><tbody>`+
+      <th>Buts marqués / encaissés (match)</th><th title="xG réels moyens par match (Understat) — 5 grandes ligues uniquement">xG créés / concédés</th><th>Forme</th><th>Confiance</th><th></th></tr></thead><tbody>`+
       eq.map((x,i)=>`<tr><td class="num mu">${i+1}</td>
         <td><div class="tname">${esc(x.equipe)}</div><div class="tsub">${x.matchs||0} matchs · ${x.n_eff??0} pondérés</div></td>
         <td class="num ${x.puissance>0?"g":"rd"}" style="font-size:14px">${f3(x.puissance)}</td>
         <td class="num cy">${f3(x.attaque)}</td><td class="num cy">${f3(x.defense)}</td>
         <td class="num"><span class="g">${f2(x.marques)}</span> / <span class="rd">${f2(x.encaisses)}</span></td>
+        <td class="num">${x.xg_pour!=null?'<span class="g">'+f2(x.xg_pour)+'</span> / <span class="rd">'+f2(x.xg_contre)+'</span>':'<span class="mu">—</span>'}</td>
         <td class="mono" style="font-size:11px;letter-spacing:2px">${esc(x.forme||"—")}</td>
         <td><span class="tagv" style="color:${x.confiance==="haute"?"var(--green)":x.confiance==="moyenne"?"var(--amber)":"var(--red)"};background:rgba(148,163,184,.08)">${esc(x.confiance||"—")}</span></td>
         <td style="min-width:110px"><div class="bar ${x.puissance<0?"cy":""}"><i style="width:${Math.max(Math.abs(x.puissance)/mx*100,2).toFixed(0)}%;${x.puissance<0?"background:var(--cyan)":""}"></i></div></td></tr>`).join("")+

@@ -317,7 +317,7 @@ function conseilsJS(seuil){
   });
   const aPlat=[];for(const j of liste)for(const s of j.selections)aPlat.push(s);
   return {seuil:seuil,jours:liste,combines:combinaisonsJS(aPlat,seuil,poolRisque),
-    note:"Probabilités du modèle Dixon-Coles calibré sur 29 295 matchs. "+
+    note:"Probabilités du moteur : pour les 5 grandes ligues (Angleterre, Espagne, Italie, Allemagne, France), les forces des équipes sont estimées sur les xG RÉELS d'Understat puis recalées sur les buts observés — gain validé par un test A/B en walk-forward sur 7 118 matchs (2022-2026). Ailleurs : Dixon-Coles sur les buts réels. Ensemble calibré sur 29 295 matchs. "+
          "Une option à 75 % se réalise environ 3 fois sur 4 en moyenne, "+
          "pas à chaque fois. Les unders sont DURCIS (marge exigée au-dessus "+
          "du seuil) : le suivi réel et les fréquences historiques montrent "+

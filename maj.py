@@ -336,6 +336,16 @@ def main():
 
     changés, fx_changé, échecs = maj_donnees()
 
+    # xG RÉELS (Understat, sans compte ni clé) : rafraîchit le cache s'il a plus
+    # de 7 jours, AVANT un éventuel ré-entraînement. Échec non bloquant : le
+    # modèle retombe sur le fichier xG existant (ou sur les buts seuls).
+    try:
+        import xg
+        n_xg = sum(len(v) for v in xg.frais().values())
+        log(f"xG Understat : {n_xg} matchs en cache")
+    except Exception as e:
+        log(f"xG Understat : échec non bloquant ({e}) — cache existant conservé", "WARN")
+
     if changés == 0 and not fx_changé:
         log("aucune nouveauté sur la source co.uk — le calendrier multi-sources "
             "(ESPN + TheSportsDB + OpenLigaDB) est quand même reconstruit, "

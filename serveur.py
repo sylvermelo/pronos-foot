@@ -217,6 +217,7 @@ def api_classement(div):
     for i, r in enumerate(dd):
         r["classement_def"] = i + 1
     return {"ligue": L["nom"], "pays": L["pays"], "saison": L["saison"],
+            "moteur": L.get("moteur", "Dixon-Coles (buts réels)"),
             "gamma": L["gamma"], "s_away": L["s_away"], "rho": L["rho"],
             "n_historique": L["n_historique"], "dernier_match": L["dernier_match"],
             "equipes": rows}
@@ -485,7 +486,7 @@ def api_conseils(seuil=0.75):
     a_plat = [s for j in liste for s in j["selections"]]
     return {"seuil": seuil, "jours": liste,
             "combines": _combinaisons(a_plat, seuil, pool_risque),
-            "note": "Probabilités du modèle Dixon-Coles calibré sur 29 295 matchs. "
+            "note": "Probabilités du moteur : pour les 5 grandes ligues (Angleterre, Espagne, Italie, Allemagne, France), les forces des équipes sont estimées sur les xG RÉELS d'Understat puis recalées sur les buts observés — gain validé par un test A/B en walk-forward sur 7 118 matchs (2022-2026). Ailleurs : Dixon-Coles sur les buts réels. Ensemble calibré sur 29 295 matchs. "
                     "Une option à 75 % se réalise environ 3 fois sur 4 en moyenne, "
                     "pas à chaque fois. Les unders sont DURCIS (marge exigée au-dessus "
                     "du seuil) : le suivi réel et les fréquences historiques montrent "
