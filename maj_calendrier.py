@@ -125,10 +125,15 @@ def main():
         os.environ["PRONOS_SANS_CALENDRIER"] = "1"
         import serveur as S
         import suivi
-        d = suivi.archiver(S.api_conseils(suivi.SEUIL_ARCHIVE))
+        conseils = S.api_conseils(suivi.SEUIL_ARCHIVE)
+        d = suivi.archiver(conseils)
         d, n = suivi.resoudre(d, db)
+        rattrape = suivi.rattrapage_safe(d, conseils)
         suivi.sauver(d)
         print(f"suivi : {len(d['jours'])} jour(s) archivé(s) | {n} résultat(s) résolu(s)")
+        if rattrape:
+            print("suivi : safe_2 créé (jambe du SAFE perdue, rattrapage avec "
+                  "les matchs du jour pas encore commencés)")
         try:                                 # Phase 1 : double écriture Supabase
             import db
             cp = S.coupon_corners()

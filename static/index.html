@@ -378,19 +378,31 @@ function rendu(){renduNav();
    SÉLECTION CONSEILLÉE — chaque jour, les matchs dont l'option la plus
    probable atteint le seuil choisi (70 / 75 / 80 %). Liste honnête :
    probabilité ≠ gain garanti.                                            */
+function cellRes(s){const r=s&&s.resultat;
+  if(!r||r.touche==null) return `<td class="num mu">—</td>`;
+  return `<td class="num" style="font-weight:700;color:${r.touche?"var(--green)":"var(--red)"}">${r.touche?"✓":"✗"} ${r.buts_home}-${r.buts_away}</td>`;}
+
 function carteCombine(titre,c,couleur,avert,videTxt,groupe){
   if(!c||!c.legs||!c.legs.length) return `<div class="card"><div class="top">
     <span class="lbl" style="color:${couleur}">${esc(titre)}</span>
     <span class="lbl" style="font-size:22px;color:var(--txt)">0</span></div>
     <div class="det" style="margin-top:8px">${esc(videTxt||"Aucune sélection éligible : le robot s'abstient plutôt que de forcer une combinaison.")}</div></div>`;
-  const ligne=l=>`<div class="ligne" style="margin-top:8px"><div class="l">
+  const ligne=l=>{const rr=l.resultat;
+    const res=rr&&rr.touche!=null
+      ?`<div class="sub" style="font-weight:700;color:${rr.touche?"var(--green)":"var(--red)"}">${rr.touche?"✓":"✗"} ${rr.buts_home}-${rr.buts_away}</div>`:"";
+    return `<div class="ligne" style="margin-top:8px"><div class="l">
       <b>${esc(l.home)} <span class="mu">vs</span> ${esc(l.away)}</b>
       <div class="sub">${esc(l.date)} · ${esc(l.heure||"—")} · ${esc(l.ligue)} ·
         <span style="color:${couleur}">${esc(l.option)}</span></div></div>
       <div class="r"><div class="p" style="color:${couleur}">${pct1(l.p)} %</div>
-      <div class="sub">${l.cote_marche?"@ "+f2(l.cote_marche):(l.cote_juste?"juste @ "+f2(l.cote_juste):"sans cote")}</div></div></div>`;
+      <div class="sub">${l.cote_marche?"@ "+f2(l.cote_marche):(l.cote_juste?"juste @ "+f2(l.cote_juste):"sans cote")}</div>${res}</div></div>`;};
+  const _res=c.legs.filter(l=>l.resultat&&l.resultat.touche!=null);
+  const _perd=_res.filter(l=>!l.resultat.touche).length;
+  const _v=_perd?["✗ PERDU","var(--red)"]
+    :(_res.length&&_res.length===c.legs.length?["✓ VALIDÉ","var(--green)"]
+      :(_res.length?["EN COURS "+_res.length+"/"+c.legs.length,"var(--amber)"]:["EN ATTENTE","var(--txt)"]));
   let h=`<div class="card"><div class="top"><span class="lbl" style="color:${couleur}">${esc(titre)}</span>
-    <span class="lbl">${c.legs.length} match${c.legs.length>1?"s":""}</span></div>`;
+    <span class="lbl">${c.legs.length} match${c.legs.length>1?"s":""} · <b style="color:${_v[1]}">${_v[0]}</b></span></div>`;
   if(groupe&&c.par_jour){
     const lib=["vendredi","samedi","dimanche"];
     let i=0;
@@ -429,15 +441,36 @@ function tabConseils(){
     </div></div>
     <div id="consWrap"><div class="card empty"><span class="spin"></span> calcul…</div></div>`;
   document.querySelectorAll("[data-s]").forEach(b=>b.onclick=()=>{ETAT.seuil=parseFloat(b.dataset.s);tabConseils();});
-  api(`/api/conseils?seuil=${ETAT.seuil}`).then(r=>{
+  Promise.all([api(`/api/conseils?seuil=${ETAT.seuil}`),api("/api/suivi").catch(()=>null)]).then(([r,suivi])=>{
     const w=$("#consWrap"); if(!w) return;
     const total=r.jours.reduce((a,j)=>a+j.nb,0);
     let h="";
-    const cb=r.combines||{};
+    const cb=Object.assign({},r.combines||{});
+    /* INTERCONNEXION avec « Pronos vs Résultats » : l'archive du jour est la
+       vérité — combinés figés à leur première publication (aucune jambe n'y
+       est remplacée), résultats des sélections déjà jouées, SAFE 2 inclus. */
+    const AUJ=new Date(Date.now()+3600000).toISOString().slice(0,10);
+    const suiviJour=dte=>((suivi&&suivi.jours)||[]).find(j=>j.jour_prono===dte);
+    const sj=suiviJour(AUJ);
+    if(sj&&sj.combines) for(const k of Object.keys(sj.combines)) cb[k]=sj.combines[k];
+    const cleSel=s=>[s.date,s.home,s.away,s.option].join("|");
+    const ligneSel=s=>`<tr><td class="num">${esc(s.heure||"—")}</td>
+          <td><div class="tname">${esc(s.home)} <span class="mu">vs</span> ${esc(s.away)}</div>
+            <div class="tsub">${esc(s.ligue||"")}</div></td>
+          <td><span class="tagv" style="background:rgba(0,245,155,.12);color:var(--green)">${esc(s.option)}</span></td>
+          <td class="num g" style="font-size:15px">${pct1(s.p)} %</td>
+          <td class="num cy">${f2(s.cote_juste)}</td>
+          <td class="num ${s.cote_marche&&s.cote_marche>=s.cote_juste?"g":"mu"}" title="${s.cotes_source==="pinnacle"?"Cote Pinnacle en direct":"Cote moyenne football-data.co.uk"}">${s.cote_marche?f2(s.cote_marche):"—"}</td>
+          <td class="num mu">${f2(s.buts)}</td>
+          <td><span class="tagv" style="color:${s.confiance==="haute"?"var(--green)":s.confiance==="moyenne"?"var(--amber)":"var(--red)"};background:rgba(148,163,184,.08)">${esc(s.confiance||"—")}</span></td>
+          ${cellRes(s)}</tr>`;
     h+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;margin-bottom:14px">
       ${carteCombine("SAFE DU JOUR — 3 matchs max, aujourd'hui uniquement",cb.safe,"var(--green)",
         "Probabilité combinée = produit des probabilités (indépendance supposée, approximation). Trois jambes à ~85 % donnent ~61 % : environ 2 échecs sur 5. Aucun gain garanti.",
         "0 — aucune sélection au-dessus du seuil AUJOURD'HUI. Le robot ne va jamais chercher un match des jours suivants pour compléter.")}
+      ${cb.safe_2?carteCombine("SAFE 2 · RATTRAPAGE — créé après la perte d'une jambe du SAFE 1",cb.safe_2,"var(--amber)",
+        "Le SAFE 1 reste affiché avec son résultat, jamais effacé : l'historique doit rester exact. Ce SAFE 2 a été construit avec les matchs du jour pas encore commencés qui remplissaient toujours les conditions. Un seul rattrapage par jour — au-delà, ce serait courir après les pertes.",
+        ""):""}
       ${carteCombine("SAFE WEEK-END — ven + sam + dim, 3 par jour (9 max)",cb.safe_weekend,"var(--cyan)",
         "Même principe que le SAFE DU JOUR, étalé sur les trois jours du week-end : 3 matchs maximum par jour, jamais plus, rien de forcé. Attention : à 9 jambes, même très probables une par une, la probabilité combinée chute vite — c'est mathématique. Aucun gain garanti.",
         "0 — aucune sélection éligible ce week-end (ni vendredi, ni samedi, ni dimanche).",true)}
@@ -463,24 +496,19 @@ function tabConseils(){
         Abaissez le seuil ou revenez plus tard.</div>`;
     }
     for(const j of r.jours){
+      const aj=suiviJour(j.date);
+      const vus=new Set((j.selections||[]).map(cleSel));
+      const manq=aj?(aj.selections||[]).filter(s=>!vus.has(cleSel(s))&&(s.p||0)>=ETAT.seuil):[];
+      const toutes=(j.selections||[]).concat(manq)
+        .sort((a,b)=>(a.heure||"").localeCompare(b.heure||""));
       h+=`<div class="dayhead"><span class="lbl">${esc(j.jour)}</span>
         <span class="lbl mu">${esc(j.date)}</span><span class="line"></span>
-        <span class="lbl ${j.nb?"g":"mu"}">${j.nb?j.nb+" sélection"+(j.nb>1?"s":""):"aucun"}</span></div>`;
-      if(!j.nb) continue;
+        <span class="lbl ${toutes.length?"g":"mu"}">${toutes.length?toutes.length+" sélection"+(toutes.length>1?"s":""):"aucun"}${manq.length?" · dont "+manq.length+" déjà joué"+(manq.length>1?"s":"")+" (résultat affiché)":""}</span></div>`;
+      if(!toutes.length) continue;
       h+=`<div class="tblwrap"><table><thead><tr><th>Heure</th><th>Match</th>
         <th>Option conseillée</th><th>Probabilité</th><th>Cote juste</th>
-        <th>Cote marché</th><th>E(buts)</th><th>Conf.</th></tr></thead><tbody>`;
-      for(const s of j.selections){
-        h+=`<tr><td class="num">${esc(s.heure||"—")}</td>
-          <td><div class="tname">${esc(s.home)} <span class="mu">vs</span> ${esc(s.away)}</div>
-            <div class="tsub">${esc(s.ligue)}</div></td>
-          <td><span class="tagv" style="background:rgba(0,245,155,.12);color:var(--green)">${esc(s.option)}</span></td>
-          <td class="num g" style="font-size:15px">${pct1(s.p)} %</td>
-          <td class="num cy">${f2(s.cote_juste)}</td>
-          <td class="num ${s.cote_marche&&s.cote_marche>=s.cote_juste?"g":"mu"}" title="${s.cotes_source==="pinnacle"?"Cote Pinnacle en direct":"Cote moyenne football-data.co.uk"}">${s.cote_marche?f2(s.cote_marche):"—"}</td>
-          <td class="num mu">${f2(s.buts)}</td>
-          <td><span class="tagv" style="color:${s.confiance==="haute"?"var(--green)":s.confiance==="moyenne"?"var(--amber)":"var(--red)"};background:rgba(148,163,184,.08)">${esc(s.confiance||"—")}</span></td></tr>`;
-      }
+        <th>Cote marché</th><th>E(buts)</th><th>Conf.</th><th>Résultat</th></tr></thead><tbody>`;
+      for(const s of toutes) h+=ligneSel(s);
       h+="</tbody></table></div>";
     }
     if(r.jours.length) h+=`<div class="warn" style="margin-top:12px">${esc(r.note)}
