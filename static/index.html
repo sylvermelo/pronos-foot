@@ -191,6 +191,7 @@ footer{border-top:1px solid rgba(59,74,63,.35);background:var(--surface);margin-
   border-radius:50%;animation:rot .8s linear infinite;display:inline-block}
 @keyframes rot{to{transform:rotate(360deg)}}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -310,7 +311,7 @@ async function api(p){const r=await fetch(p);if(!r.ok)throw new Error(p);return 
 /* ---------------------------------------------------------------- onglets */
 const ONGLETS=[["matchs","Matchs à venir"],["conseils","Sélection conseillée"],["suivi","Pronos vs Résultats"],["coupon","Mon coupon"],["sim","Simulateur"],
   ["fleuves","Scores fleuves"],["sec","Fautes & cartons"],["corners","Corners"],["classement","Classement des clubs"],
-  ["bilan","Fiabilité du moteur"]];
+  ["bilan","Fiabilité du moteur"],["admin","Admin"]];
 
 function renduNav(){
   $("#nav").innerHTML=ONGLETS.map(([id,lb])=>{
@@ -372,7 +373,7 @@ function fmtN(n){return n==null?"—":String(n).replace(/\B(?=(\d{3})+(?!\d))/g,
 
 function rendu(){renduNav();
   ({matchs:tabMatchs,conseils:tabConseils,suivi:tabSuivi,coupon:tabCoupon,sim:tabSim,fleuves:tabFleuves,sec:tabSec,
-    corners:tabCorners,classement:tabClassement,bilan:tabBilan})[ETAT.onglet]();}
+    corners:tabCorners,classement:tabClassement,bilan:tabBilan,admin:tabAdmin})[ETAT.onglet]();}
 
 /* ================================================================ ONGLET 2
    SÉLECTION CONSEILLÉE — chaque jour, les matchs dont l'option la plus
@@ -1441,6 +1442,136 @@ function brancherTri(){
 if(typeof MutationObserver!=="undefined"&&typeof document.getElementById==="function"){
   const mn=document.getElementById("main");
   if(mn&&mn.nodeType===1) new MutationObserver(()=>brancherTri()).observe(mn,{childList:true,subtree:true});
+}
+
+/* ================================================================ ADMIN
+   Comptes & abonnements de la vitrine — réservé au compte opérateur.
+   La sécurité est côté Supabase (RLS) : sans session opérateur, les
+   requêtes de lecture/écriture ne renvoient rien et ne modifient rien.
+   La clé présente ici est la clé « anon » PUBLIQUE, comme sur la vitrine. */
+const ADMIN_CFG={
+  url:"https://xqogordfcqymkmvzhrby.supabase.co",
+  key:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxb2dvcmRmY3F5bWttdnpocmJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3MDAwNjcsImV4cCI6MjEwNDI3NjA2N30.Ud6CWJV_BSrJYLHi-wp2HLRGGTUXx2v_O10R-bPGOps",
+  operateur:"operateur@pronos-foot.bj"};
+let ADMIN_SB=null;
+function adminSb(){
+  if(!ADMIN_SB&&window.supabase)
+    ADMIN_SB=window.supabase.createClient(ADMIN_CFG.url,ADMIN_CFG.key);
+  return ADMIN_SB;
+}
+async function adminOperateur(){
+  const sb=adminSb(); if(!sb) return false;
+  try{
+    const{data}=await sb.auth.getSession();
+    const u=data&&data.session&&data.session.user;
+    return !!(u&&u.email===ADMIN_CFG.operateur);
+  }catch(e){return false;}
+}
+function fmtCompte(email){
+  const m=/^t(229)(01\d{8})@tel\.pronos-foot\.bj$/.exec(email||"");
+  if(!m) return email||"—";
+  const d=m[2];
+  return "+229 "+d.slice(0,2)+" "+d.slice(2,4)+" "+d.slice(4,6)+" "+d.slice(6,8)+" "+d.slice(8);
+}
+function admAuj(){return new Date(Date.now()+3600000).toISOString().slice(0,10);}
+function admDans(n,base){
+  const d=new Date((base||admAuj())+"T12:00:00Z");
+  d.setUTCDate(d.getUTCDate()+n);
+  return d.toISOString().slice(0,10);
+}
+function tabAdmin(){
+  $("#main").innerHTML=`<div class="band"><div><div class="htitle"><h1>Administration</h1>
+    <span class="badge gy"><span class="dot"></span>COMPTES & ABONNEMENTS</span></div>
+    <p class="desc">Les comptes créés sur la vitrine (numéro de téléphone ou e-mail),
+    leur échéance d'abonnement, et l'activation en un clic. Réservé à l'opérateur :
+    la sécurité est assurée par la base de données, pas par cette page —
+    sans le code, rien ne s'affiche et rien ne peut être modifié.</p></div></div>
+    <div id="admWrap"><div class="card empty"><span class="spin"></span> vérification…</div></div>`;
+  (async()=>{
+    const w=$("#admWrap"); if(!w) return;
+    const sb=adminSb();
+    if(!sb){
+      w.innerHTML=`<div class="card empty"><b>Indisponible hors ligne</b>
+        L'administration a besoin d'une connexion internet (base Supabase).</div>`;
+      return;
+    }
+    if(!await adminOperateur()){
+      w.innerHTML=`<div class="card" style="max-width:430px">
+        <div class="phead"><span class="badge cy">CODE OPÉRATEUR</span></div>
+        <div class="det mu" style="margin:10px 0">Entre ton code secret pour ouvrir
+        l'administration. Astuce : si tu es déjà connecté avec le compte opérateur
+        sur la vitrine, la session est partagée — recharge simplement la page.</div>
+        <input id="admCode" type="password" placeholder="••••••••" autocomplete="off"
+          style="width:100%;padding:12px;border-radius:8px;border:1px solid rgba(148,163,184,.25);background:rgba(10,14,23,.6);color:var(--txt);font-family:ui-monospace,monospace">
+        <button class="btn" id="admGo" style="margin-top:10px;width:100%">Ouvrir l'administration</button>
+        <div id="admMsg" class="det mu" style="margin-top:8px"></div></div>`;
+      const go=async()=>{
+        const msg=$("#admMsg"); msg.textContent="…";
+        try{
+          const r=await sb.auth.signInWithPassword({email:ADMIN_CFG.operateur,
+            password:$("#admCode").value});
+          if(r.error) throw r.error;
+          tabAdmin();
+        }catch(e){ msg.textContent="Code refusé."; }
+      };
+      $("#admGo").onclick=go;
+      $("#admCode").addEventListener("keydown",e=>{if(e.key==="Enter")go();});
+      return;
+    }
+    w.innerHTML=`<div class="card empty"><span class="spin"></span> chargement des comptes…</div>`;
+    try{
+      const{data,error}=await sb.from("abonnements").select("*")
+        .order("cree_le",{ascending:false});
+      if(error) throw error;
+      const auj=admAuj();
+      if(!data||!data.length){
+        w.innerHTML=`<div class="card empty"><b>Aucun compte</b>
+          Personne ne s'est encore inscrit sur la vitrine.</div>`;
+        return;
+      }
+      let h=`<div class="tblwrap"><table><thead><tr><th>Compte</th><th>Créé le</th>
+        <th>Statut</th><th>Échéance</th><th>Actions</th></tr></thead><tbody>`;
+      for(const a of data){
+        const actif=a.fin&&a.fin>=auj;
+        const cree=a.cree_le?new Date(a.cree_le).toLocaleDateString("fr-FR",
+          {day:"2-digit",month:"short",year:"numeric"}):"—";
+        const perm=a.fin==="2099-12-31";
+        h+=`<tr>
+          <td><div class="tname">${esc(fmtCompte(a.email))}</div>
+            <div class="tsub">${esc(a.plan||"")}</div></td>
+          <td class="num mu">${cree}</td>
+          <td><span class="tagv" style="color:${actif?"var(--green)":"var(--red)"};background:rgba(148,163,184,.08)">${actif?"ACTIF":"INACTIF"}</span></td>
+          <td class="num ${actif?"g":"mu"}">${perm?"permanent":(actif?esc(a.fin):"—")}</td>
+          <td>${perm?"<span class='lbl mu'>opérateur</span>":`<div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="fchip" data-act="30" data-id="${a.id}" data-fin="${a.fin||""}">30 j</button>
+            <button class="fchip" data-act="p30" data-id="${a.id}" data-fin="${a.fin||""}">+30 j</button>
+            <button class="fchip" data-act="off" data-id="${a.id}" data-fin="${a.fin||""}">stop</button>
+          </div>`}</td></tr>`;
+      }
+      h+=`</tbody></table></div>
+      <div class="det mu" style="margin-top:10px">« 30 j » : actif dès aujourd'hui pour
+      30 jours. « +30 j » : prolonge l'échéance actuelle de 30 jours. « stop » :
+      désactive immédiatement. Effet instantané sur la vitrine — la personne n'a
+      même pas besoin de recharger son application.</div>`;
+      w.innerHTML=h;
+      w.querySelectorAll("[data-act]").forEach(b=>b.onclick=async()=>{
+        const id=+b.dataset.id, fin=b.dataset.fin, auj2=admAuj();
+        let nfin;
+        if(b.dataset.act==="30") nfin=admDans(30);
+        else if(b.dataset.act==="p30") nfin=admDans(30,fin&&fin>auj2?fin:auj2);
+        else nfin="1970-01-01";
+        b.disabled=true;
+        const{error}=await sb.from("abonnements").update({fin:nfin}).eq("id",id);
+        if(error){b.disabled=false;alert("Échec : "+error.message);return;}
+        tabAdmin();
+      });
+    }catch(e){
+      w.innerHTML=`<div class="card empty"><b>Lecture refusée</b>
+        ${esc(e.message||String(e))}<br>
+        Vérifie que le SQL <span class="mono">supabase/rls_admin.sql</span>
+        (dépôt du robot) a bien été collé dans Supabase → SQL Editor.</div>`;
+    }
+  })();
 }
 
 init();
