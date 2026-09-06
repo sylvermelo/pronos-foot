@@ -70,6 +70,35 @@ def main():
     # calendrier pour que leurs matchs ESPN soient reconnus — voir coupes.py
     import coupes
     coupes.injecter(db)
+
+    # CORNERS — correction du biais mesuré (backtest_secondaires.py,
+    # walk-forward 2023-2026 sur 42 733 prédictions). biais_division =
+    # prédit − réel : si le modèle annonce trop bas (biais négatif), on
+    # remonte la base. La base est PAR ÉQUIPE (le total du match ≈ 2×base),
+    # donc on applique −biais/2. Idempotent grâce au marqueur.
+    # Fautes et cartons : biais mesurés mais NON appliqués pour l'instant
+    # (demande utilisateur = corners ; extensible sur simple feu vert).
+    try:
+        with open(os.path.join("data", "backtest_secondaires.json")) as f:
+            _bt = json.load(f)
+        n_corr = 0
+        for div, L in db.get("ligues", {}).items():
+            sec = L.get("secondaires")
+            if not sec or not isinstance(sec.get("base"), dict):
+                continue
+            base = sec["base"]
+            if "corners" not in base or base.get("corners_biais_applique") is not None:
+                continue
+            b = (_bt.get("biais_division", {}).get(div) or {}).get("corners")
+            if b is None:
+                continue
+            base["corners"] = round(base["corners"] - b / 2.0, 3)
+            base["corners_biais_applique"] = round(-b, 2)   # delta total appliqué
+            n_corr += 1
+        if n_corr:
+            print(f"corners : biais walk-forward appliqué sur {n_corr} division(s)")
+    except (OSError, ValueError) as e:
+        print(f"corners : correction de biais ignorée ({e})", file=sys.stderr)
     t0 = datetime.datetime.now()
     log = calendrier.appliquer(db, cotes=lire_cotes_co_uk())
     # Cotes EN DIRECT (The Odds API → Pinnacle) : écrase les cotes moyennes

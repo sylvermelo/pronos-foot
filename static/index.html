@@ -714,6 +714,7 @@ function panneauMatch(p,sec,s){
       <div class="c">cote juste ${sc.p>0?(1/sc.p).toFixed(2):"—"}</div></div>`;}).join("");
   const fiab=p.fiabilite||{};
   const m=p.marche;
+  const CH=(DATA.corners_histo&&DATA.corners_histo.divisions)?(DATA.corners_histo.divisions[p.ligue]||null):null;
   const coupeWarn=(s&&s.coupe)?`<div class="warn" style="margin-top:10px"><b>Match de coupe</b> — chaque équipe apporte les forces de son championnat domestique. ${fiab.inter_ligues?"Les deux équipes viennent de divisions <b>différentes</b> : aucun étalonnage inter-ligues n'est disponible gratuitement — prédiction <b>INDICATIVE</b>, confiance forcée à « faible », match exclu des sélections conseillées et des combinés suivis.":"Les deux équipes viennent de la même division : prédiction issue du modèle de ce championnat (contexte de coupe non modélisé : rotation d'effectif, enjeu différent)."} Aucun gain garanti.</div>`:"";
   let html=`<div class="card hi glow">
     <div class="phead"><span class="badge gy"><span class="dot"></span>ANATOMIE DU MATCH</span>
@@ -746,8 +747,10 @@ function panneauMatch(p,sec,s){
     html+=`<div style="margin:14px 0 4px"><span class="lbl">Fautes, corners, cartons</span></div>
     <div class="ligne"><div class="l">Fautes totales attendues<div class="sub">over 21.5 : ${pct1(o.fautes["21.5"])} · over 23.5 : ${pct1(o.fautes["23.5"])}</div></div>
       <div class="r"><div class="p cy">${f2(F.total_attendu)}</div></div></div>
-    <div class="ligne"><div class="l">Corners attendus<div class="sub">over 9.5 : ${pct1(o.corners["9.5"])} · over 10.5 : ${pct1(o.corners["10.5"])}</div></div>
+    <div class="ligne"><div class="l">Corners attendus<div class="sub">${CH?`moyenne historique ${esc(p.ligue)} : ${f2(CH.moyenne)} corners/match sur ${fmtN(CH.n)} matchs${CH.moyenne_recente!=null?` · 3 dernières saisons : ${f2(CH.moyenne_recente)}`:""}`:"historique indisponible pour cette division"}</div></div>
       <div class="r"><div class="p cy">${f2(C.total_attendu)}</div></div></div>
+    ${CH&&C.over?`<div class="tblwrap" style="margin-top:6px"><table><thead><tr><th>Ligne corners</th><th>Over (modèle)</th><th>Under (modèle)</th><th>Over (historique)</th><th>Over (3 dern. saisons)</th></tr></thead><tbody>${["7.5","8.5","9.5","10.5","11.5"].map(l=>`<tr><td class="num">${l}</td><td class="num cy">${pct1((C.over||{})[l])}</td><td class="num">${pct1((C.under||{})[l])}</td><td class="num mu">${CH.over&&CH.over[l]!=null?pct1(CH.over[l]):"—"}</td><td class="num mu">${CH.over_recent&&CH.over_recent[l]!=null?pct1(CH.over_recent[l]):"—"}</td></tr>`).join("")}</tbody></table></div>
+    <div class="det mu" style="margin-top:6px;line-height:1.6">Modèle : facteurs émission/réception par équipe (binomiale négative), biais mesuré en walk-forward 2023-2026 puis corrigé. Historique : fréquences RÉELLES des matchs co.uk depuis 2018, indépendantes du modèle — un grand écart entre les deux colonnes appelle à la prudence. Les corners ne sont PAS dans les sélections conseillées ni les combinés suivis : aucune source gratuite ne publie les corners en direct (ESPN ne donne que les buts), le verdict ne pourrait pas être résolu automatiquement.</div>`:""}
     <div class="ligne"><div class="l">Cartons jaunes attendus<div class="sub">over 3.5 : ${pct1(o.jaunes["3.5"])} · over 4.5 : ${pct1(o.jaunes["4.5"])}</div></div>
       <div class="r"><div class="p am">${f2(J.total_attendu)}</div></div></div>`;
     if(a) html+=`<div class="ligne"><div class="l">Arbitre : ${esc(sec.arbitre||"non annoncé")}
@@ -1063,6 +1066,19 @@ function tabSec(){
           ${m.sec.arbitre_info?`<div class="tsub" style="margin:0">${m.sec.arbitre_info.n||0} matchs · ${f2(m.sec.arbitre_info.jaunes)} j/m</div>`:""}</td></tr>`;
     }
     tbl+="</tbody></table></div>";
+  }
+  const CHt=DATA.corners_histo;
+  if(CHt&&CHt.divisions){
+    tbl+=`<div style="margin:16px 0 4px"><span class="lbl">Analyse corners poussée — fréquences RÉELLES par division (co.uk depuis 2018, ${fmtN((CHt.toutes_divisions||{}).n||0)} matchs)</span></div>
+    <div class="tblwrap"><table><thead><tr><th>Division</th><th>Matchs</th><th>Moyenne</th><th>3 dern. saisons</th><th>Over 8.5</th><th>Over 9.5</th><th>Over 10.5</th><th>Over 11.5</th></tr></thead><tbody>`+
+    Object.keys(CHt.divisions).sort().map(div=>{const v=CHt.divisions[div];
+      return `<tr><td class="mono">${esc(div)}</td><td class="num mu">${fmtN(v.n)}</td>
+        <td class="num cy">${f2(v.moyenne)}</td>
+        <td class="num">${v.moyenne_recente!=null?f2(v.moyenne_recente):"—"}</td>
+        <td class="num">${pct1(v.over["8.5"])}</td><td class="num">${pct1(v.over["9.5"])}</td>
+        <td class="num">${pct1(v.over["10.5"])}</td><td class="num">${pct1(v.over["11.5"])}</td></tr>`;}).join("")+
+    `</tbody></table></div>
+    <div class="det mu" style="margin-top:6px;line-height:1.6">Toutes divisions confondues : moyenne ${f2((CHt.toutes_divisions||{}).moyenne||0)} corners/match, over 9.5 réalisé ${pct1(((CHt.toutes_divisions||{}).over||{})["9.5"])} des matchs. Le modèle affiché plus haut est corrigé du biais mesuré en walk-forward 2023-2026 (prédit − réel, par division). Les corners ne sont pas intégrés aux sélections suivies : pas de source gratuite pour les corners en direct — verdict impossible à résoudre automatiquement.</div>`;
   }
   $("#main").innerHTML=`<div class="band"><div><div class="htitle"><h1>Fautes, corners & cartons</h1>
     <span class="badge cy">MODÈLES SECONDAIRES POISSON</span>

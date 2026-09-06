@@ -42,6 +42,13 @@ def precalculer():
         "calendrier": S.DB.get("calendrier_log") or {},
         "suivi": __import__("suivi").vue(),
     }
+    # analyse corners poussée : fréquences RÉELLES par division et par ligne
+    # (data/analyse_corners.json, généré par analyse_corners.py sur les CSV co.uk)
+    try:
+        with open("data/analyse_corners.json", encoding="utf-8") as f:
+            data["corners_histo"] = json.load(f)
+    except (OSError, ValueError):
+        data["corners_histo"] = None
     for div, L in S.DB["ligues"].items():
         try:
             data["classements"][div] = S.api_classement(div)
