@@ -8,10 +8,13 @@
 
 # ---- données volumineuses ou régénérables -------------------------------
 data/*.csv
-data/modeles.json
 data/calendrier.json
 data/enrichi.csv
 data/config.json
+
+# ⚠️ data/modeles.json est VOLONTAIREMENT CONSERVÉ (seed CI, ~370 Ko) :
+#    il garantit que le workflow repart d'un modèle sain quand le cache
+#    GitHub est vidé/expiré. Les CSV sont re-téléchargés, le modèle non.
 
 # ⚠️ data/backtest_secondaires.json est VOLONTAIREMENT CONSERVÉ :
 #    il pèse 4 Ko et fournit les chiffres de fiabilité affichés dans

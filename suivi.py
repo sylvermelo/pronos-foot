@@ -2,7 +2,7 @@
 SUIVI DES PRONOSTICS — « prédictions d'hier vs résultats réels ».
 
 Principe (honnête, sans triche) :
-  1. À chaque mise à jour (toutes les 3 h), on ARCHIVE la sélection conseillée
+  1. À chaque mise à jour (toutes les heures), on ARCHIVE la sélection conseillée
      du moment (seuil 75 %) dans data/suivi.json, sous la date du jour.
      Le dernier passage de la journée écrase les précédents : c'est l'état le
      plus frais des conseils avant les matchs.
@@ -82,10 +82,20 @@ def touche(option, bh, ba):
 
 # ---------------------------------------------------------------- archivage
 def archiver(conseils, d=None, jour=None, retro=False):
-    """Archive les sélections conseillées d'un jour (écrase le même jour).
+    """Archive les sélections conseillées d'un jour — FUSION, jamais d'écrasement.
 
     conseils : réponse de api_conseils() (serveur.py)
-    Les résultats déjà résolus d'un passage précédent sont conservés.
+
+    Règles (bug du 05-06/09/2026 corrigé ici) :
+    - api_conseils() exclut les matchs déjà commencés. Si on ÉCRASAIT l'entrée
+      du jour à chaque exécution, les matchs commencés disparaissaient de
+      l'archive AVANT d'avoir pu être résolus → « toujours en attente ».
+      Désormais : une sélection déjà archivée n'est JAMAIS supprimée.
+    - Les sélections encore à venir sont rafraîchies (p, cotes…) à chaque
+      passage ; leur résultat éventuel est conservé.
+    - Combinés : la version archivée la première dans la journée est gardée
+      (c'est la recommandation du matin, avant les premiers coups d'envoi) ;
+      un type de combiné pas encore archivé est ajouté.
     """
     d = d if d is not None else charger()
     jour = jour or datetime.date.today().isoformat()
@@ -97,11 +107,26 @@ def archiver(conseils, d=None, jour=None, retro=False):
                           "option", "p", "cote_juste", "cote_marche", "confiance",
                           "buts")})
     entree = d["jours"].get(jour) or {}
-    anciens = {(s.get("date"), s.get("home"), s.get("away")): s.get("resultat")
-               for s in entree.get("selections", [])}
+
+    def _cle(s):
+        return (s.get("date"), s.get("home"), s.get("away"), s.get("option"))
+
+    anciennes = {_cle(s): s for s in entree.get("selections", [])}
+    vus = set()
     for s in sels:
-        r = anciens.get((s["date"], s["home"], s["away"]))
-        s["resultat"] = r                      # None tant que non résolu
+        old = anciennes.get(_cle(s))
+        if old is not None:
+            s["resultat"] = old.get("resultat")    # résultat déjà résolu conservé
+            vus.add(_cle(s))
+        else:
+            s["resultat"] = None                   # nouvelle sélection
+    # les sélections archivées qui ont DISPARU des nouveaux conseils (matchs
+    # déjà commencés) sont gardées telles quelles : elles seront résolues.
+    gardees = [s for k, s in anciennes.items() if k not in vus]
+    sels = sels + gardees
+    sels.sort(key=lambda s: (s.get("date") or "", s.get("heure") or "",
+                             s.get("div") or "", s.get("home") or ""))
+
     # combinés : reporter les jambes déjà résolues (évite de re-interroger ESPN)
     anciens_comb = {}
     for c in (entree.get("combines") or {}).values():
@@ -110,14 +135,17 @@ def archiver(conseils, d=None, jour=None, retro=False):
                 if l.get("resultat"):
                     anciens_comb[(l.get("date"), l.get("home"), l.get("away"),
                                   l.get("option"))] = l["resultat"]
-    comb = conseils.get("combines") or {}
-    for c in comb.values():
+    comb = dict(entree.get("combines") or {})      # on GARDE ceux déjà archivés
+    for k, c in (conseils.get("combines") or {}).items():
+        if k in comb:
+            continue                               # version du matin conservée
         if isinstance(c, dict):
             for l in c.get("legs") or []:
                 r = anciens_comb.get((l.get("date"), l.get("home"), l.get("away"),
                                       l.get("option")))
                 if r:
                     l["resultat"] = r
+        comb[k] = c
     d["jours"][jour] = {
         "genere_le": datetime.datetime.now().isoformat(timespec="minutes"),
         "seuil": SEUIL_ARCHIVE, "retro": bool(retro), "selections": sels,

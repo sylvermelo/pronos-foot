@@ -374,7 +374,7 @@ async function api(p){
       return {impossible:true,
         message:"Version web / autonome : les données sont embarquées dans le fichier, "+
                 "un navigateur ne peut pas ré-entraîner le modèle. La mise à jour est "+
-                "faite par GitHub (07:30 puis toutes les 3 h, heure de Cotonou). Pour "+
+                "faite par GitHub (toutes les heures, automatiquement). Pour "+
                 "forcer maintenant : onglet Actions du dépôt → Run workflow (2 clics, "+
                 "connecté à ton compte), puis recharge cette page."};
     case '/api/bilan':    return DATA.bilan;

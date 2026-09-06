@@ -4,21 +4,25 @@
 #  Aucun ordinateur à laisser allumé : tout se passe ici.
 #
 #  Déclencheurs :
-#    · toutes les 3 h à :30 (06:30 UTC = 07:30 à Cotonou, Bénin — UTC+1)
+#    · TOUTES LES HEURES à :07 (heure UTC — les scores de la veille et du jour
+#      sont résolus au plus tard 1 h après la fin des matchs)
 #    · à chaque modification du code
 #    · à la demande, via le bouton « Run workflow » dans l'onglet Actions
 #
 #  Durée typique : 2 à 4 minutes.
+#  ⚠️ Honnêteté : les crons GitHub peuvent être retardés de quelques minutes
+#  (parfois plus aux heures de pointe) — c'est indépendant de notre code.
 # ============================================================================
 
-name: Mise à jour quotidienne
+name: Mise à jour horaire
 
 on:
   schedule:
-    # ⚠️ GitHub utilise l'heure UTC, pas ton heure locale.
-    # 06:30 UTC = 07:30 au Bénin, puis toutes les 3 h : la fenêtre de matchs
-    # se rafraîchit jusqu'à 6 fois par jour sans rien faire.
-    - cron: '30 */3 * * *'
+    # ⚠️ GitHub utilise l'heure UTC, pas ton heure locale (Bénin = UTC+1).
+    # Toutes les heures à :07 (on évite :00 et :30, heures de pointe des crons
+    # GitHub, pour réduire les retards). Les scores finaux (ESPN) sont résolus
+    # à chaque passage : un match terminé est affiché au pire 1 h après.
+    - cron: '7 * * * *'
   workflow_dispatch:        # bouton « Run workflow » dans l'onglet Actions
   push:
     branches: [ main ]
@@ -66,13 +70,17 @@ jobs:
 
       # Les 175 fichiers CSV pèsent environ 25 Mo. Plutôt que de tout
       # retélécharger chaque jour, on les conserve d'une exécution à l'autre.
+      # v2 (06/09/2026) : reset volontaire du cache — le suivi et le modèle
+      # repartent des versions saines commitées dans le dépôt (data/suivi.json,
+      # data/modeles.json). Les CSV seront re-téléchargés dès que
+      # football-data.co.uk répondra de nouveau.
       - name: Restaurer les données de la dernière exécution
         uses: actions/cache@v4
         with:
           path: data
-          key: donnees-v1-${{ github.run_id }}
+          key: donnees-v2-${{ github.run_id }}
           restore-keys: |
-            donnees-v1-
+            donnees-v2-
 
       - name: Télécharger les nouveautés et ré-entraîner si nécessaire
         run: |

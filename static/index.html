@@ -281,7 +281,7 @@ function brancherBoutonMaj(){
         ${esc(r.message)}<br><br>
         En pratique : va sur <span class="mono g">github.com/sylvermelo/pronos-foot/actions</span>,
         bouton <b>Run workflow</b>, puis recharge cette page une fois le run vert (~4 min).
-        Le site se met aussi à jour tout seul à 07:30 puis toutes les 3 heures (heure de Cotonou).</div></div>`;
+        Le site se met aussi à jour tout seul <b>toutes les heures</b> (scores des matchs terminés compris).</div></div>`;
       return;
     }
     txt.textContent="maj en cours…";
@@ -528,7 +528,7 @@ function renduSuivi(){
   if(!j){
     w.innerHTML=`<div class="card empty"><b>Le suivi démarre</b>
       Les sélections conseillées sont archivées automatiquement à chaque mise à jour
-      (toutes les 3 heures). Les premières comparaisons apparaîtront dès que les matchs
+      (toutes les heures). Les premières comparaisons apparaîtront dès que les matchs
       prédits seront terminés : une sélection archivée aujourd'hui est vérifiée contre
       le score réel demain. Aucune donnée n'est inventée rétroactivement —
       ce qui n'a pas été prédit avant le match n'est pas compté.</div>`;
