@@ -6,14 +6,18 @@ Tu as **deux fichiers** qui font exactement la même chose. Prends celui qui t'a
 
 ### Solution 1 — le fichier autonome (la plus simple)
 
-**`pronos-foot-autonome.html`** (391 Ko)
+**`pronos-foot-autonome.html`** (~900 Ko) — ou le site web
+**https://sylvermelo.github.io/pronos-foot/**, mis à jour **toutes les heures**
+tout seul (GitHub Actions), sans rien installer.
 
 1. Copie ce fichier sur ton ordinateur (ou ton téléphone)
 2. **Double-clique dessus**
 3. L'application s'ouvre dans ton navigateur
 
 C'est tout. **Aucune installation, aucun Python, aucune connexion internet nécessaire.**
-Toutes les données des 21 championnats et tout le moteur de calcul sont à l'intérieur du fichier.
+Toutes les données des 21 championnats couverts, des 8 coupes (Champions League,
+Europa League, Conference League, Carabao Cup, Copa del Rey, Coppa Italia,
+DFB-Pokal, Coupe de France) et tout le moteur de calcul sont à l'intérieur du fichier.
 
 Tu peux le mettre sur une clé USB, l'envoyer par WhatsApp à un ami, le garder
 dans tes téléchargements : il fonctionnera toujours, même hors ligne.
@@ -35,11 +39,13 @@ Elle a besoin de Python. **Pour un usage courant, la solution 1 suffit largement
 
 | Onglet | Ce que tu y fais |
 |---|---|
-| **Matchs à venir** | La liste des 48 prochains matchs. Le moteur donne ses probabilités à côté des cotes des bookmakers. L'écart entre les deux est affiché. Tu peux ajouter un match à ton coupon avec les petits boutons 1 / X / 2. |
+| **Matchs à venir** | Tous les matchs de la fenêtre du calendrier (~8 jours, 21 championnats + coupes). Le moteur donne ses probabilités à côté des cotes des bookmakers (badge PINNACLE = cotes en direct). Clic sur un match = toutes les options analysées, dont la table corners modèle vs historique réel. Les matchs de coupe portent un badge COUPE. |
+| **Sélection conseillée** | Les options à ≥ 75 % (seuil réglable), par jour, et les **6 combinés du robot** : SAFE du jour (3 max), SAFE week-end (3/jour ven-sam-dim), RISQUE, **COTE 2**, **COTE 5** (10 matchs max) et **FUN** (20-50, 15 max). Cote du marché quand elle existe, sinon cote juste calculée (1/probabilité) — la source est affichée. Jamais forcé : pas assez de matchs → « 0 ». |
+| **Suivi réel** | Ce que le robot a conseillé, comparé aux scores FINAUX officiels (ESPN) — résolu automatiquement chaque heure après les matchs. Bilan par jour, par marché, et verdict des combinés. Aucune donnée inventée rétroactivement. |
 | **Mon coupon** | Tu construis ton combiné, l'application le simule 20 000 fois et te dit ce que ça donne vraiment. |
 | **Simulateur** | Tu choisis n'importe quelle ligue et n'importe quelles équipes — même un match qui n'existe pas encore. Tu obtiens la matrice complète des 121 scores possibles. |
 | **Scores fleuves** | Les confrontations les plus ouvertes (pour « plus de buts ») et les plus fermées (pour « moins de buts »). |
-| **Fautes & cartons** | Les totaux attendus de fautes, corners et cartons jaunes, avec l'arbitre du match. |
+| **Fautes & cartons** | Les totaux attendus de fautes, corners et cartons jaunes, avec l'arbitre du match, plus l'**analyse corners poussée** : fréquences réelles par division et par ligne (51 113 matchs mesurés depuis 2018), et le modèle corrigé de son biais mesuré en walk-forward. |
 | **Classement** | La puissance réelle de chaque club : force d'attaque, faiblesse défensive, forme récente, fiabilité de l'estimation. |
 | **Bilan honnête** | Les vrais résultats des tests, y compris les échecs. À lire une fois. |
 
@@ -76,6 +82,15 @@ Soyons clairs, parce que c'est important :
   source gratuite. Leur rentabilité est donc impossible à vérifier. Le gain de
   précision mesuré est de +1,25 % — trop faible pour battre la marge d'un
   bookmaker (5 à 8 %).
+- **Les corners ne sont pas dans les sélections suivies** : aucune source
+  gratuite ne publie les corners en direct (ESPN ne donne que les buts) — le
+  verdict d'un pari corners ne pourrait pas être résolu automatiquement.
+- **Les matchs de coupe entre équipes de championnats différents sont des
+  approximations** : chaque équipe apporte les forces de SON championnat, sans
+  étalonnage inter-ligues (aucune source gratuite fiable). Confiance forcée à
+  « faible », et ces matchs n'entrent dans AUCUNE sélection conseillée ni
+  combiné suivi. Une équipe inconnue des 21 championnats couverts = le robot
+  s'abstient complètement (match non analysé).
 
 **À quoi elle sert vraiment** : analyser un match en 10 secondes, vérifier qu'une
 cote n'est pas manifestement absurde, comparer ta propre intuition à un calcul
@@ -87,10 +102,17 @@ C'est un outil d'analyse, pas une machine à gains.
 
 ## Rafraîchir les données
 
-Le fichier autonome est une **photo figée** : il ne peut pas se mettre à jour
-tout seul, car les navigateurs web bloquent tout téléchargement lancé depuis un
-fichier HTML local. C'est une mesure de sécurité des navigateurs, pas un défaut
-contournable.
+**Le site web se met à jour TOUT SEUL toutes les heures** (GitHub Actions) :
+calendrier et scores finaux ESPN, cotes Pinnacle en direct (1 vraie fois par
+jour pour ménager le quota), historique co.uk dès qu'il republie, et le suivi
+des pronostics résolu après chaque match. Les crons GitHub peuvent être
+retardés de quelques minutes aux heures de pointe — c'est indépendant du code.
+
+Le fichier autonome, lui, est une **photo figée** : il ne peut pas se mettre à
+jour tout seul, car les navigateurs web bloquent tout téléchargement lancé
+depuis un fichier HTML local. C'est une mesure de sécurité des navigateurs, pas
+un défaut contournable. Re-télécharge-le depuis le site (bouton de téléchargement
+ou `pronos-foot-autonome.html` à la racine du site) pour une photo fraîche.
 
 Pour avoir des données fraîches en continu, une commande fait tout :
 
