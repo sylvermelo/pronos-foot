@@ -735,7 +735,27 @@ def api_secondaires(div, home, away, arbitre=None):
         return None
     modele = dict(L["secondaires"])
     modele["arbitres"] = DB.get("arbitres", {})
-    return MS.pronostiquer(modele, home, away, arbitre or None)
+    res = MS.pronostiquer(modele, home, away, arbitre or None)
+    if res is not None:
+        # confrontation corners (dominante, partage, échelle d'handicaps brute)
+        res["confrontation"] = MS.confrontation(modele, home, away)
+    return res
+
+
+def api_corners():
+    """Résumé de calibration corners (backtest walk-forward) pour l'interface."""
+    import corners as CN
+    histo = None
+    try:
+        with open(os.path.join(RACINE, "data", "analyse_corners.json"),
+                  encoding="utf-8") as f:
+            histo = json.load(f)
+    except (OSError, ValueError):
+        pass
+    return {"resume": CN.resume(), "bandes": CN._bandes(),
+            "familles": [f for f, _ in CN.FAMILLES],
+            "plancher": CN.PLANCHER_COUPON, "cible": CN.CIBLE_COUPON,
+            "histo": histo}
 
 
 def enrichir_secondaires(item):
@@ -754,6 +774,19 @@ def enrichir_secondaires(item):
         "lambda": {m: {"dom": mk[m]["lambda_home"], "ext": mk[m]["lambda_away"]}
                    for m in mk},
     }
+    cf = r.get("confrontation")
+    if cf:
+        import corners as CN
+        cf = dict(cf)
+        # échelle CALIBRÉE (fréquences réelles walk-forward — corners.py) :
+        # c'est elle qui décide du coupon montante et des cotes justes.
+        cf["echelle_cal"] = {k: CN.calibrer(k, v) for k, v in cf["echelle"].items()}
+        cor = mk.get("corners", {})
+        cf["over_cal"] = {k: CN.calibrer_total(v)
+                          for k, v in (cor.get("over") or {}).items()}
+        cf["under_cal"] = {k: CN.calibrer_total(v)
+                           for k, v in (cor.get("under") or {}).items()}
+        item["sec"]["confrontation"] = cf
     return item
 
 
@@ -770,6 +803,7 @@ ROUTES = {"/api/ligues": lambda q: api_ligues(),
           "/api/refresh": lambda q: api_refresh(),
           "/api/maj": lambda q: api_maj(),
           "/api/bilan": lambda q: api_bilan(),
+          "/api/corners": lambda q: api_corners(),
           "/api/suivi": lambda q: suivi.vue()}
 
 

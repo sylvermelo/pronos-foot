@@ -147,9 +147,9 @@ const evalJS = (code) => vm.runInContext(code, ctx, { timeout: 30000 });
   else warn('aucun marché secondaire à comparer dans l\'échantillon');
 
   /* ---------------- 4. les 7 onglets s'affichent-ils hors-ligne ? ---------------- */
-  console.log('\n=== 4. Rendu des 9 onglets en mode autonome ===');
+  console.log('\n=== 4. Rendu des 10 onglets en mode autonome ===');
   await new Promise(r => setTimeout(r, 3500));   // laisse init() terminer ses chargements
-  for (const id of ['matchs','conseils','suivi','coupon','sim','fleuves','sec','classement','bilan']) {
+  for (const id of ['matchs','conseils','suivi','coupon','sim','fleuves','sec','corners','classement','bilan']) {
     try {
       elements.clear();
       evalJS(`ETAT.onglet=${JSON.stringify(id)};rendu();`);
@@ -184,6 +184,64 @@ const evalJS = (code) => vm.runInContext(code, ctx, { timeout: 30000 });
       } else ko('pronosticJS a échoué sur une confrontation libre');
     } else warn('aucune liste d\'équipes disponible pour tester');
   } catch (e) { ko('test simulateur : ' + e.message); }
+
+  /* ---------------- 6. corners : parité confrontation + coupon montante ---------------- */
+  console.log('\n=== 6. Onglet Corners : parité confrontation ⟷ serveur + coupon ===');
+  try {
+    let nCorn = 0, nCornEcart = 0, pireCorn = 0;
+    for (const m of echantillon.slice(0, 12)) {
+      if (!m.sec || !m.sec.confrontation) continue;
+      sandbox.globalThis.__d = m.div; sandbox.globalThis.__h = m.home; sandbox.globalThis.__a = m.away;
+      const js = evalJS('secondairesJS(globalThis.__d, globalThis.__h, globalThis.__a, null)');
+      if (!js || !js.confrontation) { warn('confrontation JS absente pour ' + m.home + ' vs ' + m.away); continue; }
+      const py = m.sec.confrontation;
+      const paires = [['lambda_home', py.lambda_home, js.confrontation.lambda_home],
+        ['lambda_away', py.lambda_away, js.confrontation.lambda_away],
+        ['partage_dom', py.partage_dom, js.confrontation.partage_dom],
+        ['p_vict_dom', py.p_vict_dom, js.confrontation.p_vict_dom]];
+      for (const f of ['+2','+1','victoire','-1','-2','-3','-4']) {
+        paires.push(['echelle' + f, (py.echelle||{})[f], (js.confrontation.echelle||{})[f]]);
+        paires.push(['echelle_cal' + f, (py.echelle_cal||{})[f], (js.confrontation.echelle_cal||{})[f]]);
+      }
+      for (const [nom, a, b] of paires) {
+        if (a == null || b == null) { if (a != null || b != null) { nCornEcart++; warn(nom + ' ' + m.home + ' : py ' + a + ' / js ' + b); } continue; }
+        nCorn++;
+        const e = Math.abs(a - b);
+        if (e > pireCorn) pireCorn = e;
+        if (e > 0.011) { nCornEcart++; if (nCornEcart <= 3) warn(nom + ' ' + m.home + ' vs ' + m.away + ' : py ' + a + ' / js ' + b); }
+      }
+    }
+    if (nCorn && nCornEcart === 0) ok(nCorn + ' valeurs corners comparées, écart max ' + pireCorn.toFixed(4));
+    else if (nCorn) ko(nCornEcart + ' divergence(s) sur ' + nCorn + ' valeurs corners');
+    else warn('aucune confrontation à comparer dans l\'échantillon');
+
+    /* cohérence du coupon montante : plancher, tri horaire, produit des cotes */
+    const cp = evalJS(`(function(){
+      const nowC=new Date(Date.now()+3600000).toISOString().slice(0,16);
+      const ms=ETAT.matchs.filter(m=>m.disponible&&!m.coupe&&m.sec&&m.sec.confrontation&&m.date&&m.date>=nowC.slice(0,10)&&!(m.heure&&(m.date+"T"+m.heure)<nowC));
+      const parJour={}; for(const m of ms)(parJour[m.date]=parJour[m.date]||[]).push(m);
+      const jours=Object.keys(parJour).sort();
+      let tous={etapes:[],coteTot:1,pTot:1,miseFin:1};
+      for(const d of jours){ const c=cornCoupon(parJour[d],CORN_PLANCHER); if(c.etapes.length>tous.etapes.length||d===jours[0]) tous=c; tous.jour=tous.jour||d; }
+      const d0=jours[0]; return {jours:jours.length,cp:cornCoupon(parJour[d0]||[],CORN_PLANCHER),d0:d0};
+    })()`);
+    if (cp && cp.jours >= 0) {
+      const e = cp.cp.etapes;
+      let probs = 0;
+      for (const L of e) if (L.c.pc < CORN_PLANCHER - 1e-9) probs++;
+      let triOk = true;
+      for (let i = 1; i < e.length; i++) {
+        const k = x => (x.m.date + 'T' + (x.m.heure || '99:99'));
+        if (k(e[i-1]) > k(e[i])) triOk = false;
+      }
+      const prod = e.reduce((a, L) => a * L.c.pc, 1);
+      const prodOk = e.length === 0 || Math.abs(prod - cp.cp.pTot) < 1e-9;
+      const cotOk = e.length === 0 || Math.abs(e.reduce((a, L) => a * L.c.cote, 1) - cp.cp.coteTot) < 1e-9;
+      if (probs === 0 && triOk && prodOk && cotOk)
+        ok('coupon ' + (cp.d0 || '?') + ' : ' + e.length + ' maillon(s), plancher respecté, tri horaire, cote totale ' + cp.cp.coteTot.toFixed(2));
+      else ko('coupon incohérent : plancher=' + probs + ' tri=' + triOk + ' produit=' + prodOk + ' cote=' + cotOk);
+    } else warn('coupon non évaluable (fenêtre calendrier vide)');
+  } catch (err) { ko('test corners : ' + err.message); }
 
   console.log(`\n${'='.repeat(62)}`);
   if (erreurs === 0)

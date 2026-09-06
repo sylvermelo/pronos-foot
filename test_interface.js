@@ -83,8 +83,8 @@ const propre = t => !/NaN|undefined/.test(t || '');
   ouComplet ? ok('over/under 1.5+ présents dans chaque match') : ko('over/under 1.5+ manquants');
 
   /* --- chaque onglet --- */
-  console.log('\n=== 2. Rendu des 9 onglets ===');
-  for (const id of ['matchs', 'conseils', 'suivi', 'coupon', 'sim', 'fleuves', 'sec', 'classement', 'bilan']) {
+  console.log('\n=== 2. Rendu des 10 onglets ===');
+  for (const id of ['matchs', 'conseils', 'suivi', 'coupon', 'sim', 'fleuves', 'sec', 'corners', 'classement', 'bilan']) {
     try {
       elements.clear();
       vm.runInContext(`ETAT.onglet=${JSON.stringify(id)};rendu();`, ctx, { timeout: 30000 });

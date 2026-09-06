@@ -41,6 +41,7 @@ def precalculer():
         "meta": S.DB.get("meta", {}),
         "calendrier": S.DB.get("calendrier_log") or {},
         "suivi": __import__("suivi").vue(),
+        "corners_cal": S.api_corners(),
     }
     # analyse corners poussée : fréquences RÉELLES par division et par ligne
     # (data/analyse_corners.json, généré par analyse_corners.py sur les CSV co.uk)
@@ -176,7 +177,62 @@ function secondairesJS(div,h,a,arbitre){
     res.marches[mk]={lambda_home:arr2(lh),lambda_away:arr2(la),
       total_attendu:arr2(lh+la),dispersion:disp,over,under,plus_probable:pk};
   }
+  /* CONFRONTATION CORNERS — miroir de serveur.enrichir_secondaires */
+  const cf=confrontationCornersJS(div,h,a,sec);
+  if(cf){
+    const cor=res.marches.corners;
+    if(cor){
+      cf.over_cal={}; for(const k in cor.over) cf.over_cal[k]=cornCalibrerTotal(cor.over[k]);
+      cf.under_cal={}; for(const k in cor.under) cf.under_cal[k]=cornCalibrerTotal(cor.under[k]);
+    }
+    res.confrontation=cf;
+  }
   return res;
+}
+
+/* CALIBRATION CORNERS — miroir de corners.py (bandes walk-forward de
+   DATA.corners_cal, sérialisation exacte de corners._bandes()). */
+function cornCalibrer(fam,p){
+  if(p==null||p<0.5) return p;
+  const cells=((DATA.corners_cal||{}).bandes||{})[fam]||[];
+  let chosen=null;
+  for(const c of cells) if(p>=c[0]) chosen=c[2];
+  if(chosen==null) return arr4(p);
+  return arr4(Math.min(p,chosen));
+}
+function cornCalibrerTotal(p){
+  if(p==null) return null;
+  return arr4(p>=0.90?Math.min(p,p-0.01):p);
+}
+/* CONFRONTATION CORNERS — miroir exact de modeles_secondaires.confrontation :
+   D = corners(home) − corners(away) par convolution de binomiales négatives,
+   échelle d'handicaps relative à la dominante + calibration de production. */
+function confrontationCornersJS(div,h,a,sec){
+  sec=sec||((DATA.moteur[div]||{}).secondaires); if(!sec||!sec.base) return null;
+  const E=sec.equipes||{};
+  if(!E[h]||!E[a]||sec.base.corners==null) return null;
+  const eh=E[h].corners_em, rh=E[h].corners_rc, ea=E[a].corners_em, ra=E[a].corners_rc;
+  if([eh,rh,ea,ra].some(v=>typeof v!=='number'||!isFinite(v))) return null;
+  const base=sec.base.corners, disp=sec.base.corners_dispersion||1.18;
+  const lh=Math.min(Math.max(base*eh*ra,0.05),60), la=Math.min(Math.max(base*ea*rh,0.05),60);
+  const KMAX=40;
+  const ph=pmfMarche(lh,disp,KMAX), pa=pmfMarche(la,disp,KMAX);
+  const dist=new Array(2*KMAX+1).fill(0);
+  for(let i=0;i<=KMAX;i++)for(let j=0;j<=KMAX;j++) dist[i-j+KMAX]+=ph[i]*pa[j];
+  const domHome=lh>=la;
+  const queue=t=>{ let s2=0;
+    if(domHome){for(let k=KMAX+t;k<=2*KMAX;k++)s2+=dist[k];}
+    else{for(let k=0;k<=KMAX-t;k++)s2+=dist[k];}
+    return s2; };
+  const pNul=dist[KMAX], pVict=queue(1);
+  const ech={'+2':queue(-1),'+1':queue(0),'victoire':pVict,'-1':queue(2),'-2':queue(3),'-3':queue(4),'-4':queue(5)};
+  const echelle={}; for(const k in ech) echelle[k]=arr4(Math.min(Math.max(ech[k],0),1));
+  const lamD=domHome?lh:la, lamF=domHome?la:lh;
+  const cf={lambda_home:arr2(lh),lambda_away:arr2(la),dom:domHome?'home':'away',
+    partage_dom:arr4(lamD/Math.max(lamD+lamF,1e-9)),p_vict_dom:arr4(pVict),
+    p_nul:arr4(pNul),p_vict_autre:arr4(Math.max(0,1-pVict-pNul)),echelle};
+  cf.echelle_cal={}; for(const k in echelle) cf.echelle_cal[k]=cornCalibrer(k,echelle[k]);
+  return cf;
 }
 
 /* pronostic complet d'une confrontation — même structure que le serveur Python */
@@ -444,6 +500,7 @@ async function api(p){
                 "forcer maintenant : onglet Actions du dépôt → Run workflow (2 clics, "+
                 "connecté à ton compte), puis recharge cette page."};
     case '/api/bilan':    return DATA.bilan;
+    case '/api/corners':  return DATA.corners_cal;
     case '/api/suivi':    return DATA.suivi;
     case '/api/classement': return DATA.classements[g('div')]||null;
     case '/api/fleuves':  return DATA.fleuves[g('div')]||null;

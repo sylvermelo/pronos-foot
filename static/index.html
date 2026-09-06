@@ -309,7 +309,7 @@ async function api(p){const r=await fetch(p);if(!r.ok)throw new Error(p);return 
 
 /* ---------------------------------------------------------------- onglets */
 const ONGLETS=[["matchs","Matchs à venir"],["conseils","Sélection conseillée"],["suivi","Pronos vs Résultats"],["coupon","Mon coupon"],["sim","Simulateur"],
-  ["fleuves","Scores fleuves"],["sec","Fautes & cartons"],["classement","Classement des clubs"],
+  ["fleuves","Scores fleuves"],["sec","Fautes & cartons"],["corners","Corners"],["classement","Classement des clubs"],
   ["bilan","Fiabilité du moteur"]];
 
 function renduNav(){
@@ -372,7 +372,7 @@ function fmtN(n){return n==null?"—":String(n).replace(/\B(?=(\d{3})+(?!\d))/g,
 
 function rendu(){renduNav();
   ({matchs:tabMatchs,conseils:tabConseils,suivi:tabSuivi,coupon:tabCoupon,sim:tabSim,fleuves:tabFleuves,sec:tabSec,
-    classement:tabClassement,bilan:tabBilan})[ETAT.onglet]();}
+    corners:tabCorners,classement:tabClassement,bilan:tabBilan})[ETAT.onglet]();}
 
 /* ================================================================ ONGLET 2
    SÉLECTION CONSEILLÉE — chaque jour, les matchs dont l'option la plus
@@ -714,7 +714,7 @@ function panneauMatch(p,sec,s){
       <div class="c">cote juste ${sc.p>0?(1/sc.p).toFixed(2):"—"}</div></div>`;}).join("");
   const fiab=p.fiabilite||{};
   const m=p.marche;
-  const CH=(DATA.corners_histo&&DATA.corners_histo.divisions)?(DATA.corners_histo.divisions[p.ligue]||null):null;
+  const CH=(typeof DATA!=='undefined'&&DATA.corners_histo&&DATA.corners_histo.divisions)?(DATA.corners_histo.divisions[p.ligue]||null):null;
   const coupeWarn=(s&&s.coupe)?`<div class="warn" style="margin-top:10px"><b>Match de coupe</b> — chaque équipe apporte les forces de son championnat domestique. ${fiab.inter_ligues?"Les deux équipes viennent de divisions <b>différentes</b> : aucun étalonnage inter-ligues n'est disponible gratuitement — prédiction <b>INDICATIVE</b>, confiance forcée à « faible », match exclu des sélections conseillées et des combinés suivis.":"Les deux équipes viennent de la même division : prédiction issue du modèle de ce championnat (contexte de coupe non modélisé : rotation d'effectif, enjeu différent)."} Aucun gain garanti.</div>`:"";
   let html=`<div class="card hi glow">
     <div class="phead"><span class="badge gy"><span class="dot"></span>ANATOMIE DU MATCH</span>
@@ -1067,7 +1067,7 @@ function tabSec(){
     }
     tbl+="</tbody></table></div>";
   }
-  const CHt=DATA.corners_histo;
+  const CHt=(typeof DATA!=='undefined')?DATA.corners_histo:null;
   if(CHt&&CHt.divisions){
     tbl+=`<div style="margin:16px 0 4px"><span class="lbl">Analyse corners poussée — fréquences RÉELLES par division (co.uk depuis 2018, ${fmtN((CHt.toutes_divisions||{}).n||0)} matchs)</span></div>
     <div class="tblwrap"><table><thead><tr><th>Division</th><th>Matchs</th><th>Moyenne</th><th>3 dern. saisons</th><th>Over 8.5</th><th>Over 9.5</th><th>Over 10.5</th><th>Over 11.5</th></tr></thead><tbody>`+
@@ -1088,6 +1088,171 @@ function tabSec(){
   <div class="split"><div>${tbl}</div><div class="panel" id="panel">${panneauVide()}</div></div>`;
   brancherLignes();
   if(ETAT.sel) chargerPanneau(ETAT.sel);
+}
+
+/* ================================================================ ONGLET
+   CORNERS — ESPACE EXCLUSIF. Confrontation entre deux équipes (qui prend
+   souvent le pas sur l'autre, ou match ouvert entre deux équipes offensives),
+   échelle de handicaps (+2 → −4) et COUPON MONTANTE du jour.
+   Probabilités CALIBRÉES : les fréquences réelles mesurées en walk-forward
+   (backtest_corners.py, 16 408 matchs, 21 divisions, 2023→2026) remplacent
+   l'annonce brute du modèle, trop confiante (ex. barreau « victoire »
+   annoncé 92 % → réalisé 79 %). Le coupon ne vise QUE le même jour :
+   jamais de report sur la journée suivante. */
+const CORN_FAMS=["+2","+1","victoire","-1","-2","-3","-4"];
+const CORN_PLANCHER=0.88;
+function cornCandidats(m){
+  const cf=m.sec&&m.sec.confrontation; if(!cf||!cf.echelle) return [];
+  const dom=cf.dom==="home"?m.home:m.away;
+  const out=[];
+  for(const fam of CORN_FAMS){
+    const p=cf.echelle[fam],pc=(cf.echelle_cal||{})[fam];
+    if(p!=null&&pc!=null) out.push({fam,dom,p,pc,type:"handicap"});
+  }
+  const ov=(m.sec.over||{}).corners||{},ovc=cf.over_cal||{},udc=cf.under_cal||{};
+  for(const l of Object.keys(ovc)) if(ovc[l]!=null&&ovc[l]>=0.5)
+    out.push({fam:"over "+l,dom:null,p:ov[l],pc:ovc[l],type:"total"});
+  for(const l of Object.keys(udc)) if(udc[l]!=null&&udc[l]>=0.5)
+    out.push({fam:"under "+l,dom:null,p:ov[l]!=null?+(1-ov[l]).toFixed(4):null,pc:udc[l],type:"total"});
+  out.sort((a,b)=>(b.pc-a.pc)||((b.p||0)-(a.p||0))||(a.fam<b.fam?-1:a.fam>b.fam?1:0));
+  return out;
+}
+function cornLibelle(c){
+  if(c.type==="total") return c.fam.replace("over ","plus de ").replace("under ","moins de ").replace(".",",")+" corners dans le match";
+  if(c.fam==="+2") return c.dom+" donne 2 corners d'avance — peut perdre de 1";
+  if(c.fam==="+1") return c.dom+" gagne ou nul aux corners";
+  if(c.fam==="victoire") return c.dom+" gagne le duel de corners";
+  const k=-parseInt(c.fam,10);
+  return c.dom+" handicap "+c.fam+" — gagne avec "+(k+1)+"+ corners d'écart";
+}
+function cornProfil(cf){
+  const tot=(cf.lambda_home||0)+(cf.lambda_away||0);
+  if(cf.partage_dom>=0.57) return "prend le pas";
+  if(tot>=11) return "match ouvert — les deux offensives";
+  return "équilibré";
+}
+function cornCoupon(msJour,plancher){
+  const legs=[];
+  for(const m of msJour){
+    const c=cornCandidats(m);
+    if(c.length&&c[0].pc>=plancher) legs.push({m,c:c[0]});
+  }
+  legs.sort((a,b)=>((a.m.heure||"99:99")<(b.m.heure||"99:99")?-1:(a.m.heure||"99:99")>(b.m.heure||"99:99")?1:0)||(a.m.home<b.m.home?-1:1));
+  let cote=1,pTot=1,mise=1;
+  const etapes=legs.map(L=>{
+    const c=1/L.c.pc;
+    const e={m:L.m,c:L.c,cote:c,mise:mise,coteCum:cote*c};
+    cote*=c;pTot*=L.c.pc;mise*=c;
+    return e;
+  });
+  return {etapes,coteTot:cote,pTot,miseFin:mise};
+}
+function tabCorners(){
+  const nowC=new Date(Date.now()+3600000).toISOString().slice(0,16);
+  const auj=nowC.slice(0,10);
+  const ms=ETAT.matchs.filter(m=>m.disponible&&!m.coupe&&m.sec&&m.sec.confrontation&&
+    m.date&&m.date>=auj&&!(m.heure&&(m.date+"T"+m.heure)<nowC));
+  const parJour={};
+  for(const m of ms)(parJour[m.date]=parJour[m.date]||[]).push(m);
+  const jours=Object.keys(parJour).sort();
+  for(const d of jours) parJour[d].sort((a,b)=>((a.heure||"99:99")<(b.heure||"99:99")?-1:1));
+  if(ETAT.cornJour==null||!jours.includes(ETAT.cornJour))
+    ETAT.cornJour=jours.includes(auj)?auj:(jours[0]||null);
+  const dj=ETAT.cornJour,msj=dj?parJour[dj]:[];
+
+  let h=`<div class="band"><div><div class="htitle"><h1>Corners — espace exclusif</h1>
+    <span class="badge cy">CALIBRÉ SUR 16 408 MATCHS RÉELS</span>
+    <span class="badge gy"><span class="dot"></span>PLANCHER ${Math.round(CORN_PLANCHER*100)} %</span></div>
+    <p class="desc">Confrontation : qui prend souvent le pas sur l'autre aux corners — ou les deux équipes
+    sont-elles très offensives. Chaque match livre son barreau le plus sûr (probabilité CALIBRÉE = fréquence
+    réelle mesurée, pas l'annonce du modèle). Le coupon montante enchaîne les matchs du MÊME jour dans l'ordre
+    des coups d'envoi — jamais de report sur la journée suivante. Cotes affichées = cotes justes (1/probabilité
+    calibrée) : celles des bookmakers seront plus basses (leur marge).</p>
+    ${jours.map(d=>`<button class="fchip ${dj===d?"on":""}" data-cj="${d}">${d===auj?"Aujourd'hui":d} · ${parJour[d].length}</button>`).join("")}
+  </div></div>`;
+
+  const cp=dj?cornCoupon(msj,CORN_PLANCHER):{etapes:[],coteTot:1,pTot:1,miseFin:1};
+  if(!dj){
+    h+=`<div class="card empty"><b>Aucun match couvert</b> Pas de match analysable avec le modèle corners dans la fenêtre du calendrier.</div>`;
+  }else if(!cp.etapes.length){
+    h+=`<div class="card empty"><b>Aucun coupon corners ce jour (${dj})</b>
+      Aucun barreau n'atteint le plancher de ${Math.round(CORN_PLANCHER*100)} % calibré — le robot s'abstient.
+      Une montante ne vaut que par la sûreté de ses maillons : mieux vaut sauter un jour que forcer.</div>`;
+  }else{
+    h+=`<div class="card hi glow"><div class="top"><span class="lbl" style="color:var(--green)">Coupon montante — ${dj===auj?"aujourd'hui":dj}</span>
+      <span class="lbl">${cp.etapes.length} match${cp.etapes.length>1?"s":""} · cote totale ${f2(cp.coteTot)} · probabilité combinée ${pct1(cp.pTot)} %</span></div>
+      <div class="tblwrap" style="margin-top:10px"><table><thead><tr><th>Étape</th><th>Heure</th><th>Match</th>
+      <th>Sélection (calibrée)</th><th>Modèle → réel</th><th>Cote juste</th><th>Mise (départ 1 u)</th><th>Cote cumulée</th></tr></thead><tbody>`;
+    cp.etapes.forEach((e,i)=>{
+      h+=`<tr><td class="num">${i+1}</td><td class="num">${esc(e.m.heure||"—")}</td>
+        <td><div class="tname">${esc(e.m.home)} <span class="mu">vs</span> ${esc(e.m.away)}</div>
+          <div class="tsub">${esc(e.m.ligue)}</div></td>
+        <td style="max-width:290px">${esc(cornLibelle(e.c))}</td>
+        <td class="num"><span class="mu">${pct1(e.c.p)} →</span> <b class="g">${pct1(e.c.pc)} %</b></td>
+        <td class="num cy">${f2(e.cote)}</td><td class="num">${f2(e.mise)} u</td>
+        <td class="num">${f2(e.coteCum)}</td></tr>`;
+    });
+    h+=`</tbody></table></div>
+    <div class="det" style="margin-top:10px">Si tout passe : <b class="g">${f2(cp.miseFin)} u</b> récupérées pour 1 u misée
+      (gain net +${f2(cp.miseFin-1)} u) — probabilité combinée ${pct1(cp.pTot)} % (produit des probabilités calibrées,
+      indépendance supposée : des matchs d'un même championnat peuvent être corrélés).
+      ${cp.coteTot<1.18?" Cote totale sous 1,20 : trop peu de matchs assez sûrs ce jour — la sélection s'arrête là où la qualité s'arrête.":""}</div>
+    <div class="det mu" style="margin-top:6px;line-height:1.6">Corners 1re mi-temps : aucune donnée historique gratuite → le robot s'abstient sur ce marché.
+      Pas de suivi automatique du verdict : aucune source gratuite ne fournit les corners en direct (ESPN ne donne que les buts).</div></div>`;
+  }
+
+  if(dj&&msj.length){
+    h+=`<div style="margin:16px 0 4px"><span class="lbl">Confrontations & échelle complète — ${dj} (${msj.length} match${msj.length>1?"s":""})</span></div>
+    <div class="tblwrap"><table><thead><tr><th>Heure</th><th>Match</th><th>Corners att. (dom–ext)</th><th>Profil</th>`+
+      CORN_FAMS.map(f=>`<th style="text-align:center">${f==="victoire"?"V":f}</th>`).join("")+
+      `<th style="text-align:center">O8,5 / U10,5</th></tr></thead><tbody>`;
+    for(const m of msj){
+      const cf=m.sec.confrontation;
+      const dom=cf.dom==="home"?m.home:m.away;
+      const cands=cornCandidats(m);
+      const best=cands.length&&cands[0].pc>=CORN_PLANCHER?cands[0].fam:null;
+      h+=`<tr><td class="num">${esc(m.heure||"—")}</td>
+        <td><div class="tname">${esc(m.home)} <span class="mu">vs</span> ${esc(m.away)}</div>
+          <div class="tsub">${esc(m.ligue)}</div></td>
+        <td class="num cy">${f2(cf.lambda_home)} – ${f2(cf.lambda_away)}</td>
+        <td style="font-size:11px" class="mu">${esc(cornProfil(cf))} · <span class="cy">${pct1(cf.partage_dom)} % ${esc(dom)}</span></td>`+
+        CORN_FAMS.map(f=>{
+          const p=cf.echelle[f],pc=(cf.echelle_cal||{})[f];
+          const on=f===best;
+          return `<td class="num" style="text-align:center;font-size:11px${on?";color:var(--green);font-weight:700":""}" title="annonce ${pct1(p)} % → réalisé mesuré ${pct1(pc)} %${on?" — barreau retenu pour le coupon":""}">${pct1(pc)}</td>`;
+        }).join("")+
+        `<td class="num" style="font-size:11px;text-align:center">${pct1((cf.over_cal||{})["8.5"])} / ${pct1((cf.under_cal||{})["10.5"])}</td></tr>`;
+    }
+    h+=`</tbody></table></div>
+    <div class="det mu" style="margin-top:6px">Chiffres = probabilités CALIBRÉES (fréquences réelles walk-forward). Échelle relative à la dominante attendue :
+    +2 = elle donne 2 corners d'avance (peut perdre de 1) · +1 = victoire ou nul · V = gagne le duel · −1 à −4 = gagne avec 2, 3, 4, 5+ corners d'écart.
+    Vert = barreau le plus sûr retenu pour le coupon (≥ ${Math.round(CORN_PLANCHER*100)} %). Survoler une case pour voir l'annonce brute du modèle.</div>`;
+  }
+
+  h+=`<div id="cornCal"><div class="card empty"><span class="spin"></span> chargement de la calibration…</div></div>`;
+  $("#main").innerHTML=h;
+  document.querySelectorAll("[data-cj]").forEach(b=>b.onclick=()=>{ETAT.cornJour=b.dataset.cj;tabCorners();});
+  api("/api/corners").then(r=>{
+    const w=$("#cornCal"); if(!w||!r) return;
+    const zs=(r.resume||{}).zone_securite||{};
+    let c=`<div style="margin:16px 0 4px"><span class="lbl">Calibration mesurée — annoncé vs réalisé (walk-forward ${fmtN((r.resume||{}).n_matchs||16408)} matchs, saisons ${((r.resume||{}).saisons||[]).join(", ")})</span></div>
+    <div class="tblwrap"><table><thead><tr><th>Barreau (zone ≥ 90 % annoncé)</th><th>n</th><th>Annoncé</th><th>Réalisé</th><th>Écart</th></tr></thead><tbody>`;
+    let lignes=0;
+    for(const f of CORN_FAMS){
+      const z=zs[f]; if(!z) continue;
+      lignes++;
+      c+=`<tr><td class="mono">${f==="victoire"?"victoire (gagne le duel)":f}</td><td class="num mu">${fmtN(z.n)}</td>
+        <td class="num">${pct1(z.annonce)} %</td><td class="num g">${pct1(z.realise)} %</td>
+        <td class="num ${z.ecart<-0.03?"rd":"mu"}">${(z.ecart*100).toFixed(1)} pts</td></tr>`;
+    }
+    c+=`</tbody></table></div>`;
+    if(!lignes) c=`<div class="card empty">Calibration indisponible (data/backtest_corners.json absent).</div>`;
+    else c+=`<div class="det mu" style="margin-top:8px;line-height:1.6">C'est exactement pour ça que le coupon utilise les probabilités CALIBRÉES : le modèle brut surestime la
+    domination corners (rotation d'effectif, scénario de match — une équipe menée pousse et obtient des corners).
+    Au plancher de ${Math.round(CORN_PLANCHER*100)} % calibré, un maillon tient environ 9 fois sur 10 — jamais 10 :
+    un coupon à 1,20 échoue environ 1 fois sur 6. La montante doit rester un divertissement à petit budget.</div>`;
+    w.innerHTML=c;
+  }).catch(()=>{const w=$("#cornCal");if(w)w.innerHTML="";});
 }
 
 /* ================================================================ ONGLET 6

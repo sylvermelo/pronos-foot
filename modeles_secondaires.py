@@ -165,3 +165,68 @@ def pronostiquer(modele, home, away, arbitre=None):
             "plus_probable": int(kk[np.argmax(tot)]),
         }
     return res
+
+
+def confrontation(modele, home, away):
+    """CONFRONTATION CORNERS : qui prend le pas sur qui ?
+
+    D = corners(home) − corners(away), obtenu par convolution des deux lois
+    binomiales négatives de pronostiquer (dispersion mesurée 1.18,
+    indépendance supposée — même approximation que la production).
+
+    Retourne les probabilités BRUTES du modèle pour l'échelle d'handicaps
+    relative à la DOMINANTE attendue (plus gros λ corners) :
+        « +2 »      : D_dom ≥ −1  (la dominante peut perdre de 1 corner)
+        « +1 »      : D_dom ≥ 0   (victoire ou nul aux corners)
+        « victoire »: D_dom ≥ 1
+        « −1 »      : D_dom ≥ 2   … jusqu'à « −4 » : D_dom ≥ 5
+    La calibration de production (fréquences réelles walk-forward) est
+    appliquée ailleurs (corners.py) — jamais ici.
+    """
+    if not modele:
+        return None
+    E = modele.get("equipes", {})
+    if home not in E or away not in E:
+        return None
+    if "corners" not in modele.get("base", {}):
+        return None
+    eh, rh = E[home].get("corners_em"), E[home].get("corners_rc")
+    ea, ra = E[away].get("corners_em"), E[away].get("corners_rc")
+    if not all(isinstance(v, (int, float)) and np.isfinite(v)
+               for v in (eh, rh, ea, ra)):
+        return None
+    base = modele["base"]["corners"]
+    disp = modele["base"].get("corners_dispersion", 1.18)
+    lam_h = max(min(base * eh * ra, 60), 0.05)
+    lam_a = max(min(base * ea * rh, 60), 0.05)
+
+    KMAX = 40
+    ph = np.asarray(pmf_marche(lam_h, disp, kmax=KMAX)[1], dtype=float)
+    pa = np.asarray(pmf_marche(lam_a, disp, kmax=KMAX)[1], dtype=float)
+    M = np.outer(ph, pa)
+    idx = (np.arange(KMAX + 1)[:, None] - np.arange(KMAX + 1)[None, :]).ravel() + KMAX
+    dist = np.bincount(idx, weights=M.ravel(), minlength=2 * KMAX + 1)
+
+    dom_home = lam_h >= lam_a
+    lam_d, lam_f = (lam_h, lam_a) if dom_home else (lam_a, lam_h)
+
+    def queue(t):
+        """P(D_dom ≥ t)."""
+        if dom_home:
+            return float(dist[KMAX + t:].sum())
+        return float(dist[:KMAX - t + 1].sum())
+
+    p_nul = float(dist[KMAX])
+    p_vict_dom = queue(1)
+    echelle = {"+2": queue(-1), "+1": queue(0), "victoire": p_vict_dom,
+               "-1": queue(2), "-2": queue(3), "-3": queue(4), "-4": queue(5)}
+    return {
+        "lambda_home": round(float(lam_h), 2),
+        "lambda_away": round(float(lam_a), 2),
+        "dom": "home" if dom_home else "away",
+        "partage_dom": round(float(lam_d / max(lam_d + lam_f, 1e-9)), 4),
+        "p_vict_dom": round(p_vict_dom, 4),
+        "p_nul": round(p_nul, 4),
+        "p_vict_autre": round(max(0.0, 1.0 - p_vict_dom - p_nul), 4),
+        "echelle": {k: round(min(max(v, 0.0), 1.0), 4) for k, v in echelle.items()},
+    }
