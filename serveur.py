@@ -49,10 +49,14 @@ def integrer_calendrier():
     except Exception:
         pass
     try:                                        # suivi des pronostics
-        d = suivi.archiver(api_conseils(suivi.SEUIL_ARCHIVE))
+        conseils = api_conseils(suivi.SEUIL_ARCHIVE)
+        d = suivi.archiver(conseils)
         d, n = suivi.resoudre(d, DB)
+        rattrape = suivi.rattrapage_safe(d, conseils)
         suivi.sauver(d)
         log["suivi"] = {"jours": len(d["jours"]), "nouveaux_resultats": n}
+        if rattrape:
+            log["suivi"][rattrape] = "créé (jambe SAFE perdue)"
         try:                                 # Phase 1 : double écriture Supabase
             import db
             cp = coupon_corners()

@@ -163,6 +163,46 @@ def archiver(conseils, d=None, jour=None, retro=False):
     return d
 
 
+def rattrapage_safe(d, conseils, jour=None):
+    """SAFE 2 : quand une jambe du SAFE DU JOUR est PERDUE, un nouveau SAFE
+    est construit avec les matchs du jour PAS ENCORE COMMENCÉS qui remplissent
+    toujours les conditions.
+
+    Règles (demande utilisateur du 06/09/2026) :
+    - le SAFE d'origine n'est JAMAIS modifié : l'historique et le bilan
+      restent exacts (effacer une jambe perdue serait malhonnête) ;
+    - déclenché dès la PREMIÈRE jambe perdue (inutile d'attendre la
+      résolution des autres : le combiné ne peut plus gagner) ;
+    - UN SEUL rattrapage par jour (safe_2). Au-delà, ce serait courir
+      après les pertes — discipline de bankroll ;
+    - si aucun match à venir ne remplit les conditions : rien (abstention).
+    Retourne "safe_2" si créé, sinon None."""
+    jour = jour or datetime.date.today().isoformat()
+    entree = d["jours"].get(jour)
+    if not entree:
+        return None
+    comb = entree.get("combines") or {}
+    safe = comb.get("safe")
+    if not isinstance(safe, dict) or "safe_2" in comb:
+        return None
+    perdu = any((l.get("resultat") or {}).get("touche") is False
+                for l in (safe.get("legs") or []))
+    if not perdu:
+        return None
+    nouveau = (conseils.get("combines") or {}).get("safe")
+    if not isinstance(nouveau, dict) or not nouveau.get("legs"):
+        return None
+    for l in nouveau["legs"]:
+        if l.get("resultat"):
+            return None                    # jambe déjà commencée : refus
+    nouveau["origine"] = ("RATTRAPAGE — créé après la perte d'une jambe du "
+                          "SAFE, avec les matchs du jour pas encore commencés "
+                          "qui remplissent les conditions.")
+    comb["safe_2"] = nouveau
+    entree["combines"] = comb
+    return "safe_2"
+
+
 # ---------------------------------------------------------------- résolution
 def resoudre(d, db):
     """Récupère les scores finaux (ESPN) des matchs archivés non résolus.
@@ -262,7 +302,10 @@ def _pnl(s):
 def _combines_vue(combines):
     """Combinés du jour + gain simulé (1 unité) quand la cote est connue."""
     out = {}
-    for nom in ("safe", "safe_weekend", "risque", "cote2", "cote5", "fun"):
+    connus = ("safe", "safe_weekend", "risque", "cote2", "cote5", "fun")
+    noms = [n for n in connus if n in combines] + \
+        sorted(k for k in combines if k not in connus)
+    for nom in noms:
         c = combines.get(nom)
         if not isinstance(c, dict):
             continue
