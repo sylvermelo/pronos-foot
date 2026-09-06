@@ -215,20 +215,22 @@ const evalJS = (code) => vm.runInContext(code, ctx, { timeout: 30000 });
     else if (nCorn) ko(nCornEcart + ' divergence(s) sur ' + nCorn + ' valeurs corners');
     else warn('aucune confrontation à comparer dans l\'échantillon');
 
-    /* cohérence du coupon montante : plancher, tri horaire, produit des cotes */
+    /* cohérence du coupon montante : cote TOTALE ≥ 1,20 (ou tous les
+       éligibles pris), maillons ≥ CORN_MIN, tri horaire, produits exacts */
     const cp = evalJS(`(function(){
       const nowC=new Date(Date.now()+3600000).toISOString().slice(0,16);
       const ms=ETAT.matchs.filter(m=>m.disponible&&!m.coupe&&m.sec&&m.sec.confrontation&&m.date&&m.date>=nowC.slice(0,10)&&!(m.heure&&(m.date+"T"+m.heure)<nowC));
       const parJour={}; for(const m of ms)(parJour[m.date]=parJour[m.date]||[]).push(m);
       const jours=Object.keys(parJour).sort();
-      let tous={etapes:[],coteTot:1,pTot:1,miseFin:1};
-      for(const d of jours){ const c=cornCoupon(parJour[d],CORN_PLANCHER); if(c.etapes.length>tous.etapes.length||d===jours[0]) tous=c; tous.jour=tous.jour||d; }
-      const d0=jours[0]; return {jours:jours.length,cp:cornCoupon(parJour[d0]||[],CORN_PLANCHER),d0:d0};
+      const d0=jours[0]; const msj=parJour[d0]||[];
+      let elig=0; for(const m of msj){const j=cornJambes(m); if(j&&j.pc>=CORN_MIN) elig++;}
+      return {jours:jours.length,cp:cornCoupon(msj),d0:d0,elig:elig};
     })()`);
+    const CORN_MIN_EVAL = evalJS('CORN_MIN'), CORN_CIBLE_EVAL = evalJS('CORN_CIBLE');
     if (cp && cp.jours >= 0) {
       const e = cp.cp.etapes;
       let probs = 0;
-      for (const L of e) if (L.c.pc < CORN_PLANCHER - 1e-9) probs++;
+      for (const L of e) if (L.c.pc < CORN_MIN_EVAL - 1e-9) probs++;
       let triOk = true;
       for (let i = 1; i < e.length; i++) {
         const k = x => (x.m.date + 'T' + (x.m.heure || '99:99'));
@@ -236,10 +238,11 @@ const evalJS = (code) => vm.runInContext(code, ctx, { timeout: 30000 });
       }
       const prod = e.reduce((a, L) => a * L.c.pc, 1);
       const prodOk = e.length === 0 || Math.abs(prod - cp.cp.pTot) < 1e-9;
-      const cotOk = e.length === 0 || Math.abs(e.reduce((a, L) => a * L.c.cote, 1) - cp.cp.coteTot) < 1e-9;
-      if (probs === 0 && triOk && prodOk && cotOk)
-        ok('coupon ' + (cp.d0 || '?') + ' : ' + e.length + ' maillon(s), plancher respecté, tri horaire, cote totale ' + cp.cp.coteTot.toFixed(2));
-      else ko('coupon incohérent : plancher=' + probs + ' tri=' + triOk + ' produit=' + prodOk + ' cote=' + cotOk);
+      const cotOk = e.length === 0 || Math.abs(e.reduce((a, L) => a * L.cote, 1) - cp.cp.coteTot) < 1e-9;
+      const cibleOk = cp.cp.coteTot >= CORN_CIBLE_EVAL - 1e-9 || e.length === cp.elig;
+      if (probs === 0 && triOk && prodOk && cotOk && cibleOk)
+        ok('coupon ' + (cp.d0 || '?') + ' : ' + e.length + ' maillon(s) sur ' + cp.elig + ' éligible(s), cote totale ' + cp.cp.coteTot.toFixed(2) + (cp.cp.coteTot >= CORN_CIBLE_EVAL ? ' (cible atteinte)' : ' (jour pauvre — tous les éligibles pris)'));
+      else ko('coupon incohérent : qualité=' + probs + ' tri=' + triOk + ' produit=' + prodOk + ' cote=' + cotOk + ' cible=' + cibleOk);
     } else warn('coupon non évaluable (fenêtre calendrier vide)');
   } catch (err) { ko('test corners : ' + err.message); }
 

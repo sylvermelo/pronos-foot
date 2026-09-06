@@ -754,7 +754,7 @@ def api_corners():
         pass
     return {"resume": CN.resume(), "bandes": CN._bandes(),
             "familles": [f for f, _ in CN.FAMILLES],
-            "plancher": CN.PLANCHER_COUPON, "cible": CN.CIBLE_COUPON,
+            "min_jambe": CN.MIN_JAMBE, "cible": CN.CIBLE_COUPON,
             "histo": histo}
 
 

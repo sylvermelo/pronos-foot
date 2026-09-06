@@ -19,7 +19,7 @@ probabilité calibrée ne dépasse jamais l'annonce du modèle.
 C'est cette probabilité calibrée qui :
     · est affichée dans l'espace Corners (à côté de l'annonce brute) ;
     · décide de l'entrée d'un match dans le COUPON MONTANTE du jour
-      (plancher PLANCHER_COUPON) ;
+      (bon match = meilleur handicap ≥ MIN_JAMBE, cote TOTALE = produit) ;
     · produit la cote juste (1/p) de chaque jambe et du coupon.
 
 Les totaux over/under de corners sont mieux calibrés (backtest secondaires
@@ -41,8 +41,19 @@ FAMILLES = [("+2", -1), ("+1", 0), ("victoire", 1),
             ("-1", 2), ("-2", 3), ("-3", 4), ("-4", 5)]
 BORNES = [0.50, 0.60, 0.70, 0.80, 0.85, 0.90, 0.93, 0.96, 0.98, 1.01]
 
-PLANCHER_COUPON = 0.88      # probabilité CALIBRÉE minimale d'une jambe
-CIBLE_COUPON = 1.20         # cote totale visée par le coupon montante
+# --- RÈGLE DU COUPON MONTANTE (validée avec l'utilisateur) ---------------
+# Ce n'est PAS un match qui fait la cote : TOUS les bons matchs du jour
+# entrent dans la sélection, et c'est l'ENSEMBLE qui donne une cote totale
+# allant de 1,20 à l'infini selon la qualité du jour. Jamais de report sur
+# la journée suivante. Seuls les HANDICAPS entrent dans le coupon.
+MIN_JAMBE = 0.85            # « bon match » : le meilleur handicap du match
+                            # doit atteindre 85 % de fréquence RÉELLE mesurée
+                            # (≈ 17 fois sur 20). À 80 %, les coupons du week-
+                            # end montaient à 13 maillons / 11 % de réussite —
+                            # plus une montante, un billet de loterie.
+CIBLE_COUPON = 1.20         # cote TOTALE plancher de la sélection entière
+                            # (produit des maillons — jamais d'exigence de
+                            # cote par match).
 MARGE_TOTAUX = 0.01         # totaux over/under ≥ 0,90 : −1 pt (mesuré)
 N_MIN_CELLULE = 40          # en dessous : fusion avec la bande inférieure
 
@@ -113,4 +124,4 @@ def resume():
     return {"zone_securite": bt.get("zone_securite", {}),
             "n_matchs": bt.get("n_matchs", 0),
             "saisons": bt.get("saisons_testees", []),
-            "plancher": PLANCHER_COUPON, "cible": CIBLE_COUPON}
+            "min_jambe": MIN_JAMBE, "cible": CIBLE_COUPON}

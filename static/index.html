@@ -1091,34 +1091,33 @@ function tabSec(){
 }
 
 /* ================================================================ ONGLET
-   CORNERS — ESPACE EXCLUSIF. Confrontation entre deux équipes (qui prend
-   souvent le pas sur l'autre, ou match ouvert entre deux équipes offensives),
-   échelle de handicaps (+2 → −4) et COUPON MONTANTE du jour.
-   Probabilités CALIBRÉES : les fréquences réelles mesurées en walk-forward
-   (backtest_corners.py, 16 408 matchs, 21 divisions, 2023→2026) remplacent
-   l'annonce brute du modèle, trop confiante (ex. barreau « victoire »
-   annoncé 92 % → réalisé 79 %). Le coupon ne vise QUE le même jour :
-   jamais de report sur la journée suivante. */
+   CORNERS — ESPACE EXCLUSIF (montante).
+   RÈGLE DU COUPON (validée avec l'utilisateur) : ce n'est PAS un match qui
+   fait une cote — TOUS les bons matchs du jour entrent dans la sélection et
+   c'est l'ENSEMBLE qui donne une cote totale de 1,20 à l'infini selon la
+   qualité du jour. Jamais de report sur la journée suivante. Seuls les HANDICAPS de l'échelle (+2, +1, victoire, −1…−4,
+   relatifs à la dominante) entrent dans le coupon ; les totaux over/under
+   sont affichés à titre informatif.
+   Probabilités CALIBRÉES : fréquences réelles mesurées en walk-forward
+   (backtest_corners.py, 16 408 matchs, 21 divisions, 2023→2026) — le modèle
+   brut surestime la domination corners (« victoire » annoncé 92 % →
+   réalisé 79 %). */
 const CORN_FAMS=["+2","+1","victoire","-1","-2","-3","-4"];
-const CORN_PLANCHER=0.88;
-function cornCandidats(m){
-  const cf=m.sec&&m.sec.confrontation; if(!cf||!cf.echelle) return [];
+const CORN_MIN=0.85;    /* « bon match » : meilleur handicap ≥ 85 % de fréquence RÉELLE mesurée */
+const CORN_CIBLE=1.20;  /* cote TOTALE plancher de la sélection entière — jamais par match ! */
+/* Jambe d'un match = le handicap le plus sûr de son échelle (calibré). */
+function cornJambes(m){
+  const cf=m.sec&&m.sec.confrontation; if(!cf||!cf.echelle) return null;
   const dom=cf.dom==="home"?m.home:m.away;
-  const out=[];
+  let best=null;
   for(const fam of CORN_FAMS){
     const p=cf.echelle[fam],pc=(cf.echelle_cal||{})[fam];
-    if(p!=null&&pc!=null) out.push({fam,dom,p,pc,type:"handicap"});
+    if(p==null||pc==null) continue;
+    if(!best||pc>best.pc||(pc===best.pc&&(p||0)>(best.p||0))) best={fam,dom,p,pc};
   }
-  const ov=(m.sec.over||{}).corners||{},ovc=cf.over_cal||{},udc=cf.under_cal||{};
-  for(const l of Object.keys(ovc)) if(ovc[l]!=null&&ovc[l]>=0.5)
-    out.push({fam:"over "+l,dom:null,p:ov[l],pc:ovc[l],type:"total"});
-  for(const l of Object.keys(udc)) if(udc[l]!=null&&udc[l]>=0.5)
-    out.push({fam:"under "+l,dom:null,p:ov[l]!=null?+(1-ov[l]).toFixed(4):null,pc:udc[l],type:"total"});
-  out.sort((a,b)=>(b.pc-a.pc)||((b.p||0)-(a.p||0))||(a.fam<b.fam?-1:a.fam>b.fam?1:0));
-  return out;
+  return best;
 }
 function cornLibelle(c){
-  if(c.type==="total") return c.fam.replace("over ","plus de ").replace("under ","moins de ").replace(".",",")+" corners dans le match";
   if(c.fam==="+2") return c.dom+" donne 2 corners d'avance — peut perdre de 1";
   if(c.fam==="+1") return c.dom+" gagne ou nul aux corners";
   if(c.fam==="victoire") return c.dom+" gagne le duel de corners";
@@ -1131,21 +1130,25 @@ function cornProfil(cf){
   if(tot>=11) return "match ouvert — les deux offensives";
   return "équilibré";
 }
-function cornCoupon(msJour,plancher){
-  const legs=[];
+/* Construction du coupon : TOUS les bons matchs du jour (meilleur handicap
+   ≥ CORN_MIN mesuré) entrent dans la sélection ; la cote totale est le
+   produit des maillons — de 1,20 à l'infini selon la qualité du jour.
+   Ordre de la montante = coups d'envoi, même jour uniquement. */
+function cornCoupon(msJour){
+  const elig=[];
   for(const m of msJour){
-    const c=cornCandidats(m);
-    if(c.length&&c[0].pc>=plancher) legs.push({m,c:c[0]});
+    const j=cornJambes(m);
+    if(j&&j.pc>=CORN_MIN) elig.push({m,c:j});
   }
-  legs.sort((a,b)=>((a.m.heure||"99:99")<(b.m.heure||"99:99")?-1:(a.m.heure||"99:99")>(b.m.heure||"99:99")?1:0)||(a.m.home<b.m.home?-1:1));
-  let cote=1,pTot=1,mise=1;
-  const etapes=legs.map(L=>{
-    const c=1/L.c.pc;
-    const e={m:L.m,c:L.c,cote:c,mise:mise,coteCum:cote*c};
-    cote*=c;pTot*=L.c.pc;mise*=c;
-    return e;
+  const cle=x=>x.m.date+"T"+(x.m.heure||"99:99");
+  elig.sort((a,b)=>(cle(a)<cle(b)?-1:cle(a)>cle(b)?1:0)||(a.m.home<b.m.home?-1:1));
+  let cote=1,pTot=1,mise=1,cum=1;
+  const etapes=elig.map(L=>{
+    const c=1/L.c.pc; cum*=c;
+    const e={m:L.m,c:L.c,cote:c,mise:mise,coteCum:cum};
+    cote*=c; pTot*=L.c.pc; mise*=c; return e;
   });
-  return {etapes,coteTot:cote,pTot,miseFin:mise};
+  return {etapes,coteTot:cote,pTot,miseFin:mise,nElig:elig.length};
 }
 function tabCorners(){
   const nowC=new Date(Date.now()+3600000).toISOString().slice(0,16);
@@ -1159,30 +1162,33 @@ function tabCorners(){
   if(ETAT.cornJour==null||!jours.includes(ETAT.cornJour))
     ETAT.cornJour=jours.includes(auj)?auj:(jours[0]||null);
   const dj=ETAT.cornJour,msj=dj?parJour[dj]:[];
+  const cp=dj?cornCoupon(msj):{etapes:[],coteTot:1,pTot:1,miseFin:1,nElig:0};
 
   let h=`<div class="band"><div><div class="htitle"><h1>Corners — espace exclusif</h1>
-    <span class="badge cy">CALIBRÉ SUR 16 408 MATCHS RÉELS</span>
-    <span class="badge gy"><span class="dot"></span>PLANCHER ${Math.round(CORN_PLANCHER*100)} %</span></div>
-    <p class="desc">Confrontation : qui prend souvent le pas sur l'autre aux corners — ou les deux équipes
-    sont-elles très offensives. Chaque match livre son barreau le plus sûr (probabilité CALIBRÉE = fréquence
-    réelle mesurée, pas l'annonce du modèle). Le coupon montante enchaîne les matchs du MÊME jour dans l'ordre
-    des coups d'envoi — jamais de report sur la journée suivante. Cotes affichées = cotes justes (1/probabilité
-    calibrée) : celles des bookmakers seront plus basses (leur marge).</p>
+    <span class="badge cy">COTE TOTALE ${f2(CORN_CIBLE)} → L'INFINI SELON LA QUALITÉ DU JOUR</span>
+    <span class="badge gy"><span class="dot"></span>MAILLON ≥ ${Math.round(CORN_MIN*100)} % RÉEL</span></div>
+    <p class="desc">Ce n'est pas un match qui fait la cote : c'est la SÉLECTION ENTIÈRE. <b>Tous les bons
+    matchs du jour</b> entrent dans le coupon — chaque match apporte son handicap le plus sûr (échelle +2 → −4
+    relative à la dominante), retenu s'il atteint <b>${Math.round(CORN_MIN*100)} % de fréquence réelle
+    mesurée</b>. La cote totale va de ${f2(CORN_CIBLE)} à l'infini selon la qualité du jour — beaucoup de bons
+    matchs = sélection longue et cote haute. Même jour uniquement, jamais de report. Probabilités CALIBRÉES = fréquences réelles mesurées sur
+    16 408 matchs (pas l'annonce du modèle). Cotes = cotes justes : celles des bookmakers seront plus basses.</p>
     ${jours.map(d=>`<button class="fchip ${dj===d?"on":""}" data-cj="${d}">${d===auj?"Aujourd'hui":d} · ${parJour[d].length}</button>`).join("")}
   </div></div>`;
 
-  const cp=dj?cornCoupon(msj,CORN_PLANCHER):{etapes:[],coteTot:1,pTot:1,miseFin:1};
   if(!dj){
     h+=`<div class="card empty"><b>Aucun match couvert</b> Pas de match analysable avec le modèle corners dans la fenêtre du calendrier.</div>`;
   }else if(!cp.etapes.length){
     h+=`<div class="card empty"><b>Aucun coupon corners ce jour (${dj})</b>
-      Aucun barreau n'atteint le plancher de ${Math.round(CORN_PLANCHER*100)} % calibré — le robot s'abstient.
-      Une montante ne vaut que par la sûreté de ses maillons : mieux vaut sauter un jour que forcer.</div>`;
+      Aucun handicap du jour n'atteint ${Math.round(CORN_MIN*100)} % de fréquence réelle mesurée — pas de bons
+      matchs, pas de sélection (« si y a de bons matchs »). Une montante ne vaut que par la qualité de ses
+      maillons : mieux vaut sauter un jour que forcer.</div>`;
   }else{
+    const sousCible=cp.coteTot<CORN_CIBLE-1e-9;
     h+=`<div class="card hi glow"><div class="top"><span class="lbl" style="color:var(--green)">Coupon montante — ${dj===auj?"aujourd'hui":dj}</span>
-      <span class="lbl">${cp.etapes.length} match${cp.etapes.length>1?"s":""} · cote totale ${f2(cp.coteTot)} · probabilité combinée ${pct1(cp.pTot)} %</span></div>
+      <span class="lbl">${cp.etapes.length} match${cp.etapes.length>1?"s":""} · <b style="color:var(--cyan)">cote totale ${f2(cp.coteTot)}</b> · probabilité combinée ${pct1(cp.pTot)} %</span></div>
       <div class="tblwrap" style="margin-top:10px"><table><thead><tr><th>Étape</th><th>Heure</th><th>Match</th>
-      <th>Sélection (calibrée)</th><th>Modèle → réel</th><th>Cote juste</th><th>Mise (départ 1 u)</th><th>Cote cumulée</th></tr></thead><tbody>`;
+      <th>Handicap retenu (calibré)</th><th>Modèle → réel</th><th>Cote juste</th><th>Mise (départ 1 u)</th><th>Cote cumulée</th></tr></thead><tbody>`;
     cp.etapes.forEach((e,i)=>{
       h+=`<tr><td class="num">${i+1}</td><td class="num">${esc(e.m.heure||"—")}</td>
         <td><div class="tname">${esc(e.m.home)} <span class="mu">vs</span> ${esc(e.m.away)}</div>
@@ -1196,12 +1202,14 @@ function tabCorners(){
     <div class="det" style="margin-top:10px">Si tout passe : <b class="g">${f2(cp.miseFin)} u</b> récupérées pour 1 u misée
       (gain net +${f2(cp.miseFin-1)} u) — probabilité combinée ${pct1(cp.pTot)} % (produit des probabilités calibrées,
       indépendance supposée : des matchs d'un même championnat peuvent être corrélés).
-      ${cp.coteTot<1.18?" Cote totale sous 1,20 : trop peu de matchs assez sûrs ce jour — la sélection s'arrête là où la qualité s'arrête.":""}</div>
-    <div class="det mu" style="margin-top:6px;line-height:1.6">Corners 1re mi-temps : aucune donnée historique gratuite → le robot s'abstient sur ce marché.
-      Pas de suivi automatique du verdict : aucune source gratuite ne fournit les corners en direct (ESPN ne donne que les buts).</div></div>`;
+      ${sousCible?" Cote totale SOUS "+f2(CORN_CIBLE)+" : le jour est pauvre en bons matchs ("+cp.nElig+" maillon(s) éligible(s) seulement) — la sélection s'arrête là où la qualité s'arrête, on ne complète pas avec du doute.":" Cible de "+f2(CORN_CIBLE)+" atteinte"+(cp.coteTot>CORN_CIBLE+0.05?" et dépassée : la journée est riche en bons matchs":"")+"."}</div>
+    <div class="det mu" style="margin-top:6px;line-height:1.6">Totaux over/under corners : affichés dans le tableau ci-dessous à titre informatif,
+      jamais dans le coupon (le coupon = handicaps uniquement). Corners 1re mi-temps : aucune donnée historique
+      gratuite → abstention. Pas de suivi automatique du verdict : aucune source gratuite ne fournit les corners en direct.</div></div>`;
   }
 
   if(dj&&msj.length){
+    const selMap=new Map(cp.etapes.map(e=>[e.m,e.c.fam]));
     h+=`<div style="margin:16px 0 4px"><span class="lbl">Confrontations & échelle complète — ${dj} (${msj.length} match${msj.length>1?"s":""})</span></div>
     <div class="tblwrap"><table><thead><tr><th>Heure</th><th>Match</th><th>Corners att. (dom–ext)</th><th>Profil</th>`+
       CORN_FAMS.map(f=>`<th style="text-align:center">${f==="victoire"?"V":f}</th>`).join("")+
@@ -1209,8 +1217,7 @@ function tabCorners(){
     for(const m of msj){
       const cf=m.sec.confrontation;
       const dom=cf.dom==="home"?m.home:m.away;
-      const cands=cornCandidats(m);
-      const best=cands.length&&cands[0].pc>=CORN_PLANCHER?cands[0].fam:null;
+      const inCoupon=selMap.has(m);
       h+=`<tr><td class="num">${esc(m.heure||"—")}</td>
         <td><div class="tname">${esc(m.home)} <span class="mu">vs</span> ${esc(m.away)}</div>
           <div class="tsub">${esc(m.ligue)}</div></td>
@@ -1218,15 +1225,15 @@ function tabCorners(){
         <td style="font-size:11px" class="mu">${esc(cornProfil(cf))} · <span class="cy">${pct1(cf.partage_dom)} % ${esc(dom)}</span></td>`+
         CORN_FAMS.map(f=>{
           const p=cf.echelle[f],pc=(cf.echelle_cal||{})[f];
-          const on=f===best;
-          return `<td class="num" style="text-align:center;font-size:11px${on?";color:var(--green);font-weight:700":""}" title="annonce ${pct1(p)} % → réalisé mesuré ${pct1(pc)} %${on?" — barreau retenu pour le coupon":""}">${pct1(pc)}</td>`;
+          const on=inCoupon&&selMap.get(m)===f;
+          return `<td class="num" style="text-align:center;font-size:11px${on?";color:var(--green);font-weight:700":""}" title="annonce ${pct1(p)} % → réalisé mesuré ${pct1(pc)} %${on?" — retenu dans le coupon":""}">${pct1(pc)}</td>`;
         }).join("")+
         `<td class="num" style="font-size:11px;text-align:center">${pct1((cf.over_cal||{})["8.5"])} / ${pct1((cf.under_cal||{})["10.5"])}</td></tr>`;
     }
     h+=`</tbody></table></div>
     <div class="det mu" style="margin-top:6px">Chiffres = probabilités CALIBRÉES (fréquences réelles walk-forward). Échelle relative à la dominante attendue :
     +2 = elle donne 2 corners d'avance (peut perdre de 1) · +1 = victoire ou nul · V = gagne le duel · −1 à −4 = gagne avec 2, 3, 4, 5+ corners d'écart.
-    Vert = barreau le plus sûr retenu pour le coupon (≥ ${Math.round(CORN_PLANCHER*100)} %). Survoler une case pour voir l'annonce brute du modèle.</div>`;
+    <span style="color:var(--green)">Vert</span> = jambe retenue dans le coupon (tous les bons matchs du jour, ≥ ${Math.round(CORN_MIN*100)} % mesurés, y entrent). Survoler une case pour voir l'annonce brute du modèle.</div>`;
   }
 
   h+=`<div id="cornCal"><div class="card empty"><span class="spin"></span> chargement de la calibration…</div></div>`;
@@ -1249,8 +1256,9 @@ function tabCorners(){
     if(!lignes) c=`<div class="card empty">Calibration indisponible (data/backtest_corners.json absent).</div>`;
     else c+=`<div class="det mu" style="margin-top:8px;line-height:1.6">C'est exactement pour ça que le coupon utilise les probabilités CALIBRÉES : le modèle brut surestime la
     domination corners (rotation d'effectif, scénario de match — une équipe menée pousse et obtient des corners).
-    Au plancher de ${Math.round(CORN_PLANCHER*100)} % calibré, un maillon tient environ 9 fois sur 10 — jamais 10 :
-    un coupon à 1,20 échoue environ 1 fois sur 6. La montante doit rester un divertissement à petit budget.</div>`;
+    Un maillon à 85 % mesurés tient environ 17 fois sur 20 — jamais 20 sur 20 : plus la sélection est longue,
+    plus la cote totale monte… et plus elle est risquée. La montante doit rester un divertissement à petit
+    budget.</div>`;
     w.innerHTML=c;
   }).catch(()=>{const w=$("#cornCal");if(w)w.innerHTML="";});
 }

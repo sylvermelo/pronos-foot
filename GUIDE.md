@@ -46,7 +46,7 @@ Elle a besoin de Python. **Pour un usage courant, la solution 1 suffit largement
 | **Simulateur** | Tu choisis n'importe quelle ligue et n'importe quelles équipes — même un match qui n'existe pas encore. Tu obtiens la matrice complète des 121 scores possibles. |
 | **Scores fleuves** | Les confrontations les plus ouvertes (pour « plus de buts ») et les plus fermées (pour « moins de buts »). |
 | **Fautes & cartons** | Les totaux attendus de fautes, corners et cartons jaunes, avec l'arbitre du match, plus l'**analyse corners poussée** : fréquences réelles par division et par ligne (51 113 matchs mesurés depuis 2018), et le modèle corrigé de son biais mesuré en walk-forward. |
-| **Corners** | L'espace exclusif pour ta montante. Chaque match a sa **confrontation** : qui prend le pas sur l'autre aux corners (ou match ouvert entre deux équipes offensives), et son **échelle d'handicaps** (+2, +1, victoire, −1 à −4, relative à la dominante). Le **coupon montante du jour** enchaîne les barreaux les plus sûrs (probabilité calibrée ≥ 88 %) dans l'ordre des coups d'envoi — **même jour uniquement, jamais de report**. Les probabilités affichées sont CALIBRÉES : fréquences réelles mesurées sur 16 408 matchs (le modèle brut surestimait la domination corners : « victoire » annoncé 92 % → réalisé 79 %). Cotes = cotes justes (1/probabilité) : celles de ton bookmaker seront plus basses. Pas de suivi automatique du verdict (aucune source gratuite ne fournit les corners en direct) ; corners 1re mi-temps = abstention (pas de données historiques gratuites). |
+| **Corners** | L'espace exclusif pour ta montante. Chaque match a sa **confrontation** : qui prend le pas sur l'autre aux corners (ou match ouvert entre deux équipes offensives), et son **échelle d'handicaps** (+2, +1, victoire, −1 à −4, relative à la dominante). Le **coupon montante du jour** : ce n'est pas un match qui fait la cote — **tous les bons matchs du jour** (meilleur handicap ≥ 85 % de fréquence réelle mesurée) entrent dans la sélection, dans l'ordre des coups d'envoi, et c'est l'ensemble qui donne une **cote totale de 1,20 à l'infini** selon la qualité du jour. **Même jour uniquement, jamais de report.** Probabilités CALIBRÉES sur 16 408 matchs (le modèle brut surestimait la domination : « victoire » annoncé 92 % → réalisé 79 %). Cotes = cotes justes (1/probabilité) : celles de ton bookmaker seront plus basses. Pas de suivi automatique du verdict (aucune source gratuite ne fournit les corners en direct) ; corners 1re mi-temps = abstention (pas de données historiques gratuites). |
 | **Classement** | La puissance réelle de chaque club : force d'attaque, faiblesse défensive, forme récente, fiabilité de l'estimation. |
 | **Bilan honnête** | Les vrais résultats des tests, y compris les échecs. À lire une fois. |
 
@@ -90,7 +90,8 @@ Soyons clairs, parce que c'est important :
   sont des cotes JUSTES (1/probabilité calibrée) : chez ton bookmaker, la cote
   réelle sera plus basse, donc l'espérance est négative. Un coupon calibré à
   1,20 échoue environ 1 fois sur 6 — et chaque échec efface les gains de 5
-  coupons réussis. À réserver à un petit budget de divertissement.
+  coupons réussis. Plus la sélection est longue (cote haute), plus elle échoue
+  souvent. À réserver à un petit budget de divertissement.
 - **Les matchs de coupe entre équipes de championnats différents sont des
   approximations** : chaque équipe apporte les forces de SON championnat, sans
   étalonnage inter-ligues (aucune source gratuite fiable). Confiance forcée à
