@@ -55,7 +55,9 @@ def integrer_calendrier():
         log["suivi"] = {"jours": len(d["jours"]), "nouveaux_resultats": n}
         try:                                 # Phase 1 : double écriture Supabase
             import db
-            log["supabase"] = db.sync_suivi(d).get("statut")
+            cp = coupon_corners()
+            log["supabase"] = db.sync_suivi(
+                d, combines_extra=[cp] if cp else []).get("statut")
         except Exception:
             log["supabase"] = "echec"        # jamais bloquant
     except Exception as e:
@@ -745,6 +747,62 @@ def api_secondaires(div, home, away, arbitre=None):
         # confrontation corners (dominante, partage, échelle d'handicaps brute)
         res["confrontation"] = MS.confrontation(modele, home, away)
     return res
+
+
+def coupon_corners(jour=None):
+    """COUPON MONTANTE corners du jour (règle utilisateur), côté serveur.
+
+    Tous les matchs du jour dont le meilleur handicap corners CALIBRÉ atteint
+    corners.MIN_JAMBE entrent dans la sélection ; la cote totale est le produit
+    des maillons (de 1,20 à l'infini selon la qualité du jour). Même jour
+    uniquement, jamais de report. Retourne une ligne prête pour la table
+    `combines` (nom « corners_montante ») — aucune table nouvelle.
+    """
+    import corners as CN
+    jour = jour or datetime.date.today().isoformat()
+    jambes = []
+    for m in DB.get("fixtures", []):
+        if m.get("date") != jour or m.get("coupe"):
+            continue
+        L = DB["ligues"].get(m["div"])
+        if not L or not L.get("secondaires"):
+            continue
+        cf = MS.confrontation(L["secondaires"], m["home"], m["away"])
+        if not cf:
+            continue
+        dom = m["home"] if cf["dom"] == "home" else m["away"]
+        best = None
+        for fam, _ in CN.FAMILLES:
+            p = cf["echelle"].get(fam)
+            pc = CN.calibrer(fam, p)
+            if pc is None:
+                continue
+            if best is None or pc > best[0] or (pc == best[0] and (p or 0) > (best[1] or 0)):
+                best = (pc, p, fam)
+        if not best or best[0] < CN.MIN_JAMBE:
+            continue
+        pc, p, fam = best
+        jambes.append({"date": jour, "heure": m.get("heure"),
+                       "ligue": m.get("ligue"), "home": m["home"],
+                       "away": m["away"], "dom": dom, "fam": fam,
+                       "option": f"{dom} {fam} corners",
+                       "p_cal": pc, "p_brut": p,
+                       "cote": round(1.0 / pc, 2)})
+    if not jambes:
+        return None
+    jambes.sort(key=lambda j: (j.get("heure") or "99:99", j["home"]))
+    cote = ptot = mise = 1.0
+    for j in jambes:
+        j["mise"] = round(mise, 2)
+        mise *= 1.0 / j["p_cal"]
+        cote *= 1.0 / j["p_cal"]
+        ptot *= j["p_cal"]
+    return {"jour": jour, "nom": "corners_montante",
+            "p_combine": round(ptot, 4), "cote": round(cote, 2),
+            "touche": None, "resolu_le": None, "jambes": jambes,
+            "brut": {"regle": "tous les bons matchs du jour (meilleur handicap "
+                              f">= {CN.MIN_JAMBE} mesuré), même jour uniquement",
+                     "mise_fin": round(mise, 2)}}
 
 
 def api_corners():

@@ -131,7 +131,8 @@ def main():
         print(f"suivi : {len(d['jours'])} jour(s) archivé(s) | {n} résultat(s) résolu(s)")
         try:                                 # Phase 1 : double écriture Supabase
             import db
-            r = db.sync_suivi(d)
+            cp = S.coupon_corners()
+            r = db.sync_suivi(d, combines_extra=[cp] if cp else [])
             if r.get("statut") != "ignore":
                 print(f"supabase : {r.get('statut')} "
                       f"({r.get('selections', 0)} sél, {r.get('combines', 0)} comb)")

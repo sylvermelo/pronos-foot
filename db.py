@@ -144,7 +144,7 @@ def journal(statut, details=None, run_id=None):
                       "details": details or {}}])
 
 
-def sync_suivi(d, run_id=None):
+def sync_suivi(d, run_id=None, combines_extra=None):
     """Upsert sélections + combinés depuis le contenu de data/suivi.json.
     Ne lève JAMAIS d'exception : retourne un dict de statut."""
     if not disponible():
@@ -172,6 +172,15 @@ def sync_suivi(d, run_id=None):
                               "http": code, "corps": corps}, run_id)
             return {"statut": "echec", "etape": "combines",
                     "http": code, "corps": corps}
+        if combines_extra:
+            details["coupon_corners"] = len(combines_extra)
+            code, corps = _requete(
+                "POST", "combines", combines_extra, "?on_conflict=jour,nom")
+            if code not in OK_HTTP:
+                journal("echec", {**details, "etape": "coupon",
+                                  "http": code, "corps": corps}, run_id)
+                return {"statut": "echec", "etape": "coupon",
+                        "http": code, "corps": corps}
         journal("ok", details, run_id)
         return {"statut": "ok", **details}
     except Exception as e:                          # jamais bloquant
