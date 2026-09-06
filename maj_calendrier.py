@@ -129,6 +129,15 @@ def main():
         d, n = suivi.resoudre(d, db)
         suivi.sauver(d)
         print(f"suivi : {len(d['jours'])} jour(s) archivé(s) | {n} résultat(s) résolu(s)")
+        try:                                 # Phase 1 : double écriture Supabase
+            import db
+            r = db.sync_suivi(d)
+            if r.get("statut") != "ignore":
+                print(f"supabase : {r.get('statut')} "
+                      f"({r.get('selections', 0)} sél, {r.get('combines', 0)} comb)")
+        except Exception as e:
+            print(f"supabase : échec IGNORÉ ({e}) — les JSON restent la source",
+                  file=sys.stderr)
     except Exception as e:
         print(f"suivi : ÉCHEC ({e}) — sans effet sur le calendrier", file=sys.stderr)
 

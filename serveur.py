@@ -53,6 +53,11 @@ def integrer_calendrier():
         d, n = suivi.resoudre(d, DB)
         suivi.sauver(d)
         log["suivi"] = {"jours": len(d["jours"]), "nouveaux_resultats": n}
+        try:                                 # Phase 1 : double écriture Supabase
+            import db
+            log["supabase"] = db.sync_suivi(d).get("statut")
+        except Exception:
+            log["supabase"] = "echec"        # jamais bloquant
     except Exception as e:
         log["suivi"] = {"erreur": str(e)}
     return log
