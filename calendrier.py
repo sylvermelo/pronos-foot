@@ -40,6 +40,12 @@ ESPN_SLUGS = {
     "SP1": "esp.1", "SP2": "esp.2",
     "P1": "por.1", "T1": "tur.1", "G1": "gre.1",
 }
+# Coupes d'Europe et coupes nationales (pseudo-divisions — voir coupes.py) :
+# UCL, Europa League, Conference League, Carabao Cup, Copa del Rey,
+# Coppa Italia, DFB-Pokal, Coupe de France.
+import coupes as _coupes
+for _cle, _meta in _coupes.COUPES.items():
+    ESPN_SLUGS[_cle] = _meta["slug"]
 # TheSportsDB (secours) : identifiants de ligues connus
 TSD_IDS = {"E0": "4328", "D1": "4331", "I1": "4332", "SP1": "4335",
            "F1": "4334", "P1": "4330", "N1": "4344", "T1": "4338",
@@ -424,6 +430,12 @@ def appliquer(db, cotes=None):
     Retourne le journal de construction.
     """
     eq = {d: sorted(L["forces"].keys()) for d, L in db.get("ligues", {}).items()}
+    # pseudo-divisions de coupes : pas de forces propres, le traducteur de noms
+    # travaille sur TOUTES les équipes des 21 divisions domestiques (index).
+    _idx = db.get("index_equipes") or {}
+    for d, L in db.get("ligues", {}).items():
+        if L.get("coupe"):
+            eq[d] = sorted(_idx)
     bruts = cotes or db.get("fixtures_cotes") or db.get("fixtures", [])
     matchs, log = construire(eq, bruts)
     if matchs:

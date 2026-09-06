@@ -634,7 +634,7 @@ function tabMatchs(){
       liste+=`<tr class="row${sel}" data-id="${id}">
         <td class="num">${esc(m.heure||"—")}</td>
         <td><div class="tname">${esc(m.home)} <span class="mu">vs</span> ${esc(m.away)}</div>
-            <div class="tsub">${esc(m.ligue)} · ${esc(m.pays)}${srcb(m)}${m.source_cotes==="pinnacle"?'<span class="srcb p" title="Cotes Pinnacle en direct (The Odds API, mises à jour toutes les 20 h)">PINNACLE</span>':""}</div></td>
+            <div class="tsub">${esc(m.ligue)} · ${esc(m.pays)}${srcb(m)}${m.coupe?'<span class="srcb" style="background:rgba(244,63,94,.12);color:var(--red)" title="Coupe — prédiction indicative : forces domestiques transférées, pas d\'étalonnage inter-ligues. Jamais dans les sélections conseillées.">COUPE</span>':""}${m.source_cotes==="pinnacle"?'<span class="srcb p" title="Cotes Pinnacle en direct (The Odds API, mises à jour toutes les 20 h)">PINNACLE</span>':""}</div></td>
         <td class="num">${pct1(m.p1)}</td><td class="num mu">${pct1(m.pX)}</td><td class="num">${pct1(m.p2)}</td>
         <td class="num g">${pct1(m.over&&m.over["1.5"])}</td>
         <td class="num g">${pct1(m.over25)}</td>
@@ -714,10 +714,11 @@ function panneauMatch(p,sec,s){
       <div class="c">cote juste ${sc.p>0?(1/sc.p).toFixed(2):"—"}</div></div>`;}).join("");
   const fiab=p.fiabilite||{};
   const m=p.marche;
+  const coupeWarn=(s&&s.coupe)?`<div class="warn" style="margin-top:10px"><b>Match de coupe</b> — chaque équipe apporte les forces de son championnat domestique. ${fiab.inter_ligues?"Les deux équipes viennent de divisions <b>différentes</b> : aucun étalonnage inter-ligues n'est disponible gratuitement — prédiction <b>INDICATIVE</b>, confiance forcée à « faible », match exclu des sélections conseillées et des combinés suivis.":"Les deux équipes viennent de la même division : prédiction issue du modèle de ce championnat (contexte de coupe non modélisé : rotation d'effectif, enjeu différent)."} Aucun gain garanti.</div>`:"";
   let html=`<div class="card hi glow">
     <div class="phead"><span class="badge gy"><span class="dot"></span>ANATOMIE DU MATCH</span>
       <span class="badge cy">${esc(p.ligue)}</span></div>
-    <div class="ptitle" style="margin-top:9px">${esc(p.home)} <span class="vs">vs</span> ${esc(p.away)}</div>
+    <div class="ptitle" style="margin-top:9px">${esc(p.home)} <span class="vs">vs</span> ${esc(p.away)}</div>${coupeWarn}
     <div class="tsub" style="margin:5px 0 10px">λ ${f2(p.lambda_home)} · μ ${f2(p.lambda_away)} · E(buts) ${f2(p.buts_attendus)}</div>
     <div class="ligne"><div class="l">Victoire ${esc(p.home)} (1)</div>
       <div class="r"><div class="p g">${pct1(p.victoire_1)} %</div>${m?`<div class="e ${clsEdge(m.ecart_1)}">écart marché ${sgnEdge(m.ecart_1)}</div>`:""}</div></div>

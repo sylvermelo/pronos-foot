@@ -66,6 +66,10 @@ def lire_cotes_co_uk(chemin=os.path.join("data", "fixtures.csv")):
 def main():
     with open(CHEMIN_DB) as f:
         db = json.load(f)
+    # pseudo-divisions de coupes (UCL, UEL, Carabao…) : à injecter AVANT le
+    # calendrier pour que leurs matchs ESPN soient reconnus — voir coupes.py
+    import coupes
+    coupes.injecter(db)
     t0 = datetime.datetime.now()
     log = calendrier.appliquer(db, cotes=lire_cotes_co_uk())
     # Cotes EN DIRECT (The Odds API → Pinnacle) : écrase les cotes moyennes

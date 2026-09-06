@@ -21,6 +21,11 @@ RACINE = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(RACINE, "data/modeles.json")) as f:
     DB = json.load(f)
 
+# pseudo-divisions de coupes (UCL, UEL, UECL, Carabao, Copa, Coppa, Pokal,
+# Coupe de France) : forces domestiques transférées à la volée — voir coupes.py
+import coupes
+coupes.injecter(DB)
+
 
 def integrer_calendrier():
     """Reconstruit le calendrier multi-sources (ESPN + TheSportsDB +
@@ -90,6 +95,13 @@ def matrice_scores(lig, home, away):
     L = DB["ligues"].get(lig)
     if not L:
         return None
+    if L.get("coupe"):
+        # coupe : paramètres empruntés aux divisions domestiques des deux
+        # équipes (même division = prédiction exacte du championnat ;
+        # divisions différentes = approximation inter-ligues non calibrée).
+        L, _, _ = coupes.parametres(DB, lig, home, away)
+        if not L:
+            return None
     F = L["forces"]
     if home not in F or away not in F:
         return None
@@ -166,6 +178,25 @@ def pronostic(lig, home, away):
             f"La régularisation a ramené ses paramètres vers la moyenne, mais la "
             f"prédiction reste moins fiable qu'en milieu de saison.")
     }
+    if DB["ligues"][lig].get("coupe"):
+        idx_eq = DB.get("index_equipes") or {}
+        dh, da = idx_eq.get(home), idx_eq.get(away)
+        inter = bool(dh) and bool(da) and dh != da
+        out["fiabilite"]["inter_ligues"] = inter
+        if inter:
+            out["fiabilite"]["niveau"] = "faible"
+        out["fiabilite"]["message"] = (
+            "Match de COUPE : chaque équipe apporte les forces de son "
+            "championnat domestique. "
+            + ("Les deux équipes viennent de divisions DIFFÉRENTES : aucun "
+               "étalonnage inter-ligues n'est disponible gratuitement — cette "
+               "prédiction est INDICATIVE (confiance forcée à « faible ») et "
+               "le match n'entre dans aucune sélection conseillée ni combiné."
+               if inter else
+               "Les deux équipes viennent de la même division : la prédiction "
+               "utilise exactement le modèle de ce championnat (contexte de "
+               "coupe non modélisé : rotation d'effectif, enjeu différent).")
+            + " Aucun gain garanti.")
     # comparaison au marche si des cotes existent
     for fx in DB.get("fixtures", []):
         if fx["div"] == lig and fx["home"] == home and fx["away"] == away:
@@ -194,6 +225,8 @@ def pronostic(lig, home, away):
 def api_ligues():
     L = []
     for div, v in DB["ligues"].items():
+        if v.get("coupe"):
+            continue        # les coupes ne sont pas des championnats classables
         L.append({"div": div, "nom": v["nom"], "pays": v["pays"], "saison": v["saison"],
                   "n_equipes": len(v["equipes_actuelles"]), "n_historique": v["n_historique"],
                   "dernier_match": v["dernier_match"],
@@ -278,6 +311,7 @@ def api_matchs():
                 "cote_over": fx["cote_over"], "cote_under": fx["cote_under"],
                 "source": fx.get("source") or "co.uk", "ou_line": fx.get("ou_line"),
                 "source_cotes": fx.get("source_cotes") or "co.uk",
+                "coupe": bool(lig and lig.get("coupe")),
                 "disponible": p is not None}
         # libelle de journee : aujourd'hui, demain, puis J+2, J+3...
         try:
@@ -546,6 +580,9 @@ def api_conseils(seuil=0.75):
     for m in api_matchs():
         if not m.get("disponible") or not m.get("over"):
             continue
+        if m.get("coupe"):
+            continue        # coupes : jamais dans les sélections/combinaisons
+                            # suivies (approximation inter-ligues non calibrée)
         if m.get("heure") and m.get("date"):
             try:
                 if f"{m['date']}T{m['heure']}" < now_cotonou.isoformat(timespec="minutes"):

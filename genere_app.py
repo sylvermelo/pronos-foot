@@ -37,6 +37,7 @@ def precalculer():
         "fleuves": {},
         "moteur": {},
         "arbitres": S.DB.get("arbitres", {}),
+        "index_equipes": S.DB.get("index_equipes", {}),
         "meta": S.DB.get("meta", {}),
         "calendrier": S.DB.get("calendrier_log") or {},
         "suivi": __import__("suivi").vue(),
@@ -57,6 +58,7 @@ def precalculer():
             "forces": L["forces"],
             "equipes_actuelles": L.get("equipes_actuelles", []),
             "secondaires": L.get("secondaires"),
+            "coupe": bool(L.get("coupe")),
         }
     print(f"   {len(data['ligues'])} ligues | {len(data['matchs'])} matchs | "
           f"{len(data['arbitres'])} arbitres")
@@ -172,7 +174,28 @@ function secondairesJS(div,h,a,arbitre){
 
 /* pronostic complet d'une confrontation — même structure que le serveur Python */
 function pronosticJS(div,h,a){
-  const L=DATA.moteur[div]; if(!L) return null;
+  let L=DATA.moteur[div]; if(!L) return null;
+  let coupeInter=false;
+  if(L.coupe){
+    /* coupe : paramètres empruntés aux divisions domestiques (miroir exact de
+       serveur.matrice_scores + coupes.parametres). Même division = modèle du
+       championnat ; divisions différentes = approximation inter-ligues. */
+    const idx=DATA.index_equipes||{};
+    const dh=idx[h],da=idx[a];
+    if(!dh||!da) return null;
+    const Lh=DATA.moteur[dh],La=DATA.moteur[da];
+    if(!Lh||!La) return null;
+    if(dh===da){
+      if(!(Lh.forces||{})[h]||!(Lh.forces||{})[a]) return null;
+      L=Lh;
+    }else{
+      if(!(Lh.forces||{})[h]||!(La.forces||{})[a]) return null;
+      coupeInter=true;
+      const fQ={};fQ[h]=Lh.forces[h];fQ[a]=La.forces[a];
+      L={forces:fQ,gamma:(Lh.gamma+La.gamma)/2,s_away:(Lh.s_away+La.s_away)/2,
+         rho:(Lh.rho+La.rho)/2,coupe:true};
+    }
+  }
   const r=matriceScores(L,h,a); if(!r) return null;
   const M=r.M, lam=r.lam, mu=r.mu;
   let tri=0,dg=0;
@@ -205,12 +228,17 @@ function pronosticJS(div,h,a){
     out.over[String(x)]=arr4(sommeSi((i,j)=>i+j>x));
     out.under[String(x)]=arr4(sommeSi((i,j)=>i+j<x));
   });
-  const fh=(L.forces||{})[h]||{}, fa=(L.forces||{})[a]||{};
+  /* fiabilité : pour une COUPE, les forces viennent d'ailleurs — comme côté
+     Python (DB["ligues"][lig].forces vide), n_eff = 0 → confiance « faible »,
+     plus un drapeau inter_ligues pour l'avertissement du panneau. */
+  const Lf=DATA.moteur[div];
+  const fh=(Lf.coupe?{}:(Lf.forces||{})[h])||{}, fa=(Lf.coupe?{}:(Lf.forces||{})[a])||{};
   const ne_h=fh.n_eff||0, ne_a=fa.n_eff||0, nb_h=fh.n_brut||0, nb_a=fa.n_brut||0;
   const mini=Math.min(ne_h,ne_a);
   const conf=mini>=40?'haute':mini>=20?'moyenne':'faible';
   out.fiabilite={confiance:conf,n_eff_home:arr2(ne_h),n_eff_away:arr2(ne_a),
     n_brut_home:nb_h,n_brut_away:nb_a};
+  if(Lf.coupe) out.fiabilite.inter_ligues=coupeInter;
   /* confrontation au marché si des cotes existent pour ce match */
   for(const m of (DATA.matchs||[])){
     if(m.div===div&&m.home===h&&m.away===a){
@@ -336,6 +364,7 @@ function conseilsJS(seuil){
   const nowC=new Date(Date.now()+3600000).toISOString().slice(0,16);
   for(const m of DATA.matchs){
     if(!m.disponible||!m.over) continue;
+    if(m.coupe) continue;   /* coupes : jamais dans les sélections suivies */
     if(m.heure&&m.date&&(m.date+"T"+m.heure)<nowC) continue;
     const o=m.over,u=m.under,dc=m.double_chance||{};
     const base={div:m.div,ligue:m.ligue,pays:m.pays,date:m.date,heure:m.heure,
