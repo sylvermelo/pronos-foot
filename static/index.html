@@ -388,7 +388,7 @@ function carteCombine(titre,c,couleur,avert,videTxt,groupe){
       <div class="sub">${esc(l.date)} · ${esc(l.heure||"—")} · ${esc(l.ligue)} ·
         <span style="color:${couleur}">${esc(l.option)}</span></div></div>
       <div class="r"><div class="p" style="color:${couleur}">${pct1(l.p)} %</div>
-      <div class="sub">${l.cote_marche?"@ "+f2(l.cote_marche):"sans cote"}</div></div></div>`;
+      <div class="sub">${l.cote_marche?"@ "+f2(l.cote_marche):(l.cote_juste?"juste @ "+f2(l.cote_juste):"sans cote")}</div></div></div>`;
   let h=`<div class="card"><div class="top"><span class="lbl" style="color:${couleur}">${esc(titre)}</span>
     <span class="lbl">${c.legs.length} match${c.legs.length>1?"s":""}</span></div>`;
   if(groupe&&c.par_jour){
@@ -407,7 +407,10 @@ function carteCombine(titre,c,couleur,avert,videTxt,groupe){
   }
   h+=`<div class="det" style="margin-top:10px">Probabilité combinée :
       <b class="g" style="font-size:15px">${pct1(c.p_combine)} %</b>`+
-     (c.cote_combine?` &nbsp;·&nbsp; Cote combinée : <b class="cy" style="font-size:15px">${f2(c.cote_combine)}</b>`:"")+`</div>
+     (c.cote_combine?` &nbsp;·&nbsp; Cote combinée : <b class="cy" style="font-size:15px">${f2(c.cote_combine)}</b>`+
+       (c.cote_type?` <span class="lbl mu">(source : ${esc(c.cote_type)})</span>`:"")+
+       (c.cote_juste_combine&&c.cote_type&&c.cote_type!=="marché"?` &nbsp;·&nbsp; cote juste 1/p : <b class="cy">${f2(c.cote_juste_combine)}</b>`:"")
+      :(c.cote_juste_combine?` &nbsp;·&nbsp; Cote juste (1/p) : <b class="cy" style="font-size:15px">${f2(c.cote_juste_combine)}</b> <span class="lbl mu">(cotes marché indisponibles pour ces options)</span>`:""))+`</div>
     <div class="det mu" style="margin-top:6px;line-height:1.6">${avert}</div></div>`;
   return h;
 }
@@ -441,6 +444,15 @@ function tabConseils(){
       ${carteCombine("RISQUE DU JOUR — combiné de 2-3 matchs",cb.risque,"var(--amber)",
         "Cotes élevées = probabilité faible : ce combiné perdra plus souvent qu'il ne gagnera. Sur le backtest, le modèle ne bat pas les bookmakers (ROI −8,8 %). Divertissement uniquement — ne misez jamais plus que ce que vous acceptez de perdre.",
         "Pas assez d'options cotées éligibles (aujourd'hui + demain) : le robot s'abstient.")}
+      ${carteCombine("COTE 2 DU JOUR — produit des cotes ≈ 2",cb.cote2,"var(--blue)",
+        "Objectif : doubler la mise (cote totale entre 1,90 et 2,35) avec les options les plus sûres du jour, 10 matchs maximum. Cote du marché quand elle existe, sinon cote juste calculée (1/probabilité) — la source est affichée. Beaucoup de jambes très probables ne font PAS un combiné sûr : à 8 jambes, la probabilité combinée reste modeste. Aucun gain garanti.",
+        "0 — pas assez de sélections aujourd'hui pour atteindre une cote totale de 1,90 dans la limite de 10 matchs. Le robot s'abstient plutôt que de forcer.")}
+      ${carteCombine("COTE 5 DU JOUR — produit des cotes ≈ 5",cb.cote5,"var(--green-s)",
+        "Objectif : quintupler la mise (cote totale entre 4,60 et 5,90), 10 matchs maximum, mêmes règles que le COTE 2. Plus la cote monte, plus la probabilité combinée chute : viser ×5 avec des jambes à ~80 % donne environ 1 chance sur 3 au mieux. Aucun gain garanti.",
+        "0 — pas assez de sélections aujourd'hui pour atteindre une cote totale de 4,60 dans la limite de 10 matchs. Le robot s'abstient plutôt que de forcer.")}
+      ${carteCombine("FUN DU JOUR — grosse cote 20 à 50",cb.fun,"var(--red)",
+        "Le billet de loterie du jour : cote totale entre 20 et 50, 15 matchs maximum, en prenant les jambes les plus longues d'abord (toutes quand même au-dessus du seuil). Soyons clairs : la probabilité combinée est de l'ordre de 1 à 5 % — ce combiné perdra presque toujours. C'est du divertissement : ne misez jamais plus que ce que vous acceptez de perdre intégralement.",
+        "0 — pas assez de sélections aujourd'hui pour atteindre une cote totale de 20 dans la limite de 15 matchs. Le robot s'abstient plutôt que de forcer.")}
     </div>`;
     if(!r.jours.length){
       h=`<div class="card empty"><b>Aucun</b>
@@ -551,11 +563,11 @@ function renduSuivi(){
     <span class="lbl mu">prédit le ${esc(j.jour_prono)}${j.genere_le?" à "+esc(j.genere_le.slice(11,16)):""} · seuil ${Math.round((j.seuil||0.75)*100)} %</span><span class="line"></span>
     <span class="lbl ${j.nb_resolus?"g":"mu"}">${j.nb_resolus?j.nb_touches+"/"+j.nb_resolus+" touché"+(j.nb_resolus>1?"s":""):"rien de résolu encore"}${j.nb>j.nb_resolus?" · "+(j.nb-j.nb_resolus)+" en attente":""}</span></div>`;
   const cbj=j.combines||{};
-  for(const [nom,c] of [["Combiné SAFE DU JOUR",cbj.safe],["Combiné SAFE WEEK-END",cbj.safe_weekend],["Combiné RISQUE DU JOUR",cbj.risque]]){
+  for(const [nom,c] of [["Combiné SAFE DU JOUR",cbj.safe],["Combiné SAFE WEEK-END",cbj.safe_weekend],["Combiné RISQUE DU JOUR",cbj.risque],["Combiné COTE 2 DU JOUR",cbj.cote2],["Combiné COTE 5 DU JOUR",cbj.cote5],["Combiné FUN DU JOUR",cbj.fun]]){
     if(!c||!c.legs) continue;
     const rr=c.resultat;
     h+=`<div class="warn" style="margin:6px 0"><b>${nom}</b> · ${c.legs.length} matchs ·
-      probabilité combinée ${pct1(c.p_combine)} %${c.cote_combine?` · cote ${f2(c.cote_combine)}`:""}<br>
+      probabilité combinée ${pct1(c.p_combine)} %${c.cote_combine?` · cote ${f2(c.cote_combine)}${c.cote_type?` (${c.cote_type})`:""}`:(c.cote_juste_combine?` · cote juste ${f2(c.cote_juste_combine)}`:"")}<br>
       ${c.legs.map(l=>`${esc(l.home)}/${esc(l.away)} : <b>${esc(l.option)}</b>`).join(" + ")}<br>
       ${rr?`Verdict : <b class="${rr.touche?"g":"rd"}">${rr.touche?"✓ GAGNÉ":"✗ PERDU"}</b> — `+
            rr.legs.map(l=>`${esc(l.home)}/${esc(l.away)} ${esc(l.score)} ${l.touche?"✓":"✗"}`).join(" · ")+

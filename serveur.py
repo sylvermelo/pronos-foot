@@ -384,7 +384,7 @@ def _jours_weekend(aujourdhui=None):
 
 
 def _combinaisons(sels, seuil, pool_risque, aujourdhui=None):
-    """Trois combinés aux règles déterministes (même entrée → même sortie).
+    """Six combinés aux règles déterministes (même entrée → même sortie).
 
     SAFE DU JOUR   : 3 matchs MAXIMUM, tous du MÊME jour (aujourd'hui).
                      Moins de 3 éligibles → on prend ce qu'il y a (1 ou 2).
@@ -398,6 +398,16 @@ def _combinaisons(sels, seuil, pool_risque, aujourdhui=None):
                      (aujourd'hui + demain), planchers de probabilité 55 %
                      (65 % pour un under 2.5, fragile d'après le suivi),
                      minimum 2 jambes, matchs des SAFE exclus.
+    COTE 2 DU JOUR : combiné du jour dont le produit des cotes vise ≈ 2
+                     (fourchette 1,90-2,35), 10 jambes max, les plus sûres
+                     d'abord, matchs du SAFE DU JOUR exclus.
+    COTE 5 DU JOUR : même principe, cible ≈ 5 (fourchette 4,60-5,90),
+                     10 jambes max.
+    FUN DU JOUR    : la grosse cote du jour, cible 20 à 50, 15 jambes max,
+                     jambes les plus longues d'abord (mais toutes au-dessus
+                     du seuil — un billet de loterie, assumé comme tel).
+    Pour ces trois combinés : cote du marché si elle existe, sinon COTE
+    JUSTE calculée (1/p) — le champ cote_type indique la source.
     Probabilité combinée = produit des probabilités (indépendance supposée,
     approximation — des matchs d'un même championnat peuvent être corrélés).
     """
@@ -433,10 +443,53 @@ def _combinaisons(sels, seuil, pool_risque, aujourdhui=None):
             else:
                 toutes_cotes = False
         out = {"legs": legs, "p_combine": round(p, 4),
-               "cote_combine": round(cote, 2) if toutes_cotes else None}
+               "cote_combine": round(cote, 2) if toutes_cotes else None,
+               "cote_juste_combine": round(1 / p, 2) if p > 0 else None}
         if par_jour is not None:
             out["par_jour"] = par_jour
         return out
+
+    def construire_cible(pool_, cible_min, cible_max, max_legs, p_asc=False):
+        """Combiné « à cote cible » : remplit des jambes (1 option par match)
+        jusqu'à ce que le produit des cotes entre dans [cible_min, cible_max].
+
+        - cote d'une jambe = cote du MARCHÉ si elle existe, sinon COTE JUSTE
+          calculée (1/p) — l'utilisateur voit toujours un nombre honnête,
+          et le champ cote_type dit d'où il vient (marché / juste / mixte).
+        - p_asc=False : jambes les plus sûres d'abord (cote 2, cote 5).
+          p_asc=True  : jambes les plus longues d'abord (fun — atteint la
+          cible 20-50 avec le moins de matchs possible, tous ≥ seuil).
+        - jamais forcé : si la cible minimale n'est pas atteinte dans la
+          limite de jambes → None (l'interface affiche « 0 »).
+        """
+        tri = sorted(pool_, key=(lambda s: (s["p"], s["date"], s["home"], s["away"]))
+                     if p_asc else
+                     (lambda s: (-s["p"], s["date"], s["home"], s["away"])))
+        legs, vus, prod, n_m, n_j = [], set(), 1.0, 0, 0
+        for s in tri:
+            if len(legs) >= max_legs or prod >= cible_min:
+                break
+            cote_leg = s.get("cote_marche") or s.get("cote_juste")
+            if not cote_leg or cote_leg <= 1.0:
+                continue
+            mid = (s["date"], s["home"], s["away"])
+            if mid in vus or prod * cote_leg > cible_max:
+                continue
+            legs.append(s); vus.add(mid); prod *= cote_leg
+            if s.get("cote_marche"):
+                n_m += 1
+            else:
+                n_j += 1
+        if not legs or prod < cible_min:
+            return None
+        p = 1.0
+        for s in legs:
+            p *= s["p"]
+        return {"legs": legs, "p_combine": round(p, 4),
+                "cote_combine": round(prod, 2),
+                "cote_juste_combine": round(1 / p, 2) if p > 0 else None,
+                "cote_type": "marché" if not n_j else "juste" if not n_m else "mixte",
+                "cible": [cible_min, cible_max]}
 
     auj = aujourdhui or datetime.date.today()
     auj_iso = auj.isoformat()
@@ -462,7 +515,19 @@ def _combinaisons(sels, seuil, pool_risque, aujourdhui=None):
     legs_r = construire(pool_risque, "cote_marche", 0.55)
     risque = finaliser(legs_r) if len(legs_r) >= 2 else None
 
-    return {"safe": safe, "safe_weekend": safe_weekend, "risque": risque}
+    # --- COTE 2 / COTE 5 / FUN DU JOUR : aujourd'hui uniquement, ------------
+    # --- matchs du SAFE DU JOUR exclus, cote juste (1/p) si pas de marché ----
+    pool_jour = [s for s in sels if s.get("date") == auj_iso]
+    if safe:
+        exclus_j = {(l["date"], l["home"], l["away"]) for l in safe["legs"]}
+        pool_jour = [s for s in pool_jour
+                     if (s["date"], s["home"], s["away"]) not in exclus_j]
+    cote2 = construire_cible(pool_jour, 1.90, 2.35, 10)
+    cote5 = construire_cible(pool_jour, 4.60, 5.90, 10)
+    fun = construire_cible(pool_jour, 20.0, 50.0, 15, p_asc=True)
+
+    return {"safe": safe, "safe_weekend": safe_weekend, "risque": risque,
+            "cote2": cote2, "cote5": cote5, "fun": fun}
 
 
 def api_conseils(seuil=0.75):

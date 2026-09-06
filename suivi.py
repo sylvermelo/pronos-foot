@@ -102,6 +102,12 @@ def archiver(conseils, d=None, jour=None, retro=False):
     sels = []
     for j in conseils.get("jours", []):
         for s in j.get("selections", []):
+            # une entrée de jour ne contient QUE les matchs de ce jour-là :
+            # les jours suivants auront leur propre entrée (sinon les mêmes
+            # matchs seraient archivés plusieurs jours de suite et comptés
+            # en double dans les totaux).
+            if s.get("date") != jour:
+                continue
             sels.append({k: s.get(k) for k in
                          ("div", "ligue", "pays", "date", "heure", "home", "away",
                           "option", "p", "cote_juste", "cote_marche", "confiance",
@@ -122,7 +128,11 @@ def archiver(conseils, d=None, jour=None, retro=False):
             s["resultat"] = None                   # nouvelle sélection
     # les sélections archivées qui ont DISPARU des nouveaux conseils (matchs
     # déjà commencés) sont gardées telles quelles : elles seront résolues.
-    gardees = [s for k, s in anciennes.items() if k not in vus]
+    # Exception : une sélection NON résolue d'un AUTRE jour (double archivage
+    # de l'ancien format) est supprimée — elle sera ré-archivée le jour du
+    # match. Les résultats déjà résolus ne sont JAMAIS touchés.
+    gardees = [s for k, s in anciennes.items() if k not in vus
+               and (s.get("date") == jour or s.get("resultat"))]
     sels = sels + gardees
     sels.sort(key=lambda s: (s.get("date") or "", s.get("heure") or "",
                              s.get("div") or "", s.get("home") or ""))
@@ -241,7 +251,7 @@ def _pnl(s):
 def _combines_vue(combines):
     """Combinés du jour + gain simulé (1 unité) quand la cote est connue."""
     out = {}
-    for nom in ("safe", "safe_weekend", "risque"):
+    for nom in ("safe", "safe_weekend", "risque", "cote2", "cote5", "fun"):
         c = combines.get(nom)
         if not isinstance(c, dict):
             continue
