@@ -209,6 +209,17 @@ def resoudre(d, db):
                          "resolu_le": auj.isoformat()}
         return True
 
+    # Nettoyage GLOBAL (auto-réparation, à chaque exécution) : les sélections
+    # NON résolues datées d'un autre jour que l'entrée (vestiges de l'ancien
+    # archivage « fenêtre 8 jours » qui dupliquait les matchs d'un jour à
+    # l'autre) sont supprimées — elles sont/seront archivées dans leur propre
+    # entrée. Les résultats déjà résolus ne sont JAMAIS touchés.
+    for jour, entree in d["jours"].items():
+        sels = entree.get("selections", [])
+        if any(s.get("date") != jour and not s.get("resultat") for s in sels):
+            entree["selections"] = [s for s in sels
+                                    if s.get("date") == jour or s.get("resultat")]
+
     n = 0
     for jour, entree in d["jours"].items():
         for s in entree.get("selections", []):
