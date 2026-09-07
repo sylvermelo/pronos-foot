@@ -307,6 +307,17 @@ def copier_vers_sync(cfg):
 
 
 # ------------------------------------------------------------------------ main
+def complement_espn_plus_frais():
+    """BOUCLE RAPIDE : la collecte ESPN (resultats.py, lancée par
+    maj_calendrier.py) a-t-elle écrit des résultats plus récemment que le
+    dernier entraînement ? Si oui, les modèles sont périmés."""
+    try:
+        return (os.path.getmtime(DATA / "resultats_espn.json")
+                > os.path.getmtime(DATA / "modeles.json"))
+    except OSError:
+        return False
+
+
 def main():
     args = set(sys.argv[1:])
     if "--config" in args:
@@ -320,6 +331,14 @@ def main():
     if not verifier_source():
         log("source football-data.co.uk inaccessible (pas d'internet ?). "
             "Rien n'est modifié, les données existantes restent utilisables.", "WARN")
+        # BOUCLE RAPIDE : co.uk en panne ne doit pas bloquer l'entraînement —
+        # entraine.py travaille uniquement sur les fichiers locaux (CSV en
+        # cache + complément ESPN). On ré-entraîne si besoin, puis on sort
+        # quand même en code 2 (le workflow continue : calendrier, app, pub).
+        if complement_espn_plus_frais() and cfg.get("entrainer_si_changement", True):
+            log("boucle rapide : complément ESPN plus récent que les modèles — "
+                "ré-entraînement sans attendre co.uk")
+            lancer("entraine.py", "≈35 s")
         return 2
 
     if "--check" in args:
@@ -351,15 +370,8 @@ def main():
             "(ESPN + TheSportsDB + OpenLigaDB) est quand même reconstruit, "
             "car il évolue tous les jours.")
 
-    # BOUCLE RAPIDE : la collecte ESPN (maj_calendrier.py) a-t-elle apporté des
-    # résultats plus récents que le dernier entraînement ? Voir resultats.py.
-    def complement_espn_plus_frais():
-        try:
-            return (os.path.getmtime(DATA / "resultats_espn.json")
-                    > os.path.getmtime(DATA / "modeles.json"))
-        except OSError:
-            return False
-
+    # BOUCLE RAPIDE : ré-entraîner aussi quand le complément ESPN est plus
+    # récent que les modèles (voir complement_espn_plus_frais / resultats.py).
     if (changés > 0 or complement_espn_plus_frais()) and cfg.get("entrainer_si_changement", True):
         if not lancer("entraine.py", "≈35 s"):
             log("entraînement échoué : le fichier autonome n'est PAS régénéré, "
