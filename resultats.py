@@ -56,7 +56,7 @@ def charger():
 
 
 def sauver(d):
-    d["genere_le"] = datetime.datetime.now().isoformat(timespec="minutes")
+    d["genere_le"] = datetime.datetime.now().isoformat(timespec="seconds")
     tmp = CHEMIN + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(d, f)
