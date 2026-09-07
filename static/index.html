@@ -1253,8 +1253,10 @@ function tabCorners(){
       indépendance supposée : des matchs d'un même championnat peuvent être corrélés).
       ${sousCible?" Cote totale SOUS "+f2(CORN_CIBLE)+" : le jour est pauvre en bons matchs ("+cp.nElig+" maillon(s) éligible(s) seulement) — la sélection s'arrête là où la qualité s'arrête, on ne complète pas avec du doute.":" Cible de "+f2(CORN_CIBLE)+" atteinte"+(cp.coteTot>CORN_CIBLE+0.05?" et dépassée : la journée est riche en bons matchs":"")+"."}</div>
     <div class="det mu" style="margin-top:6px;line-height:1.6">Totaux over/under corners : affichés dans le tableau ci-dessous à titre informatif,
-      jamais dans le coupon (le coupon = handicaps uniquement). Corners 1re mi-temps : aucune donnée historique
-      gratuite → abstention. Pas de suivi automatique du verdict : aucune source gratuite ne fournit les corners en direct.</div></div>`;
+      jamais dans le coupon (le coupon = handicaps uniquement). Corners 1re mi-temps : désormais MESURÉS
+      corner par corner via le fil ESPN (8 divisions — section dédiée dans le panneau de chaque match), à titre
+      informatif. Pas de suivi automatique du verdict des coupons corners : aucune source gratuite ne fournit
+      les corners EN DIRECT (résolution en différé possible via ESPN — à demander).</div></div>`;
   }
 
   if(dj&&msj.length){
