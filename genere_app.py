@@ -187,7 +187,39 @@ function secondairesJS(div,h,a,arbitre){
     }
     res.confrontation=cf;
   }
+  /* CORNERS 1re MI-TEMPS — miroir de serveur.api_secondaires (res.cmt1) */
+  res.cmt1=cmt1JS(div,h,a,sec);
   return res;
+}
+
+/* Qui obtient le PLUS de corners en 1re mi-temps ? Miroir exact de
+   corners_mt.pronostic : convolution des deux lois binomiales négatives
+   (mêmes formules, KMAX=14, lignes 3.5/4.5). Données : fil commentary
+   ESPN vérifié contre boxscore — 8 divisions couvertes. */
+function cmt1JS(div,h,a,sec){
+  sec=sec||((DATA.moteur[div]||{}).secondaires);
+  if(!sec||!sec.base||sec.base.cmt1==null) return null;
+  const E=sec.equipes||{};
+  if(!E[h]||!E[a]) return null;
+  const eh=E[h].cmt1_em, rh=E[h].cmt1_rc, ea=E[a].cmt1_em, ra=E[a].cmt1_rc;
+  if([eh,rh,ea,ra].some(v=>typeof v!=='number'||!isFinite(v))) return null;
+  const base=sec.base.cmt1, disp=sec.base.cmt1_dispersion||1.15;
+  const lh=Math.min(Math.max(base*eh*ra,0.05),12), la=Math.min(Math.max(base*ea*rh,0.05),12);
+  const KMAX=14;
+  const ph=pmfMarche(lh,disp,KMAX), pa=pmfMarche(la,disp,KMAX);
+  let pH=0,pN=0,pA=0; const tot=new Array(2*KMAX+1).fill(0);
+  for(let i=0;i<=KMAX;i++)for(let j=0;j<=KMAX;j++){
+    const v=ph[i]*pa[j]; tot[i+j]+=v;
+    if(i>j)pH+=v; else if(i===j)pN+=v; else pA+=v;
+  }
+  const over={},under={};
+  for(const l of [3.5,4.5]){ let so=0,su=0;
+    for(let k=0;k<=2*KMAX;k++){ if(k>l)so+=tot[k]; if(k<l)su+=tot[k]; }
+    over[String(l)]=arr4(so); under[String(l)]=arr4(su); }
+  return {lambda_home:arr2(lh),lambda_away:arr2(la),
+    p_home:arr4(pH),p_nul:arr4(pN),p_away:arr4(pA),
+    over,under,dispersion:disp,
+    n_h:E[h].cmt1_n,n_a:E[a].cmt1_n,n_base:sec.base.cmt1_n};
 }
 
 /* CALIBRATION CORNERS — miroir de corners.py (bandes walk-forward de

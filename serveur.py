@@ -758,6 +758,15 @@ def api_secondaires(div, home, away, arbitre=None):
     if res is not None:
         # confrontation corners (dominante, partage, échelle d'handicaps brute)
         res["confrontation"] = MS.confrontation(modele, home, away)
+        # CORNERS 1re MI-TEMPS (fil commentary ESPN — corners_mt.py) :
+        # P(plus de corners MT1) / P(égalité) / P(moins) + over/under du
+        # total MT1. Probabilités BRUTES (pas encore calibrées). None si la
+        # division n'est pas couverte par le fil ESPN.
+        try:
+            import corners_mt as CMT
+            res["cmt1"] = CMT.pronostic(modele, home, away)
+        except Exception:
+            res["cmt1"] = None
     return res
 
 
@@ -862,6 +871,8 @@ def enrichir_secondaires(item):
         cf["under_cal"] = {k: CN.calibrer_total(v)
                            for k, v in (cor.get("under") or {}).items()}
         item["sec"]["confrontation"] = cf
+    if r.get("cmt1") and item.get("sec"):
+        item["sec"]["cmt1"] = r["cmt1"]     # corners 1re mi-temps
     return item
 
 

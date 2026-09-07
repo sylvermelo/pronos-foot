@@ -785,6 +785,26 @@ function panneauMatch(p,sec,s){
     if(a) html+=`<div class="ligne"><div class="l">Arbitre : ${esc(sec.arbitre||"non annoncé")}
       <div class="sub">${a.n||0} matchs analysés · ${f2(a.fautes)} fautes · ${f2(a.jaunes)} jaunes / match</div></div></div>`;
   }
+  /* ---- CORNERS 1re MI-TEMPS (qui en obtient le plus ?) ---- */
+  const cmt=sec&&sec.cmt1;
+  if(cmt){
+    const cj=v=>v>0?(1/v).toFixed(2):"—";
+    html+=`<div style="margin:16px 0 4px"><span class="lbl">Corners 1re mi-temps — qui en obtient le plus ?</span></div>
+    <div class="ligne"><div class="l">${esc(p.home)}<div class="sub">cote juste ${cj(cmt.p_home)} · λ ${f2(cmt.lambda_home)}</div></div>
+      <div class="r"><div class="p cy">${pct1(cmt.p_home)} %</div></div></div>
+    <div class="ligne"><div class="l">Égalité à la mi-temps<div class="sub">cote juste ${cj(cmt.p_nul)}</div></div>
+      <div class="r"><div class="p">${pct1(cmt.p_nul)} %</div></div></div>
+    <div class="ligne"><div class="l">${esc(p.away)}<div class="sub">cote juste ${cj(cmt.p_away)} · λ ${f2(cmt.lambda_away)}</div></div>
+      <div class="r"><div class="p cy">${pct1(cmt.p_away)} %</div></div></div>
+    <div class="ligne"><div class="l">Total corners 1re MT<div class="sub">over 3.5 : ${pct1(cmt.over["3.5"])} · over 4.5 : ${pct1(cmt.over["4.5"])} · under 4.5 : ${pct1(cmt.under["4.5"])}</div></div>
+      <div class="r"><div class="p">${f2(cmt.lambda_home+cmt.lambda_away)}</div></div></div>
+    <div class="det mu" style="margin-top:6px;line-height:1.6">Modèle 1re mi-temps : ${fmtN(cmt.n_base||0)} matchs découpés corner par corner
+    (fil ESPN horodaté, total recoupé avec le boxscore officiel — les fils incomplets sont écartés de l'entraînement).
+    Échantillon : ${esc(p.home)} ${f2(cmt.n_h||0)} matchs pondérés, ${esc(p.away)} ${f2(cmt.n_a||0)}.
+    <b>Probabilités brutes</b> : la calibration par fréquences réelles (comme pour les corners match complet)
+    viendra quand l'historique sera suffisant — d'ici là, prudence. Match terminé → résultat résolu automatiquement.
+    Marché couvert : Angleterre (2 divisions), Allemagne, Italie, Espagne, France, Pays-Bas, Portugal — D1 uniquement.</div>`;
+  }
   html+=`<div style="margin-top:12px" class="warn ${fiab.niveau==="haute"?"":"rd"}">
     Confiance <b>${esc(fiab.niveau||"—")}</b> — ${esc(p.home)} : ${fiab.home_n_eff??0} matchs pondérés,
     ${esc(p.away)} : ${fiab.away_n_eff??0}. ${fiab.message||"Effectifs bien établis dans cette division."}</div>`;

@@ -313,16 +313,23 @@ def complement_espn_plus_frais():
     horodatages INTERNES des fichiers (champ « genere_le », format ISO donc
     triable) : les dates de modification (mtime) ne survivent pas de façon
     fiable au cache GitHub Actions — constaté sur le run du 07/09 20h25."""
-    def horodatage(chemin):
+    def horodatage(chemin, cle="genere_le"):
         try:
             with open(chemin, encoding="utf-8") as f:
-                return json.load(f).get("genere_le") or ""
+                return json.load(f).get(cle) or ""
         except (OSError, ValueError, AttributeError):
             return ""
-    res = horodatage(DATA / "resultats_espn.json")
     mod = horodatage(DATA / "modeles.json")
+    res = horodatage(DATA / "resultats_espn.json")
+    if res and mod and res > mod:
+        return True
+    # corners 1re mi-temps : de nouveaux matchs découpés rafraîchissent le
+    # marché « cmt1 » (corners_mt.py) → même déclencheur.
+    cmt = horodatage(DATA / "corners_mt.json", "dernier_ajout")
+    if cmt and mod and cmt > mod:
+        return True
     if res and mod:
-        return res > mod
+        return False
     try:                      # secours : dates de modification des fichiers
         return (os.path.getmtime(DATA / "resultats_espn.json")
                 > os.path.getmtime(DATA / "modeles.json"))

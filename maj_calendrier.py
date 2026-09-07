@@ -85,6 +85,16 @@ def main():
     except Exception as e:
         print(f"boucle rapide : échec ignoré ({e})", file=sys.stderr)
 
+    # CORNERS 1re MI-TEMPS : découpe MT1/MT2 des matchs terminés des derniers
+    # jours (8 divisions couvertes par le fil ESPN — corners_mt.py).
+    try:
+        import corners_mt
+        n_mt = corners_mt.collecter_recent(db)
+        if n_mt:
+            print(f"corners 1re MT : {n_mt} nouveau(x) match(s) découpés par mi-temps")
+    except Exception as e:
+        print(f"corners 1re MT : échec ignoré ({e})", file=sys.stderr)
+
     # CORNERS — correction du biais mesuré (backtest_secondaires.py,
     # walk-forward 2023-2026 sur 42 733 prédictions). biais_division =
     # prédit − réel : si le modèle annonce trop bas (biais négatif), on

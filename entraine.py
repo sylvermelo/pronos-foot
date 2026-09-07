@@ -377,6 +377,15 @@ def main():
     out["fixtures_cotes"] = fix
     out["meta"] = {"total_matchs": total_matchs, "n_ligues": len(out["ligues"]),
                    "n_fixtures": len(fix), "duree_s": round(time.time() - t0, 1)}
+    # CORNERS 1re MI-TEMPS (corners_mt.py) : greffe le marché « cmt1 » dans
+    # les divisions couvertes par le fil ESPN. Échec non bloquant.
+    try:
+        import corners_mt
+        g = corners_mt.completer_modeles(out)
+        if g:
+            print(f"corners 1re MT : marche « cmt1 » greffe sur {g} division(s)")
+    except Exception as e:
+        print(f"corners 1re MT : echec non bloquant ({e})")
     json.dump(out, open("data/modeles.json", "w"))
     print(f"\nmodeles.json sauvegarde : {os.path.getsize('data/modeles.json')/1024:.0f} Ko | "
           f"{len(out['ligues'])} ligues | {len(fix)} matchs a venir | {time.time()-t0:.0f}s")
