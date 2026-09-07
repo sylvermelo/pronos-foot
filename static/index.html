@@ -1468,10 +1468,14 @@ async function adminOperateur(){
   }catch(e){return false;}
 }
 function fmtCompte(email){
-  const m=/^t(229)(01\d{8})@tel\.pronos-foot\.bj$/.exec(email||"");
+  const m=/^t(\d{7,16})@tel\.pronos-foot\.bj$/.exec(email||"");
   if(!m) return email||"—";
-  const d=m[2];
-  return "+229 "+d.slice(0,2)+" "+d.slice(2,4)+" "+d.slice(4,6)+" "+d.slice(6,8)+" "+d.slice(8);
+  const CC=["213","244","229","267","226","257","237","238","236","269","242","243","225","253","20","240","291","268","251","241","220","233","224","245","254","266","231","218","261","265","223","212","222","230","258","264","227","234","256","250","262","239","221","248","232","252","27","211","249","255","228","216","260","263"];
+  const n=m[1];let cc="";
+  for(const c of CC){if(n.indexOf(c)===0&&c.length>cc.length)cc=c;}
+  const d=cc?n.slice(cc.length):n;
+  let s="";for(let i=0;i<d.length;i++){if(i>0&&i%2===0)s+=" ";s+=d[i];}
+  return "+"+(cc||"")+(cc?" ":"")+s;
 }
 function admAuj(){return new Date(Date.now()+3600000).toISOString().slice(0,10);}
 function admDans(n,base){
