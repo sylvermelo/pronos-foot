@@ -351,7 +351,16 @@ def main():
             "(ESPN + TheSportsDB + OpenLigaDB) est quand même reconstruit, "
             "car il évolue tous les jours.")
 
-    if changés > 0 and cfg.get("entrainer_si_changement", True):
+    # BOUCLE RAPIDE : la collecte ESPN (maj_calendrier.py) a-t-elle apporté des
+    # résultats plus récents que le dernier entraînement ? Voir resultats.py.
+    def complement_espn_plus_frais():
+        try:
+            return (os.path.getmtime(DATA / "resultats_espn.json")
+                    > os.path.getmtime(DATA / "modeles.json"))
+        except OSError:
+            return False
+
+    if (changés > 0 or complement_espn_plus_frais()) and cfg.get("entrainer_si_changement", True):
         if not lancer("entraine.py", "≈35 s"):
             log("entraînement échoué : le fichier autonome n'est PAS régénéré, "
                 "l'ancienne version reste en place.", "ERROR")

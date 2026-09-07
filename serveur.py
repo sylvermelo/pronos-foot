@@ -48,6 +48,14 @@ def integrer_calendrier():
             log["cotes_pinnacle"] = n_pin
     except Exception:
         pass
+    try:                                 # BOUCLE RAPIDE : résultats ESPN
+        import resultats
+        n_res = resultats.collecter(DB)
+        if n_res:
+            log = dict(log or {})
+            log["boucle_rapide"] = n_res
+    except Exception:
+        pass
     try:                                        # suivi des pronostics
         conseils = api_conseils(suivi.SEUIL_ARCHIVE)
         d = suivi.archiver(conseils)

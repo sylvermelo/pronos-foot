@@ -73,6 +73,54 @@ def fusionner_xg_reel(df):
     return df
 
 
+def ajouter_resultats_espn(df):
+    """BOUCLE RAPIDE : fusionne data/resultats_espn.json (scores finaux ESPN
+    des derniers jours, voir resultats.py) dans la base d'entraînement.
+
+    Dédoublonnage strict contre les CSV co.uk : même division, mêmes équipes,
+    même date à ±1 jour (dates ESPN en heure de Cotonou vs co.uk en heure UK :
+    décalage rare mais possible). Le complément n'apporte que des buts : les
+    colonnes stats/cotes restent NaN, la ligne n'est pas « évaluable » pour
+    les métriques de backtest mais entraîne bien le modèle de buts."""
+    chemin = os.path.join("data", "resultats_espn.json")
+    if not os.path.exists(chemin):
+        return df, 0
+    try:
+        with open(chemin, encoding="utf-8") as f:
+            complement = json.load(f).get("matchs", {})
+    except (OSError, ValueError):
+        return df, 0
+    if not complement:
+        return df, 0
+    vus = set()
+    for lg, h, a, dt in zip(df["league"], df["home"], df["away"], df["date"]):
+        for k in (-1, 0, 1):
+            vus.add((lg, h, a, (dt + pd.Timedelta(days=k)).date().isoformat()))
+    cols = ["date", "league", "season", "home", "away", "hg", "ag", "Referee"] + STATS[2:]
+    nouv = []
+    for m in complement.values():
+        try:
+            if (m["div"], m["home"], m["away"], m["date"]) in vus:
+                continue
+            ligne = {"date": pd.Timestamp(m["date"]), "league": m["div"],
+                     "season": m.get("season") or "", "home": m["home"],
+                     "away": m["away"], "hg": int(m["hg"]), "ag": int(m["ag"]),
+                     "Referee": None}
+        except (KeyError, TypeError, ValueError):
+            continue
+        if ligne["league"] not in NOMS:
+            continue
+        for c in STATS[2:]:
+            ligne[c] = np.nan
+        nouv.append({k: ligne[k] for k in cols})
+    if not nouv:
+        return df, 0
+    add = pd.DataFrame(nouv)[cols]
+    add["hg"] = add["hg"].astype(int).clip(0, V.MAXG)
+    add["ag"] = add["ag"].astype(int).clip(0, V.MAXG)
+    return pd.concat([df, add], ignore_index=True), len(nouv)
+
+
 def charger():
     """Charge TOUTES les saisons disponibles, toutes divisions."""
     # sorted() est INDISPENSABLE : glob() renvoie les fichiers dans l'ordre du
@@ -116,6 +164,9 @@ def charger():
         frames.append(x[["date", "league", "season", "home", "away", "hg", "ag", "Referee"] + STATS[2:]])
     df = pd.concat(frames, ignore_index=True).drop_duplicates(
         subset=["date", "league", "home", "away"])
+    df, n_espn = ajouter_resultats_espn(df)
+    if n_espn:
+        print(f"boucle rapide : +{n_espn} résultat(s) ESPN pas encore publiés par co.uk")
     df = df.sort_values("date").reset_index(drop=True)
     return fusionner_xg_reel(df)
 

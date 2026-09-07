@@ -71,6 +71,20 @@ def main():
     import coupes
     coupes.injecter(db)
 
+    # BOUCLE RAPIDE : collecte des scores FINAUX ESPN des derniers jours
+    # (complément d'entraînement en attendant la publication co.uk de
+    # dimanche/mercredi). Échec non bloquant ; n'écrit le fichier que s'il y a
+    # du nouveau — c'est ce fichier qui déclenchera le ré-entraînement dans
+    # maj.py au prochain passage. Voir resultats.py.
+    try:
+        import resultats
+        n_res = resultats.collecter(db)
+        if n_res:
+            print(f"boucle rapide : {n_res} nouveau(x) résultat(s) final(aux) — "
+                  f"ré-entraînement au prochain passage")
+    except Exception as e:
+        print(f"boucle rapide : échec ignoré ({e})", file=sys.stderr)
+
     # CORNERS — correction du biais mesuré (backtest_secondaires.py,
     # walk-forward 2023-2026 sur 42 733 prédictions). biais_division =
     # prédit − réel : si le modèle annonce trop bas (biais négatif), on
