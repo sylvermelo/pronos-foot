@@ -106,9 +106,14 @@ def bt_secondaires():
 _CACHE = {}
 
 
-def matrice_scores(lig, home, away):
-    """Matrice 11x11 des probabilites de score exact (Dixon-Coles)."""
-    cle = (lig, home, away)
+def matrice_scores(lig, home, away, fat=None):
+    """Matrice 11x11 des probabilites de score exact (Dixon-Coles).
+
+    fat = (multiplicateur λ_home, multiplicateur λ_away) : fatigue européenne
+    MESURÉE (fatigue.py, étape ③) — une équipe qui a joué la C1/C2/C3 dans
+    les jours précédents marque un peu moins et encaisse un peu plus.
+    None = aucun effet (match sans date connue, coupe, ou repos suffisant)."""
+    cle = (lig, home, away, fat)
     if cle in _CACHE:
         return _CACHE[cle]
     L = DB["ligues"].get(lig)
@@ -128,6 +133,9 @@ def matrice_scores(lig, home, away):
     att_a, dfn_a = F[away]["att"], F[away]["dfn"]
     lam = min(max(att_h * dfn_a * L["gamma"], 1e-6), 30)
     mu = min(max(att_a * dfn_h * L["s_away"], 1e-6), 30)
+    if fat:
+        lam = min(max(lam * fat[0], 1e-6), 30)
+        mu = min(max(mu * fat[1], 1e-6), 30)
     rho = L["rho"]
     k = np.arange(MAXG + 1)
     M = np.outer(poisson.pmf(k, lam), poisson.pmf(k, mu))
@@ -150,7 +158,22 @@ def devig(*cotes):
 
 
 def pronostic(lig, home, away):
-    r = matrice_scores(lig, home, away)
+    # FATIGUE EUROPÉENNE (étape ③) : la date du match vient des fixtures —
+    # même source que le miroir JS (fixturesBrutes) pour la parité autonome.
+    date_match = None
+    for fx in DB.get("fixtures", []):
+        if fx["div"] == lig and fx["home"] == home and fx["away"] == away:
+            date_match = fx.get("date")
+            break
+    fat, info_fatigue = None, None
+    try:
+        import fatigue as FAT
+        mh, ma, info_fatigue = FAT.coeffs_match(lig, home, away, date_match)
+        if mh:
+            fat = (mh, ma)
+    except Exception:
+        fat, info_fatigue = None, None
+    r = matrice_scores(lig, home, away, fat=fat)
     if r is None:
         return None
     M, lam, mu = r
@@ -197,6 +220,8 @@ def pronostic(lig, home, away):
             f"La régularisation a ramené ses paramètres vers la moyenne, mais la "
             f"prédiction reste moins fiable qu'en milieu de saison.")
     }
+    if info_fatigue:
+        out["fatigue"] = info_fatigue
     if DB["ligues"][lig].get("coupe"):
         idx_eq = DB.get("index_equipes") or {}
         dh, da = idx_eq.get(home), idx_eq.get(away)

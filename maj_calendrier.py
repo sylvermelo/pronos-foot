@@ -95,6 +95,22 @@ def main():
     except Exception as e:
         print(f"corners 1re MT : échec ignoré ({e})", file=sys.stderr)
 
+    # FATIGUE EUROPÉENNE (étape ③) : calendriers C1/C2/C3 en fenêtre glissante
+    # ±21 jours (matchs joués ET programmés — la fatigue d'un match de
+    # championnat se connaît dès que le calendrier européen existe), puis
+    # re-mesure du barème sur les CSV versionnés. ~6 requêtes ESPN par passage.
+    try:
+        import contextlib
+        import io
+        import fatigue
+        n_fat = fatigue.rafraichir()
+        with contextlib.redirect_stdout(io.StringIO()):
+            fatigue.mesurer()
+        if n_fat:
+            print(f"fatigue européenne : +{n_fat} match(s) de coupes — barème re-mesuré")
+    except Exception as e:
+        print(f"fatigue européenne : échec ignoré ({e})", file=sys.stderr)
+
     # CORNERS — correction du biais mesuré (backtest_secondaires.py,
     # walk-forward 2023-2026 sur 42 733 prédictions). biais_division =
     # prédit − réel : si le modèle annonce trop bas (biais négatif), on

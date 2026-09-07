@@ -1,0 +1,45 @@
+{
+ "genere_le": "2026-09-07T21:49:30",
+ "methode": "ratio buts réels / moyenne saison de l'équipe, par seau de repos depuis le dernier match C1/C2/C3 ; référence repos ≥ 8 j",
+ "reference": {
+  "n": 1420,
+  "ratio_att": 1.0086,
+  "ratio_def": 1.0187
+ },
+ "bareme": {
+  "3": {
+   "n": 731,
+   "f_att": 1.0,
+   "f_def": 1.0,
+   "mesure_brute_att": 1.0053,
+   "mesure_brute_def": 0.9512,
+   "buts_marques_reels": 1.673,
+   "buts_marques_attendus": 1.664,
+   "buts_encaisses_reels": 1.164,
+   "buts_encaisses_attendus": 1.224
+  },
+  "4": {
+   "n": 436,
+   "f_att": 0.9415,
+   "f_def": 1.0377,
+   "mesure_brute_att": 0.9415,
+   "mesure_brute_def": 1.0377,
+   "buts_marques_reels": 1.828,
+   "buts_marques_attendus": 1.942,
+   "buts_encaisses_reels": 1.124,
+   "buts_encaisses_attendus": 1.083
+  },
+  "5": {
+   "n": 99,
+   "f_att": 0.9773,
+   "f_def": 1.1163,
+   "mesure_brute_att": 0.9773,
+   "mesure_brute_def": 1.1163,
+   "buts_marques_reels": 1.98,
+   "buts_marques_attendus": 2.026,
+   "buts_encaisses_reels": 1.172,
+   "buts_encaisses_attendus": 1.05
+  }
+ },
+ "fenetre": 7
+}

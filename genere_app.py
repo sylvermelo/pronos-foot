@@ -42,6 +42,7 @@ def precalculer():
         "calendrier": S.DB.get("calendrier_log") or {},
         "suivi": __import__("suivi").vue(),
         "corners_cal": S.api_corners(),
+        "fatigue": __import__("fatigue").export_app(),
     }
     # analyse corners poussée : fréquences RÉELLES par division et par ligne
     # (data/analyse_corners.json, généré par analyse_corners.py sur les CSV co.uk)
@@ -115,10 +116,15 @@ function pmfMarche(lam,disp,kmax){
 }
 
 /* matrice 11x11 des scores exacts, correction Dixon-Coles sur les 4 premières cases */
-function matriceScores(L,h,a){
+function matriceScores(L,h,a,mh,ma){
   const F=L.forces; if(!F||!F[h]||!F[a]) return null;
-  const lam=Math.min(Math.max(F[h].att*F[a].dfn*L.gamma,1e-6),30);
-  const mu =Math.min(Math.max(F[a].att*F[h].dfn*L.s_away,1e-6),30);
+  let lam=Math.min(Math.max(F[h].att*F[a].dfn*L.gamma,1e-6),30);
+  let mu =Math.min(Math.max(F[a].att*F[h].dfn*L.s_away,1e-6),30);
+  /* fatigue européenne (miroir de serveur.matrice_scores, fat=(mh,ma)) */
+  if(mh!=null&&ma!=null){
+    lam=Math.min(Math.max(lam*mh,1e-6),30);
+    mu =Math.min(Math.max(mu*ma,1e-6),30);
+  }
   const rho=L.rho, ph=[], pm=[];
   for(let i=0;i<=MAXG;i++){ph.push(poissonPmf(i,lam));pm.push(poissonPmf(i,mu));}
   const M=[];
@@ -268,6 +274,44 @@ function confrontationCornersJS(div,h,a,sec){
 }
 
 /* pronostic complet d'une confrontation — même structure que le serveur Python */
+/* FATIGUE EUROPÉENNE — miroir exact de fatigue.coeffs_match (Python) :
+   dernier match de C1/C2/C3 joué dans la fenêtre (7 j) avant le match,
+   multiplicateurs mesurés par seau de repos, appliqués dans le sens de la
+   fatigue uniquement. Retourne null sans effet. */
+function fatigueCoeffsJS(h,a,dateMatch){
+  const F=DATA.fatigue;
+  if(!F||!F.bareme||!dateMatch) return null;
+  const dm=Date.parse(dateMatch+"T12:00:00Z");
+  if(isNaN(dm)) return null;
+  const dernier=(eq)=>{
+    const lst=(F.equipes||{})[eq]; if(!lst) return null;
+    let best=null;
+    for(const x of lst){
+      if(x[2]!==1) continue;                     // joué seulement
+      const dc=Date.parse(x[0]+"T12:00:00Z"); if(isNaN(dc)) continue;
+      const delta=Math.round((dm-dc)/86400000);
+      if(delta>=0&&delta<=F.fenetre){ if(!best||x[0]>best[0]) best=[x[0],x[1],delta]; }
+    }
+    return best;
+  };
+  const info={}; let mh=1, ma=1;
+  const roles=[[h,'home'],[a,'away']];
+  for(const rl of roles){
+    const eq=rl[0], role=rl[1];
+    const d=dernier(eq); if(!d) continue;
+    const cel=F.bareme[String(Math.max(d[2],1))]; if(!cel) continue;
+    if(role==='home'){ mh*=cel.f_att; ma*=cel.f_def; }
+    else             { ma*=cel.f_att; mh*=cel.f_def; }
+    info[role]={equipe:eq,comp:d[1],comp_nom:(F.noms||{})[d[1]]||d[1],
+      date_coupe:d[0],repos_j:d[2],f_att:cel.f_att,f_def:cel.f_def,n:cel.n};
+  }
+  if(!info.home&&!info.away) return null;
+  mh=Math.round(Math.min(Math.max(mh,0.7),1.4)*1e4)/1e4;
+  ma=Math.round(Math.min(Math.max(ma,0.7),1.4)*1e4)/1e4;
+  if(mh===1&&ma===1) return null;
+  return {mh:mh,ma:ma,info:{home:info.home||null,away:info.away||null}};
+}
+
 function pronosticJS(div,h,a){
   let L=DATA.moteur[div]; if(!L) return null;
   let coupeInter=false;
@@ -291,7 +335,12 @@ function pronosticJS(div,h,a){
          rho:(Lh.rho+La.rho)/2,coupe:true};
     }
   }
-  const r=matriceScores(L,h,a); if(!r) return null;
+  let fat=null;
+  if(!L.coupe){
+    const fxb=(DATA.fixturesBrutes||[]).find(x=>x.div===div&&x.home===h&&x.away===a);
+    fat=fatigueCoeffsJS(h,a,fxb?fxb.date:null);
+  }
+  const r=matriceScores(L,h,a,fat?fat.mh:null,fat?fat.ma:null); if(!r) return null;
   const M=r.M, lam=r.lam, mu=r.mu;
   let tri=0,dg=0;
   for(let i=0;i<=MAXG;i++)for(let j=0;j<=MAXG;j++){
@@ -334,6 +383,7 @@ function pronosticJS(div,h,a){
   out.fiabilite={confiance:conf,n_eff_home:arr2(ne_h),n_eff_away:arr2(ne_a),
     n_brut_home:nb_h,n_brut_away:nb_a};
   if(Lf.coupe) out.fiabilite.inter_ligues=coupeInter;
+  if(fat) out.fatigue=fat.info;
   /* confrontation au marché si des cotes existent pour ce match */
   for(const m of (DATA.matchs||[])){
     if(m.div===div&&m.home===h&&m.away===a){
@@ -588,7 +638,8 @@ if __name__ == "__main__":
     d = precalculer()
     # les fixtures brutes servent à retrouver l'arbitre dans le moteur JS
     d["fixturesBrutes"] = [{"div": f["div"], "home": f["home"], "away": f["away"],
-                            "arbitre": f.get("arbitre")} for f in S.DB.get("fixtures", [])]
+                            "arbitre": f.get("arbitre"), "date": f.get("date")}
+                           for f in S.DB.get("fixtures", [])]
     generer(d)
     print("\n→ Vérification : ouvrir le fichier dans un navigateur, ou lancer")
     print("   node test_app_autonome.js pour valider la parité avec le serveur.")

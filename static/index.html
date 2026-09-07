@@ -808,6 +808,15 @@ function panneauMatch(p,sec,s){
   html+=`<div style="margin-top:12px" class="warn ${fiab.niveau==="haute"?"":"rd"}">
     Confiance <b>${esc(fiab.niveau||"—")}</b> — ${esc(p.home)} : ${fiab.home_n_eff??0} matchs pondérés,
     ${esc(p.away)} : ${fiab.away_n_eff??0}. ${fiab.message||"Effectifs bien établis dans cette division."}</div>`;
+  /* ---- FATIGUE EUROPÉENNE (étape ③) : C1/C2/C3 jouée il y a peu ---- */
+  if(p.fatigue){
+    const fatL=[p.fatigue.home,p.fatigue.away].filter(Boolean).map(f=>
+      `<b>${esc(f.equipe)}</b> a joué ${esc(f.comp_nom)} le ${esc(f.date_coupe)} (${f.repos_j} jours de repos) — effet mesuré sur ${fmtN(f.n)} matchs : buts marqués ×${f.f_att.toFixed(3)}${f.f_def>1?`, buts encaissés ×${f.f_def.toFixed(3)}`:""}`).join(" · ");
+    html+=`<div style="margin-top:8px" class="warn rd">⚠ <b>Fatigue européenne</b> — ${fatL}.
+      Ces multiplicateurs sont appliqués aux λ de ce pronostic. Effet MESURÉ sur nos données
+      (saisons 24/25 à 26/27, matchs de championnat suivant un match de coupe d'Europe),
+      appliqué uniquement dans le sens de la fatigue — jamais l'inverse.</div>`;
+  }
   if(m) html+=`<div style="margin-top:8px" class="warn">Comparaison au marché (cotes deviggées) :
     un écart positif ne veut PAS dire gain garanti. Sur le backtest complet, suivre ces écarts
     donne un ROI de <b class="rd">${pct1(ETAT.bilan.resultats.roi_edge2)} %</b>.</div>`;
