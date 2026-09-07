@@ -308,10 +308,22 @@ def copier_vers_sync(cfg):
 
 # ------------------------------------------------------------------------ main
 def complement_espn_plus_frais():
-    """BOUCLE RAPIDE : la collecte ESPN (resultats.py, lancée par
-    maj_calendrier.py) a-t-elle écrit des résultats plus récemment que le
-    dernier entraînement ? Si oui, les modèles sont périmés."""
-    try:
+    """BOUCLE RAPIDE : le complément ESPN (resultats.py) contient-il des
+    résultats écrits APRÈS le dernier entraînement ? On compare les
+    horodatages INTERNES des fichiers (champ « genere_le », format ISO donc
+    triable) : les dates de modification (mtime) ne survivent pas de façon
+    fiable au cache GitHub Actions — constaté sur le run du 07/09 20h25."""
+    def horodatage(chemin):
+        try:
+            with open(chemin, encoding="utf-8") as f:
+                return json.load(f).get("genere_le") or ""
+        except (OSError, ValueError, AttributeError):
+            return ""
+    res = horodatage(DATA / "resultats_espn.json")
+    mod = horodatage(DATA / "modeles.json")
+    if res and mod:
+        return res > mod
+    try:                      # secours : dates de modification des fichiers
         return (os.path.getmtime(DATA / "resultats_espn.json")
                 > os.path.getmtime(DATA / "modeles.json"))
     except OSError:
