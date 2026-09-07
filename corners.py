@@ -54,6 +54,11 @@ MIN_JAMBE = 0.85            # « bon match » : le meilleur handicap du match
 CIBLE_COUPON = 1.20         # cote TOTALE plancher de la sélection entière
                             # (produit des maillons — jamais d'exigence de
                             # cote par match).
+COTE_PLANCHER = 1.05        # RÈGLE UTILISATEUR (07/09) : une ligne dont la
+                            # cote juste tombe sous 1,05 ne vaut RIEN (cas du
+                            # favori trop fort en +2) — on pénalise la
+                            # dominante d'un corner de plus tant que le réel
+                            # soutient, sinon le match saute.
 MARGE_TOTAUX = 0.01         # totaux over/under ≥ 0,90 : −1 pt (mesuré)
 N_MIN_CELLULE = 40          # en dessous : fusion avec la bande inférieure
 
@@ -105,6 +110,25 @@ def calibrer(famille, p):
     if chosen is None:
         return round(p, 4)              # sous la 1re bande mesurée : annonce brute
     return round(min(p, chosen), 4)
+
+
+def choisir_jambe(cf):
+    """SAFE CORNERS (règle utilisateur 07/09) : le handicap le PLUS PÉNALISANT
+    que le réel soutient encore — fréquence mesurée ≥ MIN_JAMBE ET cote juste
+    ≥ COTE_PLANCHER. On ne prend plus le barreau le plus sûr (cote ~1,03 =
+    sans valeur) : on pénalise la dominante d'un corner de plus tant que ça
+    tient. Retourne (p_calibré, p_brut, famille) ou None (match sauté)."""
+    ech = (cf or {}).get("echelle_cal") or {}
+    brut = (cf or {}).get("echelle") or {}
+    retenu = None
+    for fam, _ in FAMILLES:            # du plus sûr (+2) au plus pénalisant (−4)
+        pc = ech.get(fam)
+        if pc is None or pc < MIN_JAMBE:
+            continue                   # le réel ne suit plus
+        if 1.0 / pc < COTE_PLANCHER:
+            continue                   # cote trop basse — aucune valeur
+        retenu = (pc, brut.get(fam), fam)   # plus profond éligible gagne
+    return retenu
 
 
 def calibrer_total(p):

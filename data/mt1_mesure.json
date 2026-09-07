@@ -1,0 +1,45 @@
+{
+ "genere_le": "2026-09-07T22:54:55",
+ "source": "4109 matchs MT1 complets (ESPN, walk-forward chronologique)",
+ "n": 2931,
+ "victoire_moy": 0.5411,
+ "victoire_ou_nul_moy": 0.6892,
+ "bandes": [
+  {
+   "ecart": "0.15-0.30",
+   "n": 686,
+   "victoire": 0.4592,
+   "victoire_ou_nul": 0.6166
+  },
+  {
+   "ecart": "0.30-0.45",
+   "n": 590,
+   "victoire": 0.5034,
+   "victoire_ou_nul": 0.6712
+  },
+  {
+   "ecart": "0.45-0.60",
+   "n": 482,
+   "victoire": 0.5436,
+   "victoire_ou_nul": 0.6846
+  },
+  {
+   "ecart": "0.60-0.75",
+   "n": 310,
+   "victoire": 0.5839,
+   "victoire_ou_nul": 0.7355
+  },
+  {
+   "ecart": "0.75-0.90",
+   "n": 266,
+   "victoire": 0.5752,
+   "victoire_ou_nul": 0.7293
+  },
+  {
+   "ecart": "0.90-1.05",
+   "n": 597,
+   "victoire": 0.6332,
+   "victoire_ou_nul": 0.7521
+  }
+ ]
+}

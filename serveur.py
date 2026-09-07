@@ -817,15 +817,11 @@ def coupon_corners(jour=None):
         if not cf:
             continue
         dom = m["home"] if cf["dom"] == "home" else m["away"]
-        best = None
-        for fam, _ in CN.FAMILLES:
-            p = cf["echelle"].get(fam)
-            pc = CN.calibrer(fam, p)
-            if pc is None:
-                continue
-            if best is None or pc > best[0] or (pc == best[0] and (p or 0) > (best[1] or 0)):
-                best = (pc, p, fam)
-        if not best or best[0] < CN.MIN_JAMBE:
+        # SAFE CORNERS (règle utilisateur 07/09) : handicap le plus pénalisant
+        # qui tient (≥ 85 % mesurés ET cote juste ≥ 1,05) — choisir_jambe.
+        cf["echelle_cal"] = {k: CN.calibrer(k, v) for k, v in cf["echelle"].items()}
+        best = CN.choisir_jambe(cf)
+        if not best:
             continue
         pc, p, fam = best
         jambes.append({"date": jour, "heure": m.get("heure"),
@@ -846,8 +842,9 @@ def coupon_corners(jour=None):
     return {"jour": jour, "nom": "corners_montante",
             "p_combine": round(ptot, 4), "cote": round(cote, 2),
             "touche": None, "resolu_le": None, "jambes": jambes,
-            "brut": {"regle": "tous les bons matchs du jour (meilleur handicap "
-                              f">= {CN.MIN_JAMBE} mesuré), même jour uniquement",
+            "brut": {"regle": "tous les bons matchs du jour (handicap le plus "
+                              f"pénalisant >= {CN.MIN_JAMBE} mesuré ET cote juste "
+                              f">= {CN.COTE_PLANCHER}), même jour uniquement",
                      "mise_fin": round(mise, 2)}}
 
 
@@ -861,9 +858,17 @@ def api_corners():
             histo = json.load(f)
     except (OSError, ValueError):
         pass
+    mt1 = None
+    try:
+        with open(os.path.join(RACINE, "data", "mt1_mesure.json"),
+                  encoding="utf-8") as f:
+            mt1 = json.load(f)
+    except (OSError, ValueError):
+        pass
     return {"resume": CN.resume(), "bandes": CN._bandes(),
             "familles": [f for f, _ in CN.FAMILLES],
             "min_jambe": CN.MIN_JAMBE, "cible": CN.CIBLE_COUPON,
+            "cote_plancher": CN.COTE_PLANCHER, "mt1_mesure": mt1,
             "histo": histo}
 
 
