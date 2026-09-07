@@ -7,7 +7,10 @@
 # ============================================================================
 
 # ---- données volumineuses ou régénérables -------------------------------
-data/*.csv
+# data/*.csv : PLUS ignorés depuis le 07/09/2026. L'incident du 06/09 (cache
+# GitHub empoisonné + co.uk en panne 30 h) a montré que sans CSV dans le
+# dépôt, l'entraînement s'arrête net. Les 176 CSV (~53 Mo) sont versionnés :
+# le workflow repart toujours d'une base saine, cache ou pas.
 data/calendrier.json
 data/enrichi.csv
 data/config.json
