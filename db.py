@@ -1,7 +1,7 @@
 """
 db.py — PHASE 1 : la mémoire du robot dans Supabase (double écriture).
 =======================================================================
-Principe (PLAN-PLATEFORME.md) :
+Principe (docs/PLAN-PLATEFORME.md) :
   · le site et les JSON git restent la source PRINCIPALE — rien ne casse ;
   · à chaque exécution du robot, sélections / combinés / verdicts sont aussi
     écrits dans la base Postgres Supabase (upsert sur clés naturelles :
