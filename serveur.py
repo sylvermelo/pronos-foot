@@ -173,6 +173,20 @@ def pronostic(lig, home, away):
             fat = (mh, ma)
     except Exception:
         fat, info_fatigue = None, None
+    # ÉTAPE ④ — COMPOSITIONS H−1 (ESPN) : absents détectés quand la compo
+    # est publiée (~1 h avant). Coefficients appliqués UNIQUEMENT quand
+    # l'impact est mesuré (≥ 60 matchs par niveau) — sinon information seule.
+    info_absences = None
+    try:
+        import compos as CMP
+        amh, ama, info_absences = CMP.coeffs_match(lig, home, away, date_match)
+        if amh:
+            mh_f = (fat[0] if fat else 1.0) * amh
+            ma_f = (fat[1] if fat else 1.0) * ama
+            fat = (round(min(max(mh_f, 0.70), 1.40), 4),
+                   round(min(max(ma_f, 0.70), 1.40), 4))
+    except Exception:
+        info_absences = None
     r = matrice_scores(lig, home, away, fat=fat)
     if r is None:
         return None
@@ -222,6 +236,8 @@ def pronostic(lig, home, away):
     }
     if info_fatigue:
         out["fatigue"] = info_fatigue
+    if info_absences:
+        out["absences"] = info_absences
     if DB["ligues"][lig].get("coupe"):
         idx_eq = DB.get("index_equipes") or {}
         dh, da = idx_eq.get(home), idx_eq.get(away)
@@ -446,6 +462,18 @@ def api_maj():
 # annoncé à seuil + 13 points pour entrer dans la sélection conseillée.
 MARGES_MARCHE = {"under 3.5": 0.13, "under 2.5": 0.05, "under 1.5": 0.02}
 
+# DIVISIONS INSTABLES (règle utilisateur 07/09) — 2es/3es échelons où le
+# modèle se surestime MESURÉ (analyse_divisions.py, walk-forward 4 saisons,
+# ≈ 20 000 matchs : 71-78 % de réussite réelle pour 80-84 % annoncés, écart
+# +4 à +8 pts ; les 1res divisions — y compris Portugal, Pays-Bas, Grèce,
+# Turquie, Belgique, Écosse D1 — restent à 80-86 % et ne changent pas).
+# Conséquences : conseils du jour ≥ 85 % (au lieu de 75 %), SAFE et
+# combinés ≥ 90 %, sinon exclus. Toujours visibles dans « matchs à venir ».
+DIVS_INSTABLES = {"E1", "E2", "E3", "SP2", "I2", "D2", "F2",
+                  "SC1", "SC2", "SC3"}
+SEUIL_CONSEILS_INSTABLES = 0.85
+SEUIL_COMBINES_INSTABLES = 0.90
+
 
 def _jours_weekend(aujourdhui=None):
     """Dates ISO du vendredi, samedi et dimanche du week-end courant
@@ -488,7 +516,17 @@ def _combinaisons(sels, seuil, pool_risque, aujourdhui=None):
     JUSTE calculée (1/p) — le champ cote_type indique la source.
     Probabilité combinée = produit des probabilités (indépendance supposée,
     approximation — des matchs d'un même championnat peuvent être corrélés).
+
+    RÈGLE UTILISATEUR 07/09 : les divisions instables (2es/3es échelons,
+    surestime mesurée 4-8 pts) n'entrent dans AUCUN combiné sous 90 %.
     """
+    sels = [x for x in sels
+            if x["div"] not in DIVS_INSTABLES
+            or x["p"] >= SEUIL_COMBINES_INSTABLES]
+    pool_risque = [x for x in pool_risque
+                   if x["div"] not in DIVS_INSTABLES
+                   or x["p"] >= SEUIL_COMBINES_INSTABLES]
+
     def construire(pool_, cle, mini_p, max_legs=3):
         """Les max_legs meilleures options du pool, en variant les ligues si
         possible. Retourne une liste (éventuellement vide), jamais forcée."""
@@ -666,8 +704,11 @@ def api_conseils(seuil=0.75):
                  ("double chance X2", dc.get("X2"))]
         cands = [(k, v) for k, v in cands if v is not None]
         opt, p = max(cands, key=lambda z: z[1])
-        if p < seuil + MARGES_MARCHE.get(opt, 0.0) - 1e-9:
-            continue        # seuil de base + marge pour les marchés fragiles
+        plancher = (SEUIL_CONSEILS_INSTABLES
+                    if m["div"] in DIVS_INSTABLES else 0.0)
+        if p < max(seuil, plancher) + MARGES_MARCHE.get(opt, 0.0) - 1e-9:
+            continue        # seuil de base (+ plancher divisions instables)
+                            # + marge pour les marchés fragiles
         item = {**base, "option": opt, "p": round(p, 4),
                 "cote_juste": round(1 / p, 2) if p > 0 else None}
         # cote réelle du marché quand elle existe pour cette option
@@ -695,6 +736,11 @@ def api_conseils(seuil=0.75):
                     "pas à chaque fois. Les unders sont DURCIS (marge exigée au-dessus "
                     "du seuil) : le suivi réel et les fréquences historiques montrent "
                     "que le modèle les surestime — il sous-estime les matchs à 4-5 buts. "
+                    "Depuis le 07/09 : les 2es/3es divisions (Championship, League One/Two, "
+                    "Liga 2, Serie B, Ligue 2, Bundesliga 2, Écosse 2/3/4) — où le modèle "
+                    "se surestimait de 4 à 8 points (mesuré sur ≈ 20 000 matchs en "
+                    "walk-forward) — n'entrent dans les conseils qu'à partir de 85 % et "
+                    "dans les SAFE/combinés qu'à partir de 90 %. "
                     "Rentabilité face aux cotes non démontrée (voir l'onglet Fiabilité)."}
 
 

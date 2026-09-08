@@ -43,6 +43,7 @@ def precalculer():
         "suivi": __import__("suivi").vue(),
         "corners_cal": S.api_corners(),
         "fatigue": __import__("fatigue").export_app(),
+        "absences": __import__("compos").export_app(),
     }
     # analyse corners poussée : fréquences RÉELLES par division et par ligne
     # (data/analyse_corners.json, généré par analyse_corners.py sur les CSV co.uk)
@@ -335,12 +336,20 @@ function pronosticJS(div,h,a){
          rho:(Lh.rho+La.rho)/2,coupe:true};
     }
   }
-  let fat=null;
+  let fat=null,ab=null;
   if(!L.coupe){
     const fxb=(DATA.fixturesBrutes||[]).find(x=>x.div===div&&x.home===h&&x.away===a);
     fat=fatigueCoeffsJS(h,a,fxb?fxb.date:null);
+    /* ÉTAPE ④ — compositions H−1 : même source que serveur (export compos).
+       Coefficients appliqués seulement si mesurés (sinon info seule). */
+    if(fxb&&fxb.date) ab=((DATA.absences||{}).matchs||{})[div+"|"+fxb.date+"|"+h+"|"+a]||null;
   }
-  const r=matriceScores(L,h,a,fat?fat.mh:null,fat?fat.ma:null); if(!r) return null;
+  let mh=fat?fat.mh:null, ma=fat?fat.ma:null;
+  if(ab&&ab.mh!=null){
+    mh=Math.round(Math.min(Math.max((mh==null?1:mh)*ab.mh,0.7),1.4)*1e4)/1e4;
+    ma=Math.round(Math.min(Math.max((ma==null?1:ma)*ab.ma,0.7),1.4)*1e4)/1e4;
+  }
+  const r=matriceScores(L,h,a,mh,ma); if(!r) return null;
   const M=r.M, lam=r.lam, mu=r.mu;
   let tri=0,dg=0;
   for(let i=0;i<=MAXG;i++)for(let j=0;j<=MAXG;j++){
@@ -384,6 +393,7 @@ function pronosticJS(div,h,a){
     n_brut_home:nb_h,n_brut_away:nb_a};
   if(Lf.coupe) out.fiabilite.inter_ligues=coupeInter;
   if(fat) out.fatigue=fat.info;
+  if(ab) out.absences={home:ab.home,away:ab.away};
   /* confrontation au marché si des cotes existent pour ce match */
   for(const m of (DATA.matchs||[])){
     if(m.div===div&&m.home===h&&m.away===a){

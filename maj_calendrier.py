@@ -111,6 +111,21 @@ def main():
     except Exception as e:
         print(f"fatigue européenne : échec ignoré ({e})", file=sys.stderr)
 
+    # ÉTAPE ④ — COMPOSITIONS H−1 (ESPN) : capture les compos des matchs qui
+    # viennent de se terminer (historique) et de ceux dont le coup d'envoi
+    # approche (< 3 h — publication ~1 h avant). Mesure d'impact actualisée.
+    try:
+        import contextlib
+        import io
+        import compos
+        n_comp = compos.collecter()
+        with contextlib.redirect_stdout(io.StringIO()):
+            compos.mesurer()
+        if n_comp:
+            print(f"compositions H−1 : +{n_comp} capturée(s)")
+    except Exception as e:
+        print(f"compositions H−1 : échec ignoré ({e})", file=sys.stderr)
+
     # CORNERS — correction du biais mesuré (backtest_secondaires.py,
     # walk-forward 2023-2026 sur 42 733 prédictions). biais_division =
     # prédit − réel : si le modèle annonce trop bas (biais négatif), on

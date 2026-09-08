@@ -817,6 +817,21 @@ function panneauMatch(p,sec,s){
       (saisons 24/25 à 26/27, matchs de championnat suivant un match de coupe d'Europe),
       appliqué uniquement dans le sens de la fatigue — jamais l'inverse.</div>`;
   }
+  /* ---- ÉTAPE ④ COMPOSITIONS H−1 (ESPN) : absents de dernière minute ---- */
+  if(p.absences&&(p.absences.home||p.absences.away)){
+    const abCote=(i,nomEq)=>{
+      if(!i) return "";
+      const abs=(i.absents||[]).map(a=>`<b>${esc(a.nom)}</b> (${esc(a.poste)}, ${Math.round(a.taux*100)} % des derniers matchs) — HORS du groupe`);
+      const banc=(i.banc||[]).map(a=>`${esc(a.nom)} — sur le banc`);
+      const tout=abs.concat(banc);
+      return tout.length?`<b>${esc(nomEq)}</b> : ${tout.join(" ; ")}`:"";
+    };
+    const abL=[abCote(p.absences.home,p.home),abCote(p.absences.away,p.away)].filter(Boolean);
+    if(abL.length) html+=`<div style="margin-top:8px" class="warn">👥 <b>Compositions publiées (~1 h avant)</b> — ${abL.join(" · ")}.
+      Onze attendu construit sur les derniers matchs collectés (titulaire régulier = ≥ 60 % des matchs).
+      Impact sur le calcul appliqué seulement quand il sera MESURÉ (≥ 60 matchs par niveau d'absence,
+      collecte en cours) — en attendant : information honnête, pas de coefficient inventé.</div>`;
+  }
   if(m) html+=`<div style="margin-top:8px" class="warn">Comparaison au marché (cotes deviggées) :
     un écart positif ne veut PAS dire gain garanti. Sur le backtest complet, suivre ces écarts
     donne un ROI de <b class="rd">${pct1(ETAT.bilan.resultats.roi_edge2)} %</b>.</div>`;
