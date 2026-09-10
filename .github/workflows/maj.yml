@@ -112,6 +112,9 @@ jobs:
 
       - name: Régénérer l'application autonome
         run: python genere_app.py
+
+      - name: Série du jour pour la vitrine (but d'affilée)
+        run: python3 series_jour.py || echo "::warning::series_jour.json non régénéré
         # exécuté systématiquement, même sans nouveauté, pour garantir
         # qu'il y a toujours un fichier à publier (2 secondes)
 
@@ -141,6 +144,7 @@ jobs:
           cp pronos-foot-autonome.html site/index.html
           # copie de secours sous son nom d'origine, téléchargeable
           cp pronos-foot-autonome.html site/pronos-foot-autonome.html
+          cp data/series_jour.json site/series_jour.json 2>/dev/null || true
           cp GUIDE.md site/GUIDE.md 2>/dev/null || true
           cp RAPPORT-BACKTEST.md site/RAPPORT-BACKTEST.md 2>/dev/null || true
 
