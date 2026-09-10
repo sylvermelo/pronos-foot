@@ -764,6 +764,15 @@ def calibrer():
         return res
 
     seqs = [_seq(m) for _, _, m in joints]
+    if "--dump" in sys.argv:
+        # export brut pour analyses de fiabilité par palier (prédictions
+        # recalculées ailleurs via series_buts — on ne stocke que λ/μ + réels)
+        dump = [{"lam": lam, "mu": mu, "saison": saison(m), "div": m["div"],
+                 "seq": sq} for (lam, mu, m), sq in zip(joints, seqs)]
+        with open(os.path.join("data", "buts_affilee_joints.json"), "w",
+                  encoding="utf-8") as f:
+            json.dump(dump, f, ensure_ascii=False)
+        print(f"\n--dump : {len(dump)} lignes → data/buts_affilee_joints.json")
     cas = {
         "serie2_dom": (2, True, "HH"),
         "serie2_ext": (2, False, "AA"),

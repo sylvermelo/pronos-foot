@@ -94,7 +94,7 @@ casserait la chaîne horaire — c'est voulu. Cette carte remplace les dossiers.
 ## 📱 INTERFACE
 | Fichier | Rôle |
 |---|---|
-| static/index.html | l'écran unique (onglets : matchs, conseils, suivi, coupon, sim, fleuves, secondaires, corners, classement, bilan, admin) — partagé serveur ET app autonome |
+| static/index.html | l'écran unique (onglets : matchs, conseils, suivi, coupon, sim, fleuves, series (buts d'affilée), secondaires, corners, classement, bilan, admin) — partagé serveur ET app autonome |
 | genere_app.py | fabrique pronos-foot-autonome.html : embarque les données + miroirs JS exacts du serveur (matriceScores, pronosticJS, secondairesJS, fatigueCoeffsJS, confrontationCornersJS…) |
 | pronos-foot-autonome.html | LE fichier publié (GitHub Pages le sert comme index.html) |
 | test_app_autonome.js | test de parité : l'app autonome doit répondre comme le serveur (0 écart) |

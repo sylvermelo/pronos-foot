@@ -192,3 +192,39 @@ Mesures walk-forward (mêmes 2 923 matchs joints) :
   `serie2_ext`, `serie3_dom`, `serie3_ext` ; UI = 3 lignes « oui / non »
   (match entier, domicile, extérieur). Parité serveur↔autonome VALIDÉE
   avec les 6 champs séries.
+
+
+### 8.6 Onglet « Buts d'affilée » (10/09, demande utilisateur)
+
+Onglet dédié dans le robot (`static/index.html`, `tabSeries`) : prédictions
+du jour (match entier + domicile + extérieur, séries 2 et 3, **NON d'abord
+en gras**), SAFE du jour et combiné grosse cote. 100 % client, construit
+depuis `/api/matchs` → le fichier étant partagé avec l'app autonome
+(`genere_app.py` le lit comme gabarit), la parité est structurelle.
+
+Paliers de fiabilité MESURÉS sur les 2 923 matchs joints (valeurs corrigées
+= celles affichées), utilisés comme seuils — jamais de chiffre inventé :
+
+| Évènement | Palier | Réel mesuré | n |
+|---|---|---|---|
+| 2+ match | ≥ 0,80 | 87,8 % | 41 (< 60, non retenu seul) |
+| 2+ match | 0,75–0,80 | 75,7 % | 74 |
+| 2+ match | ≥ 0,75 (cumulé) | **79,3 %** | **115 ✓** |
+| 2+ dom | ≥ 0,70 (cumulé) | **75,6 %** | **82 ✓** |
+| 2+ ext | max atteignable n≥60 | 59,3 % (0,50–0,60) | 86 → JAMAIS dans le safe |
+| 3+ (les 3 familles) | 0,10–0,20 | ≈ prédit (±1-3 pts) | > 400/famille |
+
+Règles de l'onglet (déterministes, mêmes tris que `_combinaisons`) :
+- **SAFE DU JOUR séries** : aujourd'hui uniquement, Big 5 (périmètre
+  calibré) hors coupes, « 2+ match » ≥ 75 % ou « 2+ domicile » ≥ 70 %,
+  meilleure option par match, 3 jambes max, ligues variées si possible,
+  jamais forcé (0 assumé). Étiqueté avec le réel mesuré (76-79 % — pas 100 %).
+- **COMBINÉ GROSSE COTE séries** : jambes « 3+ » (match/dom/ext) ≥ 10 %,
+  cote juste = 1/p, produit cible 20→50, 5 jambes max, 1 option par match,
+  matchs du SAFE exclus, plus longues jambes d'abord (esprit FUN DU JOUR),
+  jamais forcé.
+- **Aucun marché bookmaker** pour ces évènements dans nos sources → cotes
+  JUSTES uniquement, rien dans le coupon, rien dans le suivi (pas de
+  résolution possible sans marché ; v2 éventuelle via buts minutés ESPN).
+- Matchs hors Big 5 / coupes : prédiction affichée dans le tableau (grisée),
+  jamais dans SAFE ni combiné.

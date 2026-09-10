@@ -46,6 +46,13 @@ Voir aussi ORGANISATION.md (la carte complète des fichiers).
   jamais supprimé.
 - **Coupes** : visibles dans les matchs, JAMAIS dans les sélections suivies
   (approximation inter-ligues non calibrée).
+- **SÉRIES « BUTS D'AFFILÉE »** (10/09) : onglet dédié = information
+  chiffrée, JAMAIS dans le coupon ni le suivi (aucun marché bookmaker dans
+  nos sources → cotes justes 1/p seulement). SAFE séries = « 2+ match »
+  ≥ 75 % (79,3 % mesuré, n=115) ou « 2+ domicile » ≥ 70 % (75,6 %, n=82),
+  Big 5 hors coupes uniquement, 3 jambes max, même jour, jamais forcé.
+  Grosse cote séries = jambes « 3+ » ≥ 10 % (paliers mesurés exacts),
+  cote juste cible 20-50, 5 jambes max. Détails : docs/SPEC-BUTS-AFFILEE.md §8.6.
 - **Unders durcis** : marges +13/+5/+2 pts au-dessus du seuil (le modèle
   surestime les unders — mesuré).
 

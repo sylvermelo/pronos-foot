@@ -310,7 +310,7 @@ async function api(p){const r=await fetch(p);if(!r.ok)throw new Error(p);return 
 
 /* ---------------------------------------------------------------- onglets */
 const ONGLETS=[["matchs","Matchs à venir"],["conseils","Sélection conseillée"],["suivi","Pronos vs Résultats"],["coupon","Mon coupon"],["sim","Simulateur"],
-  ["fleuves","Scores fleuves"],["sec","Fautes & cartons"],["corners","Corners"],["classement","Classement des clubs"],
+  ["fleuves","Scores fleuves"],["series","Buts d'affilée"],["sec","Fautes & cartons"],["corners","Corners"],["classement","Classement des clubs"],
   ["bilan","Fiabilité du moteur"],["admin","Admin"]];
 
 function renduNav(){
@@ -372,7 +372,7 @@ async function init(){
 function fmtN(n){return n==null?"—":String(n).replace(/\B(?=(\d{3})+(?!\d))/g," ");}
 
 function rendu(){renduNav();
-  ({matchs:tabMatchs,conseils:tabConseils,suivi:tabSuivi,coupon:tabCoupon,sim:tabSim,fleuves:tabFleuves,sec:tabSec,
+  ({matchs:tabMatchs,conseils:tabConseils,suivi:tabSuivi,coupon:tabCoupon,sim:tabSim,fleuves:tabFleuves,series:tabSeries,sec:tabSec,
     corners:tabCorners,classement:tabClassement,bilan:tabBilan,admin:tabAdmin})[ETAT.onglet]();}
 
 /* ================================================================ ONGLET 2
@@ -961,6 +961,127 @@ function chargerEquipes(div){
 /* ================================================================ ONGLET 4
    SCORES FLEUVES — fidèle à la maquette : KPI, 3 régimes, table, anatomie,
    distribution fat-tail, carte τ. Toutes les valeurs sont réelles.        */
+/* ================================================================ ONGLET
+   BUTS D'AFFILÉE — prédictions du jour (match entier + chaque équipe,
+   séries 2 et 3, NON d'abord), SAFE du jour et combiné GROSSE COTE.
+   Règles MESURÉES (2 923 matchs réels, 2 saisons, Big 5 — docs/SPEC-BUTS-AFFILEE.md §8.6) :
+   - SAFE : « 2+ match » ≥ 75 % (réel mesuré 79,3 %, n=115) ou « 2+ dom »
+     ≥ 70 % (réel 75,6 %, n=82). 3 jambes max, même jour, ligues variées,
+     Big 5 uniquement (périmètre calibré), coupes exclues. Jamais forcé.
+   - GROSSE COTE : jambes « 3+ » (match/dom/ext) ≥ 10 % (paliers mesurés
+     ≈ prédits, n>400/famille), cote juste = 1/p, produit cible 20→50,
+     5 jambes max, 1 option par match, matchs du SAFE exclus, Big 5, même jour.
+   - Aucun marché bookmaker pour ces évènements dans nos sources → cotes
+     JUSTES calculées, information chiffrée, JAMAIS dans le coupon ni le suivi. */
+function tabSeries(){
+  const BIG5=["E0","SP1","I1","D1","F1"];
+  const ms=ETAT.matchs.filter(m=>m.disponible&&m.serie2!=null&&m.jour_delta===0);
+  const elig=ms.filter(m=>BIG5.includes(m.div)&&!m.coupe);
+  const nonOui=(x)=>x==null?`<span class="mu">—</span>`
+    :`<b>NON ${pct1(1-x)} %</b><div class="sub mu">oui ${pct1(x)} %</div>`;
+  /* ---- SAFE DU JOUR ---- */
+  const cand=elig.map(m=>{
+    const opts=[{lib:"2+ match",p:m.serie2,seuil:0.75,fiche:"79 % mesuré (n=115)"},
+                {lib:"2+ "+m.home,p:m.serie2_dom,seuil:0.70,fiche:"76 % mesuré (n=82)"}]
+      .filter(o=>o.p!=null&&o.p>=o.seuil);
+    if(!opts.length) return null;
+    opts.sort((a,b)=>b.p-a.p);
+    return {m,opt:opts[0]};
+  }).filter(Boolean);
+  let legs=[],ligues=new Set();
+  for(const diversifie of [true,false]){
+    legs=[];ligues=new Set();
+    const tri=cand.slice().sort((a,b)=>b.opt.p-a.opt.p||a.m.date.localeCompare(b.m.date)||a.m.home.localeCompare(b.m.home));
+    for(const c of tri){
+      if(legs.length>=3) break;
+      if(diversifie&&ligues.has(c.m.div)) continue;
+      legs.push(c);ligues.add(c.m.div);
+    }
+    if(legs.length>=2) break;
+  }
+  const exclusSafe=new Set(legs.map(c=>c.m.home+"|"+c.m.away));
+  const carteSafe=legs.length?`<div class="card"><div class="top">
+      <span class="lbl" style="color:var(--green)">SAFE DU JOUR — BUTS D'AFFILÉE</span>
+      <span class="lbl">${legs.length} match${legs.length>1?"s":""}</span></div>
+    ${legs.map(c=>`<div class="ligne" style="margin-top:8px"><div class="l">
+      <b>${esc(c.m.home)} <span class="mu">vs</span> ${esc(c.m.away)}</b>
+      <div class="sub">${esc(c.m.date)} · ${esc(c.m.heure||"—")} · ${esc(c.m.ligue)} ·
+        <span style="color:var(--green)">${esc(c.opt.lib)} · ${esc(c.opt.fiche)}</span></div></div>
+      <div class="r"><div class="p" style="color:var(--green)">${pct1(1-c.opt.p)} %</div>
+      <div class="sub mu">NON · oui ${pct1(c.opt.p)} %</div></div></div>`).join("")}
+    <div class="det" style="margin-top:10px">Fiabilité MESURÉE sur 2 saisons (2024-25 + 2025-26,
+      2 923 matchs réels) : ~76 à 79 % de réussite selon le palier — pas 100 %.
+      Aucun bookmaker de nos sources ne propose ce marché : information chiffrée,
+      jamais un conseil, aucun gain garanti.</div></div>`
+    :`<div class="card"><div class="top"><span class="lbl" style="color:var(--green)">SAFE DU JOUR — BUTS D'AFFILÉE</span>
+      <span class="lbl" style="font-size:22px">0</span></div>
+      <div class="det" style="margin-top:8px">Aucun match du jour (Big 5, hors coupe) n'atteint les
+      seuils mesurés (2+ match ≥ 75 % ou 2+ domicile ≥ 70 %). Le robot s'abstient plutôt que de forcer.</div></div>`;
+  /* ---- COMBINÉ GROSSE COTE ---- */
+  const opts3=[];
+  for(const m of elig){
+    if(exclusSafe.has(m.home+"|"+m.away)) continue;
+    for(const [lib,p] of [["3+ match",m.serie3],["3+ "+m.home,m.serie3_dom],["3+ "+m.away,m.serie3_ext]]){
+      if(p!=null&&p>=0.10) opts3.push({m,lib,p,cote:1/p});
+    }
+  }
+  opts3.sort((a,b)=>a.p-b.p||a.m.date.localeCompare(b.m.date)||a.m.home.localeCompare(b.m.home));
+  let legs3=[],vus=new Set(),prod=1;
+  for(const o of opts3){
+    if(legs3.length>=5||prod>=20) break;
+    const k=o.m.home+"|"+o.m.away;
+    if(vus.has(k)||prod*o.cote>50) continue;
+    legs3.push(o);vus.add(k);prod*=o.cote;
+  }
+  if(prod<20) legs3=[];
+  const pTot=legs3.reduce((a,o)=>a*o.p,1);
+  const carteGrosse=legs3.length?`<div class="card"><div class="top">
+      <span class="lbl" style="color:var(--amber)">COMBINÉ GROSSE COTE DU JOUR — BUTS D'AFFILÉE</span>
+      <span class="lbl">${legs3.length} jambes · cote juste ${f2(prod)}</span></div>
+    ${legs3.map(o=>`<div class="ligne" style="margin-top:8px"><div class="l">
+      <b>${esc(o.m.home)} <span class="mu">vs</span> ${esc(o.m.away)}</b>
+      <div class="sub">${esc(o.m.heure||"—")} · ${esc(o.m.ligue)} ·
+        <span style="color:var(--amber)">${esc(o.lib)}</span></div></div>
+      <div class="r"><div class="p" style="color:var(--amber)">${pct1(o.p)} %</div>
+      <div class="sub mu">juste @ ${f2(o.cote)}</div></div></div>`).join("")}
+    <div class="det" style="margin-top:10px">Probabilité combinée ${pct1(pTot)} % (indépendance supposée —
+      approximation) · cote juste totale ${f2(prod)} = produit des 1/p. Billet de loterie assumé :
+      les paliers 10-20 % sont mesurés exacts (n>400/famille) mais ça reste ≈ 1 chance sur ${Math.round(prod)}.
+      Marché inexistant chez nos bookmakers → rien dans le coupon.</div></div>`
+    :`<div class="card"><div class="top"><span class="lbl" style="color:var(--amber)">COMBINÉ GROSSE COTE DU JOUR — BUTS D'AFFILÉE</span>
+      <span class="lbl" style="font-size:22px">0</span></div>
+      <div class="det" style="margin-top:8px">Pas assez de jambes « 3 buts d'affilée » ≥ 10 % aujourd'hui
+      pour atteindre la cible de cote juste 20 à 50. Jamais forcé.</div></div>`;
+  /* ---- TABLEAU DU JOUR ---- */
+  const tri=ms.slice().sort((a,b)=>(b.serie2||0)-(a.serie2||0)||a.date.localeCompare(b.date)||a.home.localeCompare(b.home));
+  const ligneM=(m)=>{const inBig5=BIG5.includes(m.div)&&!m.coupe;
+    return `<tr${inBig5?"":' class="mu"'}}>
+      <td>${esc(m.heure||"—")}<div class="sub mu">${esc(m.div)}</div></td>
+      <td><b>${esc(m.home)}</b><div class="sub mu">vs ${esc(m.away)} · ${esc(m.ligue)}</div></td>
+      <td class="num">${nonOui(m.serie2)}</td><td class="num">${nonOui(m.serie3)}</td>
+      <td class="num">${nonOui(m.serie2_dom)}</td><td class="num">${nonOui(m.serie3_dom)}</td>
+      <td class="num">${nonOui(m.serie2_ext)}</td><td class="num">${nonOui(m.serie3_ext)}</td></tr>`;};
+  const tbl=tri.length?`<div class="tblwrap"><table class="tbl"><thead><tr>
+      <th>Heure</th><th>Match</th>
+      <th class="num">2 d'affilée — match</th><th class="num">3 d'affilée — match</th>
+      <th class="num">2 — domicile</th><th class="num">3 — domicile</th>
+      <th class="num">2 — extérieur</th><th class="num">3 — extérieur</th></tr></thead>
+    <tbody>${tri.map(ligneM).join("")}</tbody></table></div>`
+    :`<div class="card empty"><b>Aucun match aujourd'hui dans le calendrier</b>
+      Le calendrier couvre ~8 jours glissants ; vérifiez l'onglet Matchs à venir.</div>`;
+  $("#main").innerHTML=`
+    <div class="warn" style="margin:0 0 12px"><b>Information chiffrée, jamais un conseil.</b>
+      Probabilités de séries de buts d'affilée (même équipe, sans but adverse entre-temps),
+      biais mesurés puis corrigés sur 2 923 matchs réels (2 saisons, 5 grands championnats).
+      NON = la série ne se produit pas. Aucun bookmaker de nos sources ne propose ces marchés :
+      les cotes affichées sont des cotes JUSTES (1/probabilité). Rien n'entre dans le coupon ni le suivi.</div>
+    ${tbl}
+    <div style="margin:14px 0 4px"><span class="lbl mu">En grisé : hors Big 5 ou coupe — prédiction affichée,
+      mais jamais dans le SAFE ni la grosse cote (périmètre calibré = les 5 grands championnats).</span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;margin-top:12px">
+      ${carteSafe}${carteGrosse}</div>`;
+}
+
 function tabFleuves(){
   const ms=ETAT.matchs.filter(m=>m.disponible&&m.over);
   const pool=ms.filter(m=>ETAT.fligue==="toutes"||m.div===ETAT.fligue);
