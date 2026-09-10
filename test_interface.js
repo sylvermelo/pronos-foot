@@ -73,7 +73,7 @@ const propre = t => !/NaN|undefined/.test(t || '');
     console.log('     ' + (e.stack || '').split('\n').slice(1, 4).join('\n     '));
     process.exit(1);
   }
-  await attendre(4000);   // laisse init() finir ses 3 appels réseau
+  await attendre(9000);   // laisse init() finir ses 3 appels réseau (/api/matchs ≈ 4 s : 221 pronostics complets)
   const etat = vm.runInContext('ETAT', ctx);
   if (etat.matchs.length >= 0 && etat.ligues.length > 0) ok(`init : ${etat.ligues.length} ligues, ${etat.matchs.length} matchs à venir`);
   else ko('init : données non chargées');
@@ -83,8 +83,8 @@ const propre = t => !/NaN|undefined/.test(t || '');
   ouComplet ? ok('over/under 1.5+ présents dans chaque match') : ko('over/under 1.5+ manquants');
 
   /* --- chaque onglet --- */
-  console.log('\n=== 2. Rendu des 10 onglets ===');
-  for (const id of ['matchs', 'conseils', 'suivi', 'coupon', 'sim', 'fleuves', 'sec', 'corners', 'classement', 'bilan']) {
+  console.log('\n=== 2. Rendu des 11 onglets ===');
+  for (const id of ['matchs', 'conseils', 'suivi', 'coupon', 'sim', 'fleuves', 'series', 'sec', 'corners', 'classement', 'bilan']) {
     try {
       elements.clear();
       vm.runInContext(`ETAT.onglet=${JSON.stringify(id)};rendu();`, ctx, { timeout: 30000 });

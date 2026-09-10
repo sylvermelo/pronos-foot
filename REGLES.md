@@ -64,8 +64,12 @@ Voir aussi ORGANISATION.md (la carte complète des fichiers).
   de l'utilisateur avant chaque déploiement**, sauf plan déjà validé et
   bugs signalés par l'utilisateur (corrigés et poussés directement).
 - Commit : `git -c user.name="sylvermelo" -c user.email="sylvermelo@users.noreply.github.com"`.
-- Le dépôt est PRIVÉ : fetch/push avec le jeton fourni en séance (jamais
-  stocké nulle part).
+- Le dépôt est PUBLIC (10/09 — aucun secret dedans ; les clés Supabase du
+  site sont les clés « anon », publiques par conception, protégées par RLS).
+  Le jeton GitHub (PAT) vit dans `/home/user/.secrets/` (chmod 700/600,
+  hors de tout dépôt, jamais committé, jamais affiché) — décision
+  utilisateur du 10/09 qui remplace l'ancienne règle « jamais de jeton
+  dans un fichier ».
 - CI toutes les heures à :07 UTC. Les crons GitHub peuvent être retardés
   ou sautés aux heures de pointe — ne pas conclure à un bug trop vite.
 - `data/suivi.json` dans git ≠ état live (mémoire live = cache CI +

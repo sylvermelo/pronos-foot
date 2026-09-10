@@ -20,6 +20,9 @@ casserait la chaîne horaire — c'est voulu. Cette carte remplace les dossiers.
 | Fichier | Rôle |
 |---|---|
 | data/2*.csv | résultats bruts football-data.co.uk : 21 divisions × 6 saisons (buts FTHG/FTAG, corners HC/AC, cartons, fautes, tirs) — versionnés (le site source est en 503) |
+| data/1819_*/1920_*.csv | saisons anciennes : servent au BACKTEST (moteur.py ALL_SEASONS), pas à l'entraînement courant (data/2*.csv)
+| data/fixtures.csv | matchs à venir de football-data.co.uk (relu par entraine.py ; calendrier.py explique pourquoi il est complété par ESPN)
+| requirements.txt | bibliothèques Python du robot (installées par la CI)
 | entraine.py | entraînement : lit les CSV → écrit data/modeles.json (forces attaque/défense par équipe, gamma, rho, xG réels pour les 5 grands) |
 | moteur_v3.py | le moteur mathématique (Dixon-Coles, fit_goals / fit_xg / combine) |
 | data/modeles.json | le modèle entraîné (forces par division + marchés secondaires + arbitres) |
@@ -72,7 +75,7 @@ casserait la chaîne horaire — c'est voulu. Cette carte remplace les dossiers.
 | buts_affilee.py | collecte ESPN des buts minutés (commentary complet, attribution par équipe structurée) + rapport de validation + commande `calibrer [--corriger]` (jointure backtest ↔ cache) |
 | series_buts.py | source unique du modèle : formules exactes `p_serie`, correction walk-forward figée `CORRECTION_SERIE2` / `p_serie2`. Miroir JS généré dans l'autonome (genere_app.py) — jamais dupliquer |
 | data/buts_minutes.json | cache des buts minutés (Big 5 2024-25 + 2025-26, ~3 500 matchs, commité) |
-| data/buts_affilee_stats.json / data/buts_affilee_calibration.json | mesures phase 1 + calibration walk-forward phase 2 |
+| data/buts_affilee_stats.json / data/buts_affilee_calibration.json / data/buts_affilee_joints.json | mesures phase 1 + calibration walk-forward phase 2 + joints bruts (preuve des paliers §8.6) |
 | docs/SPEC-BUTS-AFFILEE.md | définition, méthode, chiffres, critères d'acceptation |
 
 ## 🟨 CARTONS, FAUTES (et totaux corners) — marchés secondaires
@@ -86,6 +89,7 @@ casserait la chaîne horaire — c'est voulu. Cette carte remplace les dossiers.
 | Fichier | Rôle |
 |---|---|
 | serveur.py | API locale : pronostics (matrice_scores), conseils du jour (api_conseils + DIVS_INSTABLES), combinés (_combinaisons : SAFE, SAFE 2, week-end, risque, cote 2/5, fun), coupons |
+| test_interface.js | harnais DOM simulé : exécute le vrai script de static/index.html onglet par onglet (11 onglets) contre le serveur local — attrape les erreurs d'exécution que node --check ne voit pas |
 | suivi.py | archivage des sélections + résolution des résultats + bilan |
 | data/suivi.json | l'historique des sélections (dans git ≠ état live : la mémoire live = cache CI + Supabase) |
 | backfill_suivi.py / rattrapage | reconstruction de l'historique |
