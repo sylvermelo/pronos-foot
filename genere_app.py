@@ -141,6 +141,98 @@ function matriceScores(L,h,a,mh,ma){
 }
 
 function arr4(x){return Math.round(x*1e4)/1e4;}
+/* BUTS D'AFFILÉE — miroir EXACT de series_buts.py : mêmes opérations,
+   même ordre (parité REGLES §5). Ne pas modifier sans l'autre fichier. */
+function pNoRun(N,p,k){
+  if(N===0) return 1;
+  const q=1-p;
+  let dp=Array.from({length:2},()=>new Array(k).fill(0));
+  dp[1][1]=p; dp[0][1]=q;
+  for(let step=1;step<N;step++){
+    const nd=Array.from({length:2},()=>new Array(k).fill(0));
+    for(let c=0;c<=1;c++){
+      for(let r=1;r<k;r++){
+        const w=dp[c][r];
+        if(w===0) continue;
+        if(c===1){
+          if(r+1<k) nd[1][r+1]+=w*p;
+          nd[0][1]+=w*q;
+        }else{
+          nd[1][1]+=w*p;
+          if(r+1<k) nd[0][r+1]+=w*q;
+        }
+      }
+    }
+    dp=nd;
+  }
+  let tot=0;
+  for(let c=0;c<=1;c++) for(let r=1;r<k;r++) tot+=dp[c][r];
+  return tot;
+}
+function pSerie(lam,mu,k){
+  const tot=lam+mu;
+  if(tot<=0) return 0;
+  const p=lam/tot;
+  let s=0, pn=Math.exp(-tot);
+  for(let N=0;N<=40;N++){
+    s+=pn*(1-pNoRun(N,p,k));
+    pn=pn*tot/(N+1);
+  }
+  return s;
+}
+/* Correction du biais walk-forward — mêmes points, mêmes opérations que
+   series_buts.py (CORRECTION_SERIE2). Voir docs/SPEC-BUTS-AFFILEE.md. */
+const CORR_SERIE2=[[0,0],[0.3518,0.4897],[0.4185,0.4897],[0.4531,0.4932],[0.4825,0.5171],[0.5085,0.5788],[0.5332,0.5788],[0.559,0.6096],[0.5919,0.6199],[0.6326,0.6267],[0.7215,0.7492],[1,1]];
+function interpCorr(p,pts){
+  if(p<=pts[0][0]) return pts[0][1];
+  for(let i=1;i<pts.length;i++){
+    const x1=pts[i-1][0],y1=pts[i-1][1],x2=pts[i][0],y2=pts[i][1];
+    if(p<=x2) return y1+(y2-y1)*((p-x1)/(x2-x1));
+  }
+  return pts[pts.length-1][1];
+}
+function pSerie2(lam,mu){return interpCorr(pSerie(lam,mu,2),CORR_SERIE2);}
+/* Séries PAR ÉQUIPE — miroir exact de series_buts.py (mêmes opérations,
+   même ordre). Corrections figées le 10/09 (docs/SPEC-BUTS-AFFILEE.md §8.5) :
+   dom 2+ brute ; ext 2+ et dom/ext 3+ corrigées des biais walk-forward. */
+function pNoRunTeam(N,p,k,home){
+  if(N===0) return 1;
+  const pe=home?p:1-p;
+  const autre=1-pe;
+  let dp=new Array(k).fill(0);
+  dp[0]=1;
+  for(let i=0;i<N;i++){
+    const nd=new Array(k).fill(0);
+    for(let r=0;r<k;r++){
+      const w=dp[r];
+      if(w===0) continue;
+      nd[0]+=w*autre;
+      if(r+1<k) nd[r+1]+=w*pe;
+    }
+    dp=nd;
+  }
+  let t=0;
+  for(let r=0;r<k;r++) t+=dp[r];
+  return t;
+}
+function pSerieTeam(lam,mu,k,home){
+  const tot=lam+mu;
+  if(tot<=0) return 0;
+  const p=lam/tot;
+  let s=0, pn=Math.exp(-tot);
+  for(let N=0;N<=40;N++){
+    s+=pn*(1-pNoRunTeam(N,p,k,home));
+    pn=pn*tot/(N+1);
+  }
+  return s;
+}
+const CORR_SERIE2_EXT=[[0,0],[0.0613,0.1678],[0.0957,0.1986],[0.1204,0.1986],[0.1424,0.2021],[0.1645,0.25],[0.1878,0.25],[0.2171,0.3151],[0.2608,0.3733],[0.3134,0.4247],[0.4216,0.4949],[1,1]];
+const CORR_SERIE3_DOM=[[0,0],[0.0278,0.0342],[0.0505,0.0479],[0.0697,0.0719],[0.0893,0.0719],[0.1095,0.0788],[0.1317,0.0993],[0.1628,0.1267],[0.2037,0.1815],[0.2632,0.2226],[0.3905,0.3627],[1,1]];
+const CORR_SERIE3_EXT=[[0,0],[0.0074,0.0205],[0.0145,0.0514],[0.021,0.0514],[0.0274,0.0548],[0.0346,0.0548],[0.0428,0.0548],[0.0544,0.1096],[0.0737,0.1199],[0.1005,0.161],[0.1688,0.2203],[1,1]];
+function pSerie2Dom(lam,mu){return pSerieTeam(lam,mu,2,true);}
+function pSerie2Ext(lam,mu){return interpCorr(pSerieTeam(lam,mu,2,false),CORR_SERIE2_EXT);}
+function pSerie3Dom(lam,mu){return interpCorr(pSerieTeam(lam,mu,3,true),CORR_SERIE3_DOM);}
+function pSerie3Ext(lam,mu){return interpCorr(pSerieTeam(lam,mu,3,false),CORR_SERIE3_EXT);}
 function arr3(x){return Math.round(x*1e3)/1e3;}
 function arr2(x){return Math.round(x*1e2)/1e2;}
 
@@ -372,6 +464,9 @@ function pronosticJS(div,h,a){
     score_fleuve_6plus:arr4(sommeSi((i,j)=>i+j>=6)),
     eclat_3plus:arr4(sommeSi((i,j)=>Math.abs(i-j)>=3)),
     eclat_4plus:arr4(sommeSi((i,j)=>Math.abs(i-j)>=4)),
+    serie2:arr4(pSerie2(lam,mu)),serie3:arr4(pSerie(lam,mu,3)),
+    serie2_dom:arr4(pSerie2Dom(lam,mu)),serie2_ext:arr4(pSerie2Ext(lam,mu)),
+    serie3_dom:arr4(pSerie3Dom(lam,mu)),serie3_ext:arr4(pSerie3Ext(lam,mu)),
     clean_sheet_home:arr4(sommeSi((i,j)=>j===0)),
     clean_sheet_away:arr4(sommeSi((i,j)=>i===0)),
     scores_top:top.map(t=>({score:t[0]+'-'+t[1],p:arr4(t[2])})),

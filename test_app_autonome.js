@@ -85,7 +85,7 @@ const evalJS = (code) => vm.runInContext(code, ctx, { timeout: 30000 });
   const CHAMPS_NUM = ['lambda_home','lambda_away','buts_attendus','victoire_1','nul','victoire_2',
     'double_chance_1X','double_chance_12','double_chance_X2','btts_oui','btts_non',
     'score_fleuve_5plus','score_fleuve_6plus','eclat_3plus','eclat_4plus',
-    'clean_sheet_home','clean_sheet_away'];
+    'clean_sheet_home','clean_sheet_away','serie2','serie3','serie2_dom','serie2_ext','serie3_dom','serie3_ext'];
 
   for (const m of echantillon) {
     const url = `/api/pronostic?div=${m.div}&home=${encodeURIComponent(m.home)}&away=${encodeURIComponent(m.away)}`;

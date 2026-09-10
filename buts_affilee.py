@@ -288,41 +288,9 @@ def collecter(div, debut, fin, limite=None):
 
 
 # ------------------------------------------------------- modèle exact
-def p_no_run(N, p, k):
-    """P(aucune série ≥ k en N buts) — chaque but « home » avec proba p.
-
-    DP sur (dernière équipe, longueur du run). Exact, sans simulation.
-    """
-    if N == 0:
-        return 1.0
-    # états : (côté 0=away/1=home, run 1..k-1)
-    dp = {(0, 1): 1.0 - p, (1, 1): p}
-    for _ in range(1, N):
-        nd = {}
-        for (c, r), w in dp.items():
-            for c2, pw in ((1, p), (0, 1.0 - p)):
-                if c2 == c:
-                    if r + 1 < k:
-                        nd[(c2, r + 1)] = nd.get((c2, r + 1), 0.0) + w * pw
-                else:
-                    nd[(c2, 1)] = nd.get((c2, 1), 0.0) + w * pw
-        dp = nd
-    return sum(dp.values())
-
-
-def p_serie(lam, mu, k=2, nmax=30):
-    """P(au moins une série de k buts d'affilée) sous Poisson indépendant."""
-    tot = lam + mu
-    if tot <= 0:
-        return 0.0
-    p = lam / tot
-    s = 0.0
-    for N in range(nmax + 1):
-        pn = math.exp(-tot + N * math.log(tot) - math.lgamma(N + 1))
-        if pn < 1e-14 and N > tot:
-            break
-        s += pn * (1.0 - p_no_run(N, p, k))
-    return s
+# Source unique : series_buts.py (même module utilisé par serveur.py et
+# mirroré en JS dans genere_app.py — parité REGLES §5).
+from series_buts import p_no_run, p_serie, p_serie_team  # noqa: E402
 
 
 # ------------------------------------------------------------- mesures
@@ -536,6 +504,289 @@ def rapport():
     print(f"\nStatistiques écrites dans {STATS}")
 
 
+# ------------------------------------------------------------- calibration
+def _interp(p, points):
+    """Interpolation linéaire par morceaux sur des points x croissants."""
+    if p <= points[0][0]:
+        return points[0][1]
+    for i in range(1, len(points)):
+        x1, y1 = points[i - 1]
+        x2, y2 = points[i]
+        if p <= x2:
+            return y1 + (y2 - y1) * ((p - x1) / (x2 - x1))
+    return points[-1][1]
+
+
+def calibrer():
+    """Vérification match par match du modèle exact contre le réel.
+
+    Joint les λ walk-forward du backtest (backtest_results.csv, colonnes
+    exp_h/exp_a ajoutées le 10/09 — aucune donnée future utilisée) avec les
+    buts minutés collectés (data/buts_minutes.json). Les noms d'équipes
+    diffèrent entre football-data.co.uk et ESPN → rapprochement flou par
+    ligue (difflib), vérifié par le score final : si le score du backtest ne
+    colle pas au score ESPN, le match est écarté.
+    """
+    import csv
+    import difflib
+    LIGUE_PAR_DIV = {"E0": "Premier League", "SP1": "La Liga", "I1": "Serie A",
+                     "D1": "Bundesliga", "F1": "Ligue 1"}
+    cache = _charge_cache()
+    valides = [v for v in cache.values()
+               if not v.get("rejete") and v.get("buts") is not None]
+    with open("backtest_results.csv", newline="", encoding="utf-8") as f:
+        lect = csv.DictReader(f)
+        if "exp_h" not in (lect.fieldnames or []):
+            raise SystemExit("backtest_results.csv sans exp_h/exp_a — "
+                             "relancer d'abord : python3 moteur.py")
+        bt = list(lect)
+    print(f"backtest : {len(bt)} lignes | buts minutés : {len(valides)} matchs")
+
+    # index backtest par (ligue, date)
+    par_ld = {}
+    for row in bt:
+        cle = (row["league"], (row["date"] or "")[:10])
+        par_ld.setdefault(cle, []).append(row)
+
+    # correspondance de noms ESPN → co.uk, construite par ligue
+    def carte_noms(ligue, div):
+        noms_bt = sorted({r["home"] for r in bt if r["league"] == ligue} |
+                         {r["away"] for r in bt if r["league"] == ligue})
+        noms_espn = sorted({m["home"] for m in valides if m["div"] == div} |
+                           {m["away"] for m in valides if m["div"] == div})
+        carte = {}
+        for n in noms_espn:
+            cands = difflib.get_close_matches(_norme(n), [_norme(x) for x in noms_bt], n=1, cutoff=0.6)
+            if cands:
+                for x in noms_bt:
+                    if _norme(x) == cands[0]:
+                        carte[n] = x
+                        break
+        return carte
+
+    joints, ecartes = [], 0
+    for div, ligue in LIGUE_PAR_DIV.items():
+        carte = carte_noms(ligue, div)
+        for m in valides:
+            if m["div"] != div:
+                continue
+            h, a = carte.get(m["home"]), carte.get(m["away"])
+            if not h or not a:
+                ecartes += 1
+                continue
+            d = datetime.date.fromisoformat(m["date"])
+            trouve = None
+            for delta in (0, -1, 1):
+                for row in par_ld.get((ligue, (d + datetime.timedelta(days=delta)).isoformat()), []):
+                    if row["home"] == h and row["away"] == a:
+                        trouve = row
+                        break
+                if trouve:
+                    break
+            if not trouve:
+                ecartes += 1
+                continue
+            if int(float(trouve["hg"])) != m["sh"] or int(float(trouve["ag"])) != m["sa"]:
+                ecartes += 1          # scores divergents → prudence, écarté
+                continue
+            joints.append((float(trouve["exp_h"]), float(trouve["exp_a"]), m))
+
+    n = len(joints)
+    print(f"matchs joints : {n} | écartés (nom/score introuvable) : {ecartes}")
+    if n < 60:
+        raise SystemExit("échantillon trop petit pour conclure (REGLES : ≥ 60)")
+
+    # mesure globale
+    pred, reel, brier = [], [], []
+    for lam, mu, m in joints:
+        p2 = p_serie(lam, mu, 2)
+        seq = _seq(m)
+        y = 1.0 if ("HH" in seq or "AA" in seq) else 0.0
+        pred.append(p2); reel.append(y); brier.append((p2 - y) ** 2)
+    mp, mr = sum(pred) / n, sum(reel) / n
+    print(f"\nP(série 2+) : modèle {mp * 100:.1f} %  |  réel {mr * 100:.1f} %  "
+          f"|  écart {(mr - mp) * 100:+.1f} pts  |  Brier {sum(brier) / n:.4f}")
+
+    # fiabilité par décile de probabilité prédite
+    ordre = sorted(range(n), key=lambda i: pred[i])
+    print("\n  décile   n   prédit    réel    écart")
+    deciles = []
+    pas = max(1, n // 10)
+    for b in range(10):
+        idx = ordre[b * pas:(b + 1) * pas] if b < 9 else ordre[9 * pas:]
+        if not idx:
+            continue
+        pm = sum(pred[i] for i in idx) / len(idx)
+        rm = sum(reel[i] for i in idx) / len(idx)
+        deciles.append({"n": len(idx), "predit": round(pm, 4), "reel": round(rm, 4),
+                        "ecart": round(rm - pm, 4)})
+        print(f"  {b + 1:>6}  {len(idx):>4}  {pm * 100:5.1f} %  {rm * 100:5.1f} %  {(rm - pm) * 100:+5.1f}")
+    pire = max(deciles, key=lambda d: abs(d["ecart"])) if deciles else None
+
+    # séries 3+ en contrôle croisé (aucun paramètre ajusté nulle part)
+    pred3, reel3 = [], []
+    for lam, mu, m in joints:
+        pred3.append(p_serie(lam, mu, 3))
+        seq = _seq(m)
+        reel3.append(1.0 if ("HHH" in seq or "AAA" in seq) else 0.0)
+    n3 = len(joints)
+    print(f"\nP(série 3+) : modèle {sum(pred3) / n3 * 100:.1f} %  |  réel "
+          f"{sum(reel3) / n3 * 100:.1f} %  (contrôle, zéro réglage)")
+
+    out = {"genere_le": datetime.datetime.now().isoformat(timespec="minutes"),
+           "n_joints": n, "n_ecartes": ecartes,
+           "serie2": {"modele": round(mp, 4), "reel": round(mr, 4),
+                      "brier": round(sum(brier) / n, 4)},
+           "serie3": {"modele": round(sum(pred3) / n3, 4), "reel": round(sum(reel3) / n3, 4)},
+           "deciles": deciles}
+
+    # ---- split par saison + correction éventuelle (--corriger)
+    def saison(m):
+        return "2024-25" if m["date"] < "2025-07-01" else "2025-26"
+
+    def points_correction(idx):
+        """Points (prédit, réel) par décile sur le sous-échantillon idx,
+        bornés par (0,0) et (1,1), monotonisés (isotone léger)."""
+        if len(idx) < 60:
+            return None
+        ordre2 = sorted(idx, key=lambda i: pred[i])
+        pas2 = max(1, len(ordre2) // 10)
+        pts = [(0.0, 0.0)]
+        for b in range(10):
+            chunk = ordre2[b * pas2:(b + 1) * pas2] if b < 9 else ordre2[9 * pas2:]
+            if not chunk:
+                continue
+            pm = sum(pred[i] for i in chunk) / len(chunk)
+            rm = sum(reel[i] for i in chunk) / len(chunk)
+            pts.append((pm, rm))
+        pts.append((1.0, 1.0))
+        # x strictement croissants, y non décroissants
+        nettoyes = [pts[0]]
+        for x, y in pts[1:]:
+            if x <= nettoyes[-1][0]:
+                continue
+            nettoyes.append((x, max(y, nettoyes[-1][1])))
+        return [(round(x, 4), round(y, 4)) for x, y in nettoyes]
+
+    idx24 = [i for i in range(n) if saison(joints[i][2]) == "2024-25"]
+    idx25 = [i for i in range(n) if saison(joints[i][2]) == "2025-26"]
+    for lib, idx in (("2024-25", idx24), ("2025-26", idx25)):
+        if idx:
+            pm = sum(pred[i] for i in idx) / len(idx)
+            rm = sum(reel[i] for i in idx) / len(idx)
+            out["saison_" + lib] = {"n": len(idx), "modele": round(pm, 4), "reel": round(rm, 4)}
+            print(f"\nsaison {lib} : n={len(idx)}  modèle {pm * 100:.1f} %  réel {rm * 100:.1f} %  ({(rm - pm) * 100:+.1f} pts)")
+
+    if "--corriger" in sys.argv:
+        def evalue(pts, idx):
+            if not pts or not idx:
+                return None
+            rs, ps = [], []
+            for i in idx:
+                pc = _interp(pred[i], pts)
+                ps.append(pc); rs.append(reel[i])
+            return sum(rs) / len(rs) - sum(ps) / len(ps)
+
+        pts_a = points_correction(idx24)
+        pts_pool = points_correction(list(range(n)))
+        if pts_a:
+            res_holdout = evalue(pts_a, idx25)
+            print(f"\nCORRECTION ajustée sur 2024-25, validée sur 2025-26 (holdout) :")
+            print(f"  résidu holdout : {res_holdout * 100:+.1f} pts")
+            out["holdout"] = {"points": pts_a, "residu_2025_26": round(res_holdout, 4)}
+        if pts_pool:
+            r24 = evalue(pts_pool, idx24); r25 = evalue(pts_pool, idx25)
+            print(f"\nCORRECTION ajustée sur les DEUX saisons (pool) :")
+            print(f"  résidu 2024-25 {r24 * 100:+.1f} pts | résidu 2025-26 {r25 * 100:+.1f} pts")
+            out["correction_pool"] = {"points": pts_pool,
+                                      "residu_2024_25": round(r24, 4),
+                                      "residu_2025_26": round(r25, 4)}
+            print("\n  points à figer dans series_buts.py (et miroir JS) :")
+            print("  CORRECTION_SERIE2 = " + repr(pts_pool))
+
+    # ---- SÉRIES PAR ÉQUIPE (10/09, demande utilisateur : domicile et
+    # extérieur séparément, en plus du match entier ci-dessus) ----
+    def points_gen(pred_l, reel_l, idx):
+        """Points (prédit, réel) par décile — version généralisée."""
+        if len(idx) < 60:
+            return None
+        ordre2 = sorted(idx, key=lambda i: pred_l[i])
+        pas2 = max(1, len(ordre2) // 10)
+        pts = [(0.0, 0.0)]
+        for b in range(10):
+            chunk = ordre2[b * pas2:(b + 1) * pas2] if b < 9 else ordre2[9 * pas2:]
+            if not chunk:
+                continue
+            pm = sum(pred_l[i] for i in chunk) / len(chunk)
+            rm = sum(reel_l[i] for i in chunk) / len(chunk)
+            pts.append((pm, rm))
+        pts.append((1.0, 1.0))
+        nettoyes = [pts[0]]
+        for x, y in pts[1:]:
+            if x <= nettoyes[-1][0]:
+                continue
+            nettoyes.append((x, max(y, nettoyes[-1][1])))
+        return [(round(x, 4), round(y, 4)) for x, y in nettoyes]
+
+    def evalue_gen(pred_l, reel_l, pts, idx):
+        if not pts or not idx:
+            return None
+        rs = sum(reel_l[i] for i in idx) / len(idx)
+        ps = sum(_interp(pred_l[i], pts) for i in idx) / len(idx)
+        return rs - ps
+
+    def rapport_equipe(lib, pred_l, reel_l):
+        mp = sum(pred_l) / n
+        mr = sum(reel_l) / n
+        print(f"\n{lib} : modèle {mp * 100:.1f} %  |  réel {mr * 100:.1f} %  "
+              f"|  écart {(mr - mp) * 100:+.1f} pts")
+        res = {"modele": round(mp, 4), "reel": round(mr, 4)}
+        tout = list(range(n))
+        for slib, idx in (("2024-25", idx24), ("2025-26", idx25)):
+            pm = sum(pred_l[i] for i in idx) / len(idx)
+            rm = sum(reel_l[i] for i in idx) / len(idx)
+            res["saison_" + slib] = {"modele": round(pm, 4), "reel": round(rm, 4)}
+            print(f"    {slib} : {pm * 100:5.1f} % vs {rm * 100:5.1f} %  ({(rm - pm) * 100:+.1f} pts)")
+        if "--corriger" in sys.argv:
+            pts24 = points_gen(pred_l, reel_l, idx24)
+            if pts24:
+                rh = evalue_gen(pred_l, reel_l, pts24, idx25)
+                res["holdout_residu"] = round(rh, 4)
+                print(f"    holdout (réglé 2024-25 → testé 2025-26) : {rh * 100:+.1f} pts")
+            pts_pool = points_gen(pred_l, reel_l, tout)
+            if pts_pool:
+                r24 = evalue_gen(pred_l, reel_l, pts_pool, idx24)
+                r25 = evalue_gen(pred_l, reel_l, pts_pool, idx25)
+                res["points_pool"] = pts_pool
+                res["residus_pool"] = [round(r24, 4), round(r25, 4)]
+                print(f"    pool : résidus {r24 * 100:+.1f} / {r25 * 100:+.1f} pts")
+                print(f"    POINTS_À_FIGER[{lib}] = {repr(pts_pool)}")
+        return res
+
+    seqs = [_seq(m) for _, _, m in joints]
+    cas = {
+        "serie2_dom": (2, True, "HH"),
+        "serie2_ext": (2, False, "AA"),
+        "serie3_dom": (3, True, "HHH"),
+        "serie3_ext": (3, False, "AAA"),
+    }
+    out["par_equipe"] = {}
+    print("\n" + "=" * 60)
+    print("PAR ÉQUIPE (domicile / extérieur)")
+    print("=" * 60)
+    for lib, (k, home, motif) in cas.items():
+        pred_l = [p_serie_team(lam, mu, k, home) for lam, mu, _ in joints]
+        reel_l = [1.0 if motif in sq else 0.0 for sq in seqs]
+        out["par_equipe"][lib] = rapport_equipe(lib, pred_l, reel_l)
+
+    with open(os.path.join("data", "buts_affilee_calibration.json"), "w",
+              encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, indent=1)
+    print("\nÉcrit dans data/buts_affilee_calibration.json")
+    if pire:
+        print(f"pire décile : écart {pire['ecart'] * 100:+.1f} pts (n={pire['n']})")
+
+
 # ------------------------------------------------------------------ CLI
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -552,6 +803,8 @@ if __name__ == "__main__":
         collecter(sys.argv[2], sys.argv[3], sys.argv[4], lim)
     elif cmd == "rapport":
         rapport()
+    elif cmd == "calibrer":
+        calibrer()
     else:
         print("commande inconnue :", cmd)
         raise SystemExit(1)

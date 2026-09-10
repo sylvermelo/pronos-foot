@@ -9,6 +9,8 @@ import threading, subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import numpy as np
+from series_buts import (p_serie, p_serie2, p_serie2_dom, p_serie2_ext,
+                       p_serie3_dom, p_serie3_ext)
 from scipy.stats import poisson
 import modeles_secondaires as MS
 import calendrier as CAL
@@ -213,6 +215,17 @@ def pronostic(lig, home, away):
         "score_fleuve_6plus": round(float(M[g >= 6].sum()), 4),
         "eclat_3plus": round(float(M[d >= 3].sum()), 4),
         "eclat_4plus": round(float(M[d >= 4].sum()), 4),
+        # BUTS D'AFFILÉE (10/09) : modèle Poisson fusionné exact (series_buts.py).
+        # serie2 = CORRIGÉE du biais walk-forward mesuré sur 2 923 matchs réels
+        # (2 saisons, Big 5 ; holdout : résidu −1,1 pt). serie3 = brute
+        # (biais +0,7 pt, dans le bruit). Détails : docs/SPEC-BUTS-AFFILEE.md.
+        "serie2": round(p_serie2(lam, mu), 4),
+        "serie3": round(p_serie(lam, mu, 3), 4),
+        # par équipe (10/09) : dom 2+ brute, les 3 autres corrigées (§8.5 spec)
+        "serie2_dom": round(p_serie2_dom(lam, mu), 4),
+        "serie2_ext": round(p_serie2_ext(lam, mu), 4),
+        "serie3_dom": round(p_serie3_dom(lam, mu), 4),
+        "serie3_ext": round(p_serie3_ext(lam, mu), 4),
         "clean_sheet_home": round(float(M[:, 0].sum()), 4),
         "clean_sheet_away": round(float(M[0, :].sum()), 4),
         "scores_top": [{"score": f"{i}-{j}", "p": round(p, 4)} for i, j, p in top],
@@ -394,6 +407,9 @@ def api_matchs():
                          "clean_sheet": {"home": p["clean_sheet_home"],
                                          "away": p["clean_sheet_away"]},
                          "eclat_3plus": p["eclat_3plus"], "eclat_4plus": p["eclat_4plus"],
+                         "serie2": p["serie2"], "serie3": p["serie3"],
+                         "serie2_dom": p["serie2_dom"], "serie2_ext": p["serie2_ext"],
+                         "serie3_dom": p["serie3_dom"], "serie3_ext": p["serie3_ext"],
                          "scores_top": p["scores_top"],
                          "lambda_home": p["lambda_home"], "lambda_away": p["lambda_away"]})
             m = p.get("marche")

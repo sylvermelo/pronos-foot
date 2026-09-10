@@ -112,6 +112,16 @@ def score_matrix(model, home, away):
     return np.clip(M, 0, None) / max(np.clip(M, 0, None).sum(), 1e-12)
 
 
+def lambdas(model, home, away):
+    """λ domicile et λ extérieur du modèle — mêmes formules que score_matrix.
+    Ajouté le 10/09 pour la calibration « buts d'affilée » (buts_affilee.py) :
+    le backtest walk-forward publie ainsi les λ par match (exp_h/exp_a)."""
+    att, dfn, idx = model["att"], model["dfn"], model["idx"]
+    lam = float(np.clip(att[idx[home]] * dfn[idx[away]] * model["gamma"], 1e-6, 30))
+    mu = float(np.clip(att[idx[away]] * dfn[idx[home]], 1e-6, 30))
+    return lam, mu
+
+
 def markets(M):
     tri = np.tril(M, -1).sum(); diag = np.trace(M)
     g = np.add.outer(np.arange(MAXG + 1), np.arange(MAXG + 1))
@@ -187,6 +197,7 @@ def run_backtest(refit_every=3, min_hist=200):
                 if m["home"] not in model["idx"] or m["away"] not in model["idx"]:
                     continue
                 mk = markets(score_matrix(model, m["home"], m["away"]))
+                lam_h, lam_a = lambdas(model, m["home"], m["away"])
                 rows.append({
                     "league": lg_name, "date": m["date"], "home": m["home"],
                     "away": m["away"], "hg": m["hg"], "ag": m["ag"],
@@ -194,6 +205,7 @@ def run_backtest(refit_every=3, min_hist=200):
                     "pO25": mk["O2.5"], "pU25": mk["U2.5"], "pO35": mk["O3.5"],
                     "pBTTS": mk["BTTS"], "pFleuve": mk["fleuve"],
                     "exp_goals": mk["exp_goals"],
+                    "exp_h": lam_h, "exp_a": lam_a,
                     "o1": m.get("PSCH"), "oX": m.get("PSCD"), "o2": m.get("PSCA"),
                     "oO": m.get("PC>2.5"), "oU": m.get("PC<2.5"),
                     "oo1": m.get("PSH"), "ooX": m.get("PSD"), "oo2": m.get("PSA"),

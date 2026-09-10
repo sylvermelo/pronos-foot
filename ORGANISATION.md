@@ -66,6 +66,15 @@ casserait la chaîne horaire — c'est voulu. Cette carte remplace les dossiers.
 | data/backtest_corners.json / analyse_corners.json | cellules de calibration mesurées |
 | data/mt1_mesure.json | pourquoi la 1re MT n'est jamais « safe » (chiffres mesurés) |
 
+## ⚽ BUTS D'AFFILÉE (10/09 — phase 2 locale, non poussée)
+| Fichier | Rôle |
+|---|---|
+| buts_affilee.py | collecte ESPN des buts minutés (commentary complet, attribution par équipe structurée) + rapport de validation + commande `calibrer [--corriger]` (jointure backtest ↔ cache) |
+| series_buts.py | source unique du modèle : formules exactes `p_serie`, correction walk-forward figée `CORRECTION_SERIE2` / `p_serie2`. Miroir JS généré dans l'autonome (genere_app.py) — jamais dupliquer |
+| data/buts_minutes.json | cache des buts minutés (Big 5 2024-25 + 2025-26, ~3 500 matchs, commité) |
+| data/buts_affilee_stats.json / data/buts_affilee_calibration.json | mesures phase 1 + calibration walk-forward phase 2 |
+| docs/SPEC-BUTS-AFFILEE.md | définition, méthode, chiffres, critères d'acceptation |
+
 ## 🟨 CARTONS, FAUTES (et totaux corners) — marchés secondaires
 | Fichier | Rôle |
 |---|---|

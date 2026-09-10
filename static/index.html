@@ -745,6 +745,9 @@ function panneauMatch(p,sec,s){
   const m=p.marche;
   const CH=(typeof DATA!=='undefined'&&DATA.corners_histo&&DATA.corners_histo.divisions)?(DATA.corners_histo.divisions[p.ligue]||null):null;
   const coupeWarn=(s&&s.coupe)?`<div class="warn" style="margin-top:10px"><b>Match de coupe</b> — chaque équipe apporte les forces de son championnat domestique. ${fiab.inter_ligues?"Les deux équipes viennent de divisions <b>différentes</b> : aucun étalonnage inter-ligues n'est disponible gratuitement — prédiction <b>INDICATIVE</b>, confiance forcée à « faible », match exclu des sélections conseillées et des combinés suivis.":"Les deux équipes viennent de la même division : prédiction issue du modèle de ce championnat (contexte de coupe non modélisé : rotation d'effectif, enjeu différent)."} Aucun gain garanti.</div>`:"";
+  const ligneSerie=(titre,sub,p2,p3)=>`<div class="ligne"><div class="l">${titre}${sub?`<div class="sub">${sub}</div>`:""}</div>
+      <div class="r"><div class="e cy">2 d'affilée · <b>NON ${p2!=null?pct1(1-p2)+" %":"—"}</b>${p2!=null?" · oui "+pct1(p2)+" %":""}</div>
+      <div class="e g">3 d'affilée · <b>NON ${p3!=null?pct1(1-p3)+" %":"—"}</b>${p3!=null?" · oui "+pct1(p3)+" %":""}</div></div></div>`;
   let html=`<div class="card hi glow">
     <div class="phead"><span class="badge gy"><span class="dot"></span>ANATOMIE DU MATCH</span>
       <span class="badge cy">${esc(p.ligue)}</span></div>
@@ -765,6 +768,9 @@ function panneauMatch(p,sec,s){
     <div class="ligne"><div class="l">Score fleuve / écart</div>
       <div class="r"><div class="e g">≥5 buts ${pct1(p.score_fleuve_5plus)} · ≥6 ${pct1(p.score_fleuve_6plus)}</div>
       <div class="e cy">écart ≥3 ${pct1(p.eclat_3plus)} · ≥4 ${pct1(p.eclat_4plus)}</div></div></div>
+    ${ligneSerie("Buts d'affilée — match entier","NON = aucune série de 2 (ou 3) buts de suite dans le match · biais mesurés puis corrigés sur 2 923 matchs réels (2 saisons, 5 championnats) · information, jamais un conseil",p.serie2,p.serie3)}
+    ${ligneSerie("Buts d'affilée — "+esc(p.home),"NON = cette équipe ne marquera pas 2 (ou 3) buts de suite",p.serie2_dom,p.serie3_dom)}
+    ${ligneSerie("Buts d'affilée — "+esc(p.away),"",p.serie2_ext,p.serie3_ext)}
     <div style="margin:12px 0 4px"><span class="lbl">Lignes de buts — over & under</span></div>${ou}
     <div style="margin:14px 0 6px"><span class="lbl">Scores exacts les plus probables</span></div>
     <div class="mat6">${scores}</div>`;
