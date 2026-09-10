@@ -26,8 +26,19 @@ BIG5 = ("E0", "SP1", "I1", "D1", "F1")
 
 def _rows():
     auj = datetime.date.today().isoformat()
+    # Source : calendrier.json MULTI-SOURCES (reconstruit à chaque run CI),
+    # pas les fixtures de modeles.json (parfois anciennes ou réduites à
+    # co.uk en CI — bug du 10/09 : matchs ESPN du jour invisibles).
+    fx_source = DB.get("fixtures", [])
+    cal = os.path.join(RACINE, "data", "calendrier.json")
+    if os.path.exists(cal):
+        try:
+            with open(cal, encoding="utf-8") as f:
+                fx_source = json.load(f).get("matchs", []) or fx_source
+        except (ValueError, OSError):
+            pass
     out = []
-    for fx in DB.get("fixtures", []):
+    for fx in fx_source:
         if fx.get("date") != auj:
             continue
         p = pronostic(fx["div"], fx["home"], fx["away"])
