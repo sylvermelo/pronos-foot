@@ -115,6 +115,12 @@ jobs:
 
       - name: Série du jour pour la vitrine (but d'affilée)
         run: python3 series_jour.py || echo "series_jour.json non regenere (warning)"
+
+      - name: Corners du jour pour la vitrine (choix exotiques)
+        run: python3 corners_jour.py || echo "corners_jour.json non regenere (warning)"
+
+      - name: Suivi buts d'affilée NON pour la vitrine (choix exotiques)
+        run: python3 suivi_series.py || echo "affilee_suivi.json non regenere (warning)"
         # exécuté systématiquement, même sans nouveauté, pour garantir
         # qu'il y a toujours un fichier à publier (2 secondes)
 
@@ -145,6 +151,8 @@ jobs:
           # copie de secours sous son nom d'origine, téléchargeable
           cp pronos-foot-autonome.html site/pronos-foot-autonome.html
           cp data/series_jour.json site/series_jour.json 2>/dev/null || true
+          cp data/corners_jour.json site/corners_jour.json 2>/dev/null || true
+          cp data/affilee_suivi.json site/affilee_suivi.json 2>/dev/null || true
           cp GUIDE.md site/GUIDE.md 2>/dev/null || true
           cp RAPPORT-BACKTEST.md site/RAPPORT-BACKTEST.md 2>/dev/null || true
 
