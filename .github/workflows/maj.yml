@@ -114,7 +114,7 @@ jobs:
         run: python genere_app.py
 
       - name: Série du jour pour la vitrine (but d'affilée)
-        run: python3 series_jour.py || echo "::warning::series_jour.json non régénéré
+        run: python3 series_jour.py || echo "series_jour.json non regenere (warning)"
         # exécuté systématiquement, même sans nouveauté, pour garantir
         # qu'il y a toujours un fichier à publier (2 secondes)
 
