@@ -29,12 +29,20 @@ def _rows():
     # Source : calendrier.json MULTI-SOURCES (reconstruit à chaque run CI),
     # pas les fixtures de modeles.json (parfois anciennes ou réduites à
     # co.uk en CI — bug du 10/09 : matchs ESPN du jour invisibles).
-    fx_source = DB.get("fixtures", [])
+    # UNION des deux sources : calendrier.json (frais, multi-sources, mais
+    # reconstruit tard le soir SANS les matchs déjà commencés) et fixtures
+    # de modeles.json (stables toute la journée). Clé = date|home|away.
+    fx_source = list(DB.get("fixtures", []))
+    vus = {(f.get("date"), f.get("home"), f.get("away")) for f in fx_source}
     cal = os.path.join(RACINE, "data", "calendrier.json")
     if os.path.exists(cal):
         try:
             with open(cal, encoding="utf-8") as f:
-                fx_source = json.load(f).get("matchs", []) or fx_source
+                for m in json.load(f).get("matchs", []):
+                    k = (m.get("date"), m.get("home"), m.get("away"))
+                    if k not in vus:
+                        fx_source.append(m)
+                        vus.add(k)
         except (ValueError, OSError):
             pass
     out = []
