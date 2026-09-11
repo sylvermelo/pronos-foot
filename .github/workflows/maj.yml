@@ -99,17 +99,6 @@ jobs:
       - name: Reconstruire le calendrier multi-sources
         run: python maj_calendrier.py || echo "calendrier inchangé (sources injoignables ?)"
 
-      - name: Double écriture Supabase (Phase 1 — la mémoire)
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python3 db.py --sync || echo "::warning::Supabase non synchronisé (projet non configuré ou injoignable) — les JSON git restent la source principale."
-        # Sans secrets configurés, db.py ne fait rien (statut « ignore ») :
-        # cette étape ne peut jamais casser le pipeline.
-        # ESPN + TheSportsDB + OpenLigaDB, sans clé ni compte. Étape séparée :
-        # elle s'exécute même si football-data.co.uk est injoignable.
-        # (maj.py la lance déjà ; celle-ci est une sécurité, elle est idempotente.)
-
       - name: Régénérer l'application autonome
         run: python genere_app.py
 
@@ -126,6 +115,17 @@ jobs:
         run: python3 suivi_series.py || echo "affilee_suivi.json non regenere (warning)"
         # exécuté systématiquement, même sans nouveauté, pour garantir
         # qu'il y a toujours un fichier à publier (2 secondes)
+
+      - name: Double écriture Supabase (Phase 1 — la mémoire)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python3 db.py --sync || echo "::warning::Supabase non synchronisé (projet non configuré ou injoignable) — les JSON git restent la source principale."
+        # Sans secrets configurés, db.py ne fait rien (statut « ignore ») :
+        # cette étape ne peut jamais casser le pipeline.
+        # ESPN + TheSportsDB + OpenLigaDB, sans clé ni compte. Étape séparée :
+        # elle s'exécute même si football-data.co.uk est injoignable.
+        # (maj.py la lance déjà ; celle-ci est une sécurité, elle est idempotente.)
 
       - name: Vérifier que le fichier est valide
         run: |
