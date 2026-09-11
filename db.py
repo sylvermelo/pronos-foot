@@ -122,11 +122,23 @@ def _lignes_combines(d):
                        for l in (c.get("legs") or [])
                        if isinstance(l.get("resultat"), dict)
                        and l["resultat"].get("resolu_le")]
+            cote = c.get("cote_combine") or c.get("cote")
+            if not cote:
+                # finaliser() ne renseigne pas la cote des SAFE : on la
+                # recalcule depuis les cotes justes des jambes (produit des
+                # 1/p) — pas un chiffre inventé (correctif 11/09).
+                prod, ok = 1.0, True
+                for l in c.get("legs") or []:
+                    if l.get("p"):
+                        prod *= 1.0 / l["p"]
+                    else:
+                        ok = False
+                cote = round(prod, 2) if ok and c.get("legs") else None
             lignes.append({
                 "jour": jour,
                 "nom": nom,
                 "p_combine": c.get("p_combine") or c.get("p"),
-                "cote": c.get("cote_combine") or c.get("cote"),
+                "cote": cote,
                 "touche": r.get("touche"),
                 "resolu_le": max(resolus) if resolus else None,
                 "jambes": c.get("legs") or [],

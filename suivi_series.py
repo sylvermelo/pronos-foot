@@ -67,7 +67,8 @@ def non_pick(home, away, p):
         return None
     elig.sort(key=lambda e: (e[0] <= SEUIL_MAX, e[0]), reverse=True)
     pp, c, l = elig[0]
-    return {"code": c, "option": l, "p": round(pp, 4)}
+    return {"code": c, "option": l, "p": round(pp, 4),
+            "cote_juste": round(1.0 / pp, 2)}
 
 
 # ------------------------------------------------------------------ archive
