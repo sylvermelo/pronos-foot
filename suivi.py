@@ -147,7 +147,14 @@ def archiver(conseils, d=None, jour=None, retro=False):
                                   l.get("option"))] = l["resultat"]
     comb = dict(entree.get("combines") or {})      # on GARDE ceux déjà archivés
     for k, c in (conseils.get("combines") or {}).items():
-        if k in comb:
+        # Bug du 11/09/2026 : une ABSTENTION (None) archivée trop tôt — parce
+        # que les cotes de plusieurs matchs n'étaient pas encore arrivées —
+        # était « gelée » comme une recommandation et le combiné n'était plus
+        # jamais recalculé de la journée (ex. cote 5 du 11/09 : None à 00 h 54,
+        # trouvable à 5,48 une heure plus tard). None = PAS une version du
+        # matin : on recalcule à chaque passage jusqu'à obtenir un vrai
+        # combiné ; la première version NON-NULLE reste ensuite gelée.
+        if k in comb and comb[k] is not None:
             continue                               # version du matin conservée
         if isinstance(c, dict):
             for l in c.get("legs") or []:

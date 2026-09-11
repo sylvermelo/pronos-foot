@@ -528,6 +528,13 @@ function joursWeekendJS(auj){
 }
 
 function combinaisonsJS(sels,seuil,poolRisque){
+  /* RÈGLE UTILISATEUR 07/09 — parité serveur.py _combinaisons : les divisions
+     instables (2es/3es échelons, surestime mesurée 4-8 pts) n'entrent dans
+     AUCUN combiné sous 90 %. (Bug du 11/09/2026 : le site proposait une
+     cote 5 avec 5 jambes instables à 78-84 % que l'archive refusait.) */
+  const DIVS_INST=new Set(["E1","E2","E3","SP2","I2","D2","F2","SC1","SC2","SC3"]);
+  sels=sels.filter(x=>!DIVS_INST.has(x.div)||x.p>=0.90);
+  poolRisque=(poolRisque||[]).filter(x=>!DIVS_INST.has(x.div)||x.p>=0.90);
   const auj=new Date();
   const p=n=>String(n).padStart(2,"0");
   const aujIso=auj.getFullYear()+"-"+p(auj.getMonth()+1)+"-"+p(auj.getDate());
@@ -610,6 +617,8 @@ function combinaisonsJS(sels,seuil,poolRisque){
 function conseilsJS(seuil){
   const jours={};
   const poolRisque=[];
+  /* Parité serveur.py api_conseils : divisions instables → conseils ≥ 85 % */
+  const DIVS_INST=new Set(["E1","E2","E3","SP2","I2","D2","F2","SC1","SC2","SC3"]);
   /* heure de Cotonou (UTC+1) : jamais de conseil pour un match déjà commencé */
   const nowC=new Date(Date.now()+3600000).toISOString().slice(0,16);
   for(const m of DATA.matchs){
@@ -642,7 +651,8 @@ function conseilsJS(seuil){
     let opt=cands[0],best=cands[0];
     for(const c of cands) if(c[1]>best[1]) best=c;
     opt=best;
-    if(opt[1]<seuil+(MARGES_MARCHE[opt[0]]||0)-1e-9) continue;
+    const pl=DIVS_INST.has(m.div)?0.85:0;
+    if(opt[1]<Math.max(seuil,pl)+(MARGES_MARCHE[opt[0]]||0)-1e-9) continue;
     const item=Object.assign({},base,{option:opt[0],p:+opt[1].toFixed(4),
       cote_juste:opt[1]>0?+(1/opt[1]).toFixed(2):null});
     if(opt[0]==="1")item.cote_marche=m.cote_1;
