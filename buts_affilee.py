@@ -103,8 +103,7 @@ def journees(div, debut, fin):
     cur = d0
     while cur <= d1:
         w_end = min(cur + datetime.timedelta(days=41), d1)
-        d = calendrier._curl_json(
-            f"{BASE}/{slug}/scoreboard?dates={cur:%Y%m%d}-{w_end:%Y%m%d}")
+        d = calendrier.scoreboard_jours(slug, cur.isoformat(), w_end.isoformat())
         for e in (d or {}).get("events", []):
             st = ((e.get("status") or {}).get("type") or {})
             if not st.get("completed"):

@@ -30,7 +30,7 @@ Les matchs de coupe sont mémorisés séparément. Ils ne sont pas artificiellem
 - Les corners finaux peuvent être lus dans ESPN sans attendre uniquement le CSV. Les valeurs nulles/absentes ne deviennent pas des zéros. Le statut final, le sens domicile/extérieur et la période sont vérifiés ; les prolongations ne sont pas assimilées au temps réglementaire.
 - Les réponses HTTP compressées sont explicitement prises en charge.
 
-La requête ESPN du 18 octobre sur la fenêtre 18–25 octobre a renvoyé une réponse JSON valide mais aucun événement UCL/UEL. Cela ne prouve pas l'absence de matchs réels : l'affichage des dates futures dépend encore de la couverture du fournisseur. Le cas d'une coupe avec équipe inconnue est couvert par un test de régression. Les anciennes calibrations de séries doivent encore être réévaluées sur un historique de buts entièrement retraité ; aucun coefficient n'a été inventé pour compenser.
+La vérification ESPN a isolé un défaut supplémentaire : une URL contenant une plage de dates renvoie une liste vide alors que les URL quotidiennes retournent les matchs. La collecte utilise désormais un jour par URL, avec cache et concurrence bornée. Le site publié après la première correction montre déjà 11 matchs UCL, 6 UEL et 4 UECL (230 rencontres au total). Le cas d'une coupe avec équipe inconnue est couvert par un test de régression. Les anciennes calibrations de séries doivent encore être réévaluées sur un historique de buts entièrement retraité ; aucun coefficient n'a été inventé pour compenser.
 
 ## Cotes et budget gratuit
 
@@ -93,3 +93,5 @@ Le contrôle de sécurité Supabase a été relancé après ajout du bilan : la 
 - Le premier build du robot a été arrêté avant publication par une erreur de variable dans le chemin des coupes. Correction ajoutée, ainsi qu'un test passant par le calcul complet d'une coupe domestique, d'une coupe inter-ligues et d'une équipe inconnue.
 - Les journaux ont montré que le premier rechargement des CSV (100 fichiers téléchargés, cinq délais réseau dépassés) expliquait la lenteur. Les téléchargements sont désormais bornés à quatre simultanés ; le nombre de fichiers demandés ne change pas. Les anciennes données sont conservées si un téléchargement échoue.
 - Les changements de code remplacent une exécution obsolète. Vérifier le dernier workflow sur `main` pour le statut final de publication : https://github.com/sylvermelo/pronos-foot/actions
+
+Le correctif des plages ESPN concerne également les scores destinés à l’apprentissage, les buts minutés, la fatigue et les compositions. Vérification reproduite : Premier League du 18/10, zéro événement avec la plage contre quatre avec le jour seul ; UCL du 20/10, neuf événements avec le jour seul. Aucun zéro artificiel n’est utilisé pour résoudre les exotiques.

@@ -206,6 +206,32 @@ def _curl_json(url, timeout=25):
         return None
 
 
+def scoreboard_jours(slug, debut, fin=None, workers=4):
+    """ESPN : un jour par URL ; les plages peuvent répondre vide à tort."""
+    from concurrent.futures import ThreadPoolExecutor
+    d0 = datetime.date.fromisoformat(debut)
+    d1 = datetime.date.fromisoformat(fin or debut)
+    if d1 < d0 or (d1 - d0).days > 62:
+        raise ValueError("Fenêtre scoreboard invalide ou trop large")
+    dates = [d0 + datetime.timedelta(days=i) for i in range((d1 - d0).days + 1)]
+    def lire(jour):
+        return _curl_json(f"https://site.api.espn.com/apis/site/v2/sports/soccer/{slug}/scoreboard?dates={jour:%Y%m%d}&limit=1000", timeout=10)
+    if len(dates) == 1 or workers == 1:
+        reponses = [lire(j) for j in dates]
+    else:
+        with ThreadPoolExecutor(max_workers=min(workers, 4)) as ex:
+            reponses = list(ex.map(lire, dates))
+    valides = [r for r in reponses if isinstance(r, dict) and isinstance(r.get("events"), list)]
+    if not valides:
+        return None
+    evenements = {}
+    for r in valides:
+        for e in r["events"]:
+            if e.get("id"):
+                evenements[str(e["id"])] = e
+    return {"events": list(evenements.values()), "jours_valides": len(valides), "jours_demandes": len(dates)}
+
+
 def _norme(s):
     s = unicodedata.normalize("NFKD", str(s or ""))
     return "".join(c for c in s if c.isalnum()).lower()
@@ -253,8 +279,7 @@ class Mappeur:
 
 # --------------------------------------------------------------------------- 2
 def _espn_jour(slug, date_iso):
-    d = _curl_json(f"https://site.api.espn.com/apis/site/v2/sports/soccer/"
-                   f"{slug}/scoreboard?dates={date_iso.replace('-', '')}")
+    d = scoreboard_jours(slug, date_iso)
     out = []
     if not d:
         return out
@@ -288,11 +313,7 @@ def espn_resultats(slug, date_iso, fin_iso=None):
     Les dates/heures sont converties en heure de Cotonou (UTC+1), comme le
     calendrier : c'est ce qui permet de retrouver les matchs du suivi.
     """
-    dates = date_iso.replace('-', '')
-    if fin_iso:
-        dates += "-" + fin_iso.replace('-', '')
-    d = _curl_json(f"https://site.api.espn.com/apis/site/v2/sports/soccer/"
-                   f"{slug}/scoreboard?dates={dates}&limit=1000")
+    d = scoreboard_jours(slug, date_iso, fin_iso, workers=1)
     out = []
     if not d:
         return out

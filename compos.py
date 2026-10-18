@@ -65,8 +65,9 @@ def sauver(etat):
 
 # ------------------------------------------------------------------ ESPN
 def _scoreboard(slug, dates):
-    return _curl_json("https://site.api.espn.com/apis/site/v2/sports/soccer/"
-                      f"{slug}/scoreboard?dates={dates}") or {}
+    from calendrier import scoreboard_jours
+    bornes = dates.split("-")
+    return scoreboard_jours(slug, bornes[0], bornes[-1]) or {}
 
 
 def _extraire(summary, evt_id, div, slug, date_iso, home_src, away_src, fini):

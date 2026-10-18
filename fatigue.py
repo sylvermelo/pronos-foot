@@ -102,9 +102,7 @@ def collecter_plage(comp, debut, fin, etat):
     """Tous les matchs (joués OU programmés) d'une compétition sur une plage."""
     import calendrier
     slug = COMPETITIONS[comp]
-    url = ("https://site.api.espn.com/apis/site/v2/sports/soccer/"
-           f"{slug}/scoreboard?dates={debut.replace('-', '')}-{fin.replace('-', '')}")
-    d = calendrier._curl_json(url, timeout=30)
+    d = calendrier.scoreboard_jours(slug, debut, fin)
     if d is None:
         return None
     cle_plage = f"{comp}|{debut}|{fin}"

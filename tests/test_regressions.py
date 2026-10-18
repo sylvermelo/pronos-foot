@@ -31,6 +31,19 @@ import backtest_secondaires as BS
 
 
 class Regressions(unittest.TestCase):
+    def test_scoreboards_separes_par_jour(self):
+        urls=[]
+        def reponse(url, **kwargs):
+            urls.append(url)
+            date=url.split("dates=")[1].split("&")[0]
+            self.assertNotIn("-",date)
+            return {"events":[{"id":date}]}
+        with patch.object(CAL,"_curl_json",side_effect=reponse):
+            d=CAL.scoreboard_jours("eng.1","2026-10-17","2026-10-18")
+        self.assertEqual(len(d["events"]),2)
+        self.assertEqual(d["jours_valides"],2)
+
+
     def test_coupes_predictions_connues_et_inconnues(self):
         import copy,coupes
         d=copy.deepcopy(S.DB)
