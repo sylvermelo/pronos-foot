@@ -23,17 +23,8 @@ NOMS = ("safe", "safe_weekend", "cote2", "cote5")
 
 
 def cote_depuis_jambes(c):
-    """Cote totale = produit des cotes justes des jambes (1/p). Retourne la
-    cote existante si elle est déjà renseignée."""
-    if c.get("cote"):
-        return c["cote"]
-    prod = 1.0
-    for l in c.get("legs") or []:
-        p = l.get("p")
-        if not p:
-            return None
-        prod *= 1.0 / p
-    return round(prod, 2)
+    from cotation import produit
+    return produit(c.get("legs") or [])
 
 
 def construit():
@@ -55,6 +46,8 @@ def construit():
                 continue
             c = dict(c)
             c["cote"] = cote_depuis_jambes(c)
+            c["cote_combine"] = c["cote"]
+            c["cote_juste_combine"] = None
             out[nom] = c
         return out
 

@@ -75,7 +75,7 @@ def _curl_json(url):
         return None
 
 
-def telecharger():
+def telecharger(saisons=None):
     """Récupère toutes les ligues/saisons et rend {div: [matchs xG]}."""
     from calendrier import Mappeur, _norme
     import difflib
@@ -111,7 +111,7 @@ def telecharger():
     rates = {}
     vus = {d: set() for d in LIGUES.values()}
     for slug, div in LIGUES.items():
-        for saison in SAISONS:
+        for saison in (saisons or SAISONS):
             d = _curl_json(f"https://understat.com/getLeagueData/{slug}/{saison}")
             if not d or "dates" not in d:
                 print(f"  {slug} {saison} : inaccessible (ignoré)")
@@ -146,21 +146,31 @@ def telecharger():
     return out
 
 
-def frais(force=False, jours=7):
-    """Télécharge seulement si le cache est absent ou vieux (> jours)."""
-    if not force and os.path.exists(CHEMIN):
-        age = (datetime.datetime.now()
-               - datetime.datetime.fromtimestamp(os.path.getmtime(CHEMIN))).days
-        if age < jours:
-            with open(CHEMIN) as f:
-                return json.load(f)
-    data = telecharger()
+def frais(force=False, jours=1):
+    """Horodatage interne ; seuls les xG de la saison courante sont actualisés."""
+    meta_path = CHEMIN + ".meta.json"
+    ancien = charger()
+    now = datetime.datetime.now(datetime.timezone.utc)
+    try:
+        with open(meta_path) as f:
+            dernier = datetime.datetime.fromisoformat(json.load(f)["collecte_le"])
+        if not force and (now - dernier).total_seconds() < jours * 86400:
+            return ancien
+    except (OSError, ValueError, KeyError):
+        pass
+    an = now.year if now.month >= 7 else now.year - 1
+    data = telecharger(saisons=[str(an)] if ancien else None)
+    for div, matchs in data.items():
+        index = {(m["date"], m["home"], m["away"]): m for m in ancien.get(div, [])}
+        index.update({(m["date"], m["home"], m["away"]): m for m in matchs})
+        ancien[div] = sorted(index.values(), key=lambda m: (m["date"], m["home"], m["away"]))
     if any(data.values()):
-        tmp = CHEMIN + ".part"
-        with open(tmp, "w") as f:
-            json.dump(data, f)
-        os.replace(tmp, CHEMIN)
-    return data
+        with open(CHEMIN + ".part", "w") as f:
+            json.dump(ancien, f)
+        os.replace(CHEMIN + ".part", CHEMIN)
+        with open(meta_path, "w") as f:
+            json.dump({"collecte_le": now.isoformat()}, f)
+    return ancien
 
 
 def charger():

@@ -175,7 +175,7 @@ def rapporter(bt):
         acc = np.mean(P.argmax(1) == r)
         f = d.dropna(subset=["oO", "oU"])
         if len(f) > 100:
-            r2 = (f["hg"] + f["ag"] > 2.5).astype(int).values
+            r2 = (f["hg"] + f["ag"] < 2.5).astype(int).values
             po = np.concatenate([f[["pO25"]].values, f[["pU25"]].values], 1)
             ll2 = -np.mean(np.log(np.clip(po[np.arange(len(r2)), r2], 1e-9, 1)))
         else:

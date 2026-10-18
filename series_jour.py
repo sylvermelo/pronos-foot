@@ -22,6 +22,7 @@ import json
 import math
 import os
 
+os.environ["PRONOS_SANS_CALENDRIER"] = "1"
 import serveur
 from serveur import pronostic, DB
 
@@ -79,34 +80,8 @@ def safe_build(cand, elig):
             ligues.add(m["div"])
         if len(safe) >= 2:
             break
-    exclus = {(l["home"], l["away"]) for l in safe}
-    opts3 = []
-    for m in elig:
-        if (m["home"], m["away"]) in exclus:
-            continue
-        for lib, p in (("3+ match", m["s3"]), ("3+ " + m["home"], m["s3d"]),
-                       ("3+ " + m["away"], m["s3e"])):
-            if p >= 0.10:
-                opts3.append((p, lib, m))
-    opts3.sort(key=lambda o: (o[0], o[2]["home"]))
-    legs, vus, prod = [], set(), 1.0
-    for p, lib, m in opts3:
-        if len(legs) >= 5 or prod >= 20:
-            break
-        k = (m["home"], m["away"])
-        if k in vus or prod * (1 / p) > 50:
-            continue
-        legs.append({"home": m["home"], "away": m["away"], "ligue": m["ligue"],
-                     "heure": m["heure"], "option": lib, "p": round(p, 4),
-                     "cote_juste": round(1 / p, 2)})
-        vus.add(k)
-        prod *= 1 / p
-    if prod < 20:
-        legs, prod = [], 1.0
-    grosse = {"legs": legs,
-              "cote_juste": round(prod, 2) if legs else None,
-              "p_combine": round(math.prod([l["p"] for l in legs]), 4) if legs else None}
-    return safe, grosse
+    # Probabilités uniquement : pas de coupons sans marché bookmaker disponible.
+    return [], {"legs": [], "cote_juste": None, "p_combine": None}
 
 
 def construit():

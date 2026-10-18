@@ -111,7 +111,7 @@ def archiver(conseils, d=None, jour=None, retro=False):
             sels.append({k: s.get(k) for k in
                          ("div", "ligue", "pays", "date", "heure", "home", "away",
                           "option", "p", "cote_juste", "cote_marche", "confiance",
-                          "buts")})
+                          "buts", "cotation", "avantage_estime", "statut", "version_modele")})
     entree = d["jours"].get(jour) or {}
 
     def _cle(s):
@@ -122,10 +122,11 @@ def archiver(conseils, d=None, jour=None, retro=False):
     for s in sels:
         old = anciennes.get(_cle(s))
         if old is not None:
-            s["resultat"] = old.get("resultat")    # résultat déjà résolu conservé
+            s.update(old)    # première décision conservée, même avant coup d’envoi
             vus.add(_cle(s))
         else:
-            s["resultat"] = None                   # nouvelle sélection
+            s["resultat"] = None
+            s["decide_le"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
     # les sélections archivées qui ont DISPARU des nouveaux conseils (matchs
     # déjà commencés) sont gardées telles quelles : elles seront résolues.
     # Exception : une sélection NON résolue d'un AUTRE jour (double archivage
@@ -171,46 +172,10 @@ def archiver(conseils, d=None, jour=None, retro=False):
 
 
 def rattrapage_safe(d, conseils, jour=None):
-    """SAFE 2 : quand une jambe du SAFE DU JOUR est PERDUE, un nouveau SAFE
-    est construit avec les matchs du jour PAS ENCORE COMMENCÉS qui remplissent
-    toujours les conditions.
-
-    Règles (demande utilisateur du 06/09/2026) :
-    - le SAFE d'origine n'est JAMAIS modifié : l'historique et le bilan
-      restent exacts (effacer une jambe perdue serait malhonnête) ;
-    - déclenché dès la PREMIÈRE jambe perdue (inutile d'attendre la
-      résolution des autres : le combiné ne peut plus gagner) ;
-    - UN SEUL rattrapage par jour (safe_2). Au-delà, ce serait courir
-      après les pertes — discipline de bankroll ;
-    - si aucun match à venir ne remplit les conditions : rien (abstention).
-    Retourne "safe_2" si créé, sinon None."""
-    jour = jour or datetime.date.today().isoformat()
-    entree = d["jours"].get(jour)
-    if not entree:
-        return None
-    comb = entree.get("combines") or {}
-    safe = comb.get("safe")
-    if not isinstance(safe, dict) or "safe_2" in comb:
-        return None
-    perdu = any((l.get("resultat") or {}).get("touche") is False
-                for l in (safe.get("legs") or []))
-    if not perdu:
-        return None
-    nouveau = (conseils.get("combines") or {}).get("safe")
-    if not isinstance(nouveau, dict) or not nouveau.get("legs"):
-        return None
-    for l in nouveau["legs"]:
-        if l.get("resultat"):
-            return None                    # jambe déjà commencée : refus
-    nouveau["origine"] = ("RATTRAPAGE — créé après la perte d'une jambe du "
-                          "SAFE, avec les matchs du jour pas encore commencés "
-                          "qui remplissent les conditions.")
-    comb["safe_2"] = nouveau
-    entree["combines"] = comb
-    return "safe_2"
+    """Aucun coupon de rattrapage automatique après une défaite."""
+    return False
 
 
-# ---------------------------------------------------------------- résolution
 def resoudre(d, db):
     """Récupère les scores finaux (ESPN) des matchs archivés non résolus.
 
@@ -316,6 +281,8 @@ def _combines_vue(combines):
         c = combines.get(nom)
         if not isinstance(c, dict):
             continue
+        import cotation
+        c = {**c, "cote_combine": cotation.produit(c.get("legs", [])), "cote_juste_combine": None}
         r = c.get("resultat")
         pnl = None
         if r and c.get("cote_combine"):

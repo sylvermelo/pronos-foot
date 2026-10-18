@@ -1,3 +1,17 @@
+# Mise à jour prioritaire — 18 octobre 2026
+
+La demande utilisateur du 18/10 autorise les corrections et leur publication après tests.
+Ces règles remplacent les anciennes règles contradictoires ci-dessous :
+- Aucune cote calculée par 1/p : prix bookmaker exact, horodaté, événement et marché identifiés. Sans prix : analyse seule.
+- Coupons au maximum trois jambes, même bookmaker, aucun rattrapage automatique après une perte. Corners/séries sans prix : information seulement.
+- Collecte des scores avant entraînement ; conservation privée Supabase sans purge arbitraire. Coupes archivées séparément, aucune assimilation aux ligues domestiques.
+- Budget 0 FCFA. GitHub public + runner standard : minutes gratuites ; surveiller stockage/cache. Supabase Free : 500 Mo DB, 5 Go egress non caché/mois, marge interne 30 %. Pas de nombre illimité de rafraîchissements promis.
+- Cron souhaité toutes les 15 minutes, sans garantie de ponctualité GitHub. Calendrier et compléments lourds toutes les 6 h, CSV 12 h, xG 24 h ; entraînement seulement si données/version changent.
+- The Odds API : 500 crédits/cycle, 5 événements maximum/jour × 2 marchés × 1 région = 10 crédits maximum/jour (310 sur 31 jours), réserve 80 ; arrêt si quota inconnu. Aucun appel depuis le navigateur.
+- Rapport et limites : docs/MISE-A-JOUR-2026-10-18.md. Les corrections ne prouvent pas une hausse générale du taux de réussite.
+
+---
+
 # RÈGLES — À LIRE OBLIGATOIREMENT AVANT CHAQUE SESSION DE TRAVAIL
 
 Ce fichier existe à la demande de l'utilisateur (08/09/2026) :

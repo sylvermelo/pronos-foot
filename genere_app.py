@@ -39,6 +39,7 @@ def precalculer():
         "arbitres": S.DB.get("arbitres", {}),
         "index_equipes": S.DB.get("index_equipes", {}),
         "meta": S.DB.get("meta", {}),
+        "apprentissage": S.DB.get("apprentissage", {}),
         "calendrier": S.DB.get("calendrier_log") or {},
         "suivi": __import__("suivi").vue(),
         "corners_cal": S.api_corners(),
@@ -533,8 +534,8 @@ function combinaisonsJS(sels,seuil,poolRisque){
      AUCUN combiné sous 90 %. (Bug du 11/09/2026 : le site proposait une
      cote 5 avec 5 jambes instables à 78-84 % que l'archive refusait.) */
   const DIVS_INST=new Set(["E1","E2","E3","SP2","I2","D2","F2","SC1","SC2","SC3"]);
-  sels=sels.filter(x=>!DIVS_INST.has(x.div)||x.p>=0.90);
-  poolRisque=(poolRisque||[]).filter(x=>!DIVS_INST.has(x.div)||x.p>=0.90);
+  sels=sels.filter(x=>x.cotation&&x.cote_marche&&x.avantage_estime>0&&(!DIVS_INST.has(x.div)||x.p>=0.90));
+  poolRisque=(poolRisque||[]).filter(x=>x.cotation&&(!DIVS_INST.has(x.div)||x.p>=0.90));
   const auj=new Date();
   const p=n=>String(n).padStart(2,"0");
   const aujIso=auj.getFullYear()+"-"+p(auj.getMonth()+1)+"-"+p(auj.getDate());
@@ -558,11 +559,11 @@ function combinaisonsJS(sels,seuil,poolRisque){
     return legs;
   }
   function finaliser(legs,parJour){
-    if(!legs.length)return null;
+    if(!legs.length||new Set(legs.map(l=>l.cotation.bookmaker)).size!==1)return null;
     let pr_=1,cote=1,toutes=true;
     for(const s of legs){pr_*=s.p;if(s.cote_marche)cote*=s.cote_marche;else toutes=false;}
     const out={legs:legs,p_combine:+pr_.toFixed(4),cote_combine:toutes?+cote.toFixed(2):null,
-      cote_juste_combine:pr_>0?+(1/pr_).toFixed(2):null};
+      cote_juste_combine:null};
     if(parJour)out.par_jour=parJour;
     return out;
   }
@@ -576,17 +577,17 @@ function combinaisonsJS(sels,seuil,poolRisque){
     const legs=[],vus=new Set();let prod=1,nM=0,nJ=0;
     for(const s of tri){
       if(legs.length>=maxLegs||prod>=cMin)break;
-      const cl=s.cote_marche||s.cote_juste;
+      const cl=s.cote_marche;
       if(!cl||cl<=1.0)continue;
       const mid=s.date+"|"+s.home+"|"+s.away;
       if(vus.has(mid)||prod*cl>cMax)continue;
       legs.push(s);vus.add(mid);prod*=cl;
       if(s.cote_marche)nM++;else nJ++;
     }
-    if(!legs.length||prod<cMin)return null;
+    if(!legs.length||prod<cMin||new Set(legs.map(l=>l.cotation.bookmaker)).size!==1)return null;
     let pr_=1;for(const s of legs)pr_*=s.p;
     return {legs:legs,p_combine:+pr_.toFixed(4),cote_combine:+prod.toFixed(2),
-      cote_juste_combine:pr_>0?+(1/pr_).toFixed(2):null,
+      cote_juste_combine:null,
       cote_type:nJ===0?"marché":nM===0?"juste":"mixte",cible:[cMin,cMax]};
   }
   /* SAFE DU JOUR : aujourd'hui UNIQUEMENT, 1 à 3 jambes, jamais le lendemain */
@@ -599,6 +600,8 @@ function combinaisonsJS(sels,seuil,poolRisque){
     parJour[d]=ld.length;
     legsW=legsW.concat(ld);
   }
+  legsW=legsW.slice(0,3);
+  for(const d of jw)parJour[d]=legsW.filter(l=>l.date===d).length;
   const safeWeekend=finaliser(legsW,parJour);
   /* RISQUE : aujourd'hui+demain, options cotées, jambes des SAFE exclues */
   const exclus=new Set(legsW.map(l=>l.date+"|"+l.home+"|"+l.away));
@@ -609,9 +612,9 @@ function combinaisonsJS(sels,seuil,poolRisque){
   const exj=new Set(safe?safe.legs.map(l=>l.date+"|"+l.home+"|"+l.away):[]);
   const pj=sels.filter(s=>s.date===aujIso&&!exj.has(s.date+"|"+s.home+"|"+s.away));
   return {safe:safe,safe_weekend:safeWeekend,risque:lr.length>=2?finaliser(lr):null,
-    cote2:construireCible(pj,1.90,2.35,10,false),
-    cote5:construireCible(pj,4.60,5.90,10,false),
-    fun:construireCible(pj,20.0,50.0,15,true)};
+    cote2:construireCible(pj,1.90,2.35,3,false),
+    cote5:construireCible(pj,4.60,5.90,3,false),
+    fun:construireCible(pj,20.0,50.0,3,true)};
 }
 
 function conseilsJS(seuil){
@@ -639,7 +642,7 @@ function conseilsJS(seuil){
         if(!bq||c[1]>bq[1]) bq=c;
       }
       if(bq) poolRisque.push(Object.assign({},base,{option:bq[0],p:+bq[1].toFixed(4),
-        cote_juste:bq[1]>0?+(1/bq[1]).toFixed(2):null,cote_marche:bq[2]}));
+        cote_juste:null,cote_marche:bq[2]}));
     }
     const cands=[["1",m.p1],["X",m.pX],["2",m.p2],
       ["over 1.5",o["1.5"]],["over 2.5",o["2.5"]],["over 3.5",o["3.5"]],
@@ -648,18 +651,23 @@ function conseilsJS(seuil){
       ["les deux ne marquent pas",m.btts!=null?+(1-m.btts).toFixed(4):null],
       ["double chance 1X",dc["1X"]],["double chance 12",dc["12"]],["double chance X2",dc["X2"]]]
       .filter(c=>c[1]!=null);
-    let opt=cands[0],best=cands[0];
-    for(const c of cands) if(c[1]>best[1]) best=c;
-    opt=best;
     const pl=DIVS_INST.has(m.div)?0.85:0;
-    if(opt[1]<Math.max(seuil,pl)+(MARGES_MARCHE[opt[0]]||0)-1e-9) continue;
-    const item=Object.assign({},base,{option:opt[0],p:+opt[1].toFixed(4),
-      cote_juste:opt[1]>0?+(1/opt[1]).toFixed(2):null});
-    if(opt[0]==="1")item.cote_marche=m.cote_1;
-    else if(opt[0]==="X")item.cote_marche=m.cote_X;
-    else if(opt[0]==="2")item.cote_marche=m.cote_2;
-    else if(opt[0]==="over 2.5")item.cote_marche=m.cote_over;
-    else if(opt[0]==="under 2.5")item.cote_marche=m.cote_under;
+    const elig=cands.filter(c=>c[1]>=Math.max(seuil,pl)+(MARGES_MARCHE[c[0]]||0)-1e-9);
+    if(!elig.length)continue;
+    const prix={};
+    for(const [k,q] of Object.entries(m.cotations||{})){
+      const age=Date.now()-Date.parse(q.last_update);
+      if(q.bookmaker&&q.event_id&&q.price>1&&age>=0&&age<=86400000&&Date.parse(q.commence_time)>Date.now())prix[k]=q;
+    }
+    const quotes=elig.filter(c=>prix[c[0]]&&c[1]*prix[c[0]].price>1);
+    const choix=quotes.length?quotes:elig;
+    let opt=choix[0];
+    const rang=c=>quotes.length?c[1]*prix[c[0]].price-1:c[1];
+    for(const c of choix)if(rang(c)>rang(opt))opt=c;
+    const q=prix[opt[0]]||null;
+    const item=Object.assign({},base,{option:opt[0],p:+opt[1].toFixed(4),cote_juste:null,
+      cote_marche:q?q.price:null,cotation:q,avantage_estime:q?+(opt[1]*q.price-1).toFixed(4):null,
+      statut:quotes.length?"prix_disponible":"analyse",version_modele:(DATA.apprentissage||{}).empreinte});
     (jours[m.jour_delta]=jours[m.jour_delta]||[]).push(item);
   }
   const liste=Object.keys(jours).map(Number).sort((a,b)=>a-b).map(d=>{
@@ -668,12 +676,7 @@ function conseilsJS(seuil){
   });
   const aPlat=[];for(const j of liste)for(const s of j.selections)aPlat.push(s);
   return {seuil:seuil,jours:liste,combines:combinaisonsJS(aPlat,seuil,poolRisque),
-    note:"Probabilités du moteur : pour les 5 grandes ligues (Angleterre, Espagne, Italie, Allemagne, France), les forces des équipes sont estimées sur les xG RÉELS d'Understat puis recalées sur les buts observés — gain validé par un test A/B en walk-forward sur 7 118 matchs (2022-2026). Ailleurs : Dixon-Coles sur les buts réels. Ensemble calibré sur 29 295 matchs. "+
-         "Une option à 75 % se réalise environ 3 fois sur 4 en moyenne, "+
-         "pas à chaque fois. Les unders sont DURCIS (marge exigée au-dessus "+
-         "du seuil) : le suivi réel et les fréquences historiques montrent "+
-         "que le modèle les surestime — il sous-estime les matchs à 4-5 buts. "+
-         "Rentabilité face aux cotes non démontrée (voir l'onglet Fiabilité)."};
+    note:"Probabilités estimées à partir des résultats et, pour les cinq grands championnats, des xG Understat. Les scores finaux alimentent les prochains entraînements. Chaque option doit respecter son seuil avant comparaison avec une vraie cote bookmaker. Sans prix exact récent : analyse seule. Les performances de cette version restent à mesurer ; aucune rentabilité démontrée."};
 }
 
 /* ---------------------------------------------------------------------------

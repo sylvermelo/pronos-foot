@@ -4,8 +4,8 @@
 #  Aucun ordinateur à laisser allumé : tout se passe ici.
 #
 #  Déclencheurs :
-#    · TOUTES LES HEURES à :07 (heure UTC — les scores de la veille et du jour
-#      sont résolus au plus tard 1 h après la fin des matchs)
+#    · QUATRE PASSAGES PAR HEURE (heure UTC — les scores de la veille et du jour
+#      sont résolus au prochain passage effectif après la fin des matchs)
 #    · à chaque modification du code
 #    · à la demande, via le bouton « Run workflow » dans l'onglet Actions
 #
@@ -14,15 +14,15 @@
 #  (parfois plus aux heures de pointe) — c'est indépendant de notre code.
 # ============================================================================
 
-name: Mise à jour horaire
+name: Résultats et pronostics
 
 on:
   schedule:
     # ⚠️ GitHub utilise l'heure UTC, pas ton heure locale (Bénin = UTC+1).
     # Toutes les heures à :07 (on évite :00 et :30, heures de pointe des crons
     # GitHub, pour réduire les retards). Les scores finaux (ESPN) sont résolus
-    # à chaque passage : un match terminé est affiché au pire 1 h après.
-    - cron: '7 * * * *'
+    # à chaque passage : un match terminé est affiché au prochain passage effectif.
+    - cron: '7,22,37,52 * * * *'
   workflow_dispatch:        # bouton « Run workflow » dans l'onglet Actions
   push:
     branches: [ main ]
@@ -33,10 +33,10 @@ permissions:
   pages: write
   id-token: write
 
-# une seule exécution à la fois : si deux se déclenchent, la plus ancienne s'arrête
+# une seule exécution à la fois ; laisser finir le calcul et la sauvegarde
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   mise-a-jour:
@@ -45,8 +45,10 @@ jobs:
     env:
       # Clé The Odds API (cotes Pinnacle en direct). Secrète : stockée dans
       # Settings → Secrets and variables → Actions, JAMAIS dans le dépôt.
-      # Sans elle, tout continue de fonctionner avec les cotes co.uk.
+      # Sans elle : analyses seules, aucune cote de remplacement.
       ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+      TZ: Africa/Porto-Novo
+      PRONOS_SANS_CALENDRIER: "1"
     # environnement requis par actions/deploy-pages pour publier correctement
     environment:
       name: github-pages
@@ -82,9 +84,15 @@ jobs:
           restore-keys: |
             donnees-v2-
 
+      - name: Vérifier les invariants du moteur
+        run: python -m unittest discover -s tests -v
+
       - name: Télécharger les nouveautés et ré-entraîner si nécessaire
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: |
-          python maj.py && code=0 || code=$?
+          python maj.py --donnees-seules && code=0 || code=$?
           if [ "$code" -eq 2 ]; then
             echo "::warning::football-data.co.uk est injoignable — on continue avec les données existantes (calendrier ESPN, cotes en cache). Rien n'est perdu."
           elif [ "$code" -ne 0 ]; then
@@ -101,6 +109,24 @@ jobs:
 
       - name: Régénérer l'application autonome
         run: python genere_app.py
+
+      - name: Vérifier la parité Python et navigateur
+        run: |
+          python serveur.py > /tmp/pronos-serveur.log 2>&1 &
+          PRONOS_PID=$!
+          trap 'kill "$PRONOS_PID" 2>/dev/null || true' EXIT
+          python - <<'PY'
+          import time, urllib.request
+          for _ in range(60):
+              try:
+                  urllib.request.urlopen('http://127.0.0.1:8000/api/ligues')
+                  break
+              except Exception:
+                  time.sleep(.5)
+          else:
+              raise RuntimeError('Serveur de validation indisponible')
+          PY
+          node test_app_autonome.js
 
       - name: Série du jour pour la vitrine (but d'affilée)
         run: python3 series_jour.py || echo "series_jour.json non regenere (warning)"
@@ -120,7 +146,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python3 db.py --sync || echo "::warning::Supabase non synchronisé (projet non configuré ou injoignable) — les JSON git restent la source principale."
+        run: python3 db.py --sync
         # Sans secrets configurés, db.py ne fait rien (statut « ignore ») :
         # cette étape ne peut jamais casser le pipeline.
         # ESPN + TheSportsDB + OpenLigaDB, sans clé ni compte. Étape séparée :

@@ -193,6 +193,11 @@ def _score_apres(txt):
     return [(a, b) for a in s1 for b in s2]
 
 
+def _ordre_minute(txt):
+    m = RE_MIN.search(txt or "")
+    return (int(m.group(1)), int(m.group(2) or 0)) if m else (999, 0)
+
+
 def extraire_buts(summary, home, away, sh_fin, sa_fin):
     """Buts minutés d'un summary ESPN — None si le moindre doute.
 
@@ -202,7 +207,7 @@ def extraire_buts(summary, home, away, sh_fin, sa_fin):
     parseable), score final reconstitué == score officiel ET nombre
     d'évènements == nombre de buts. Sinon rejet — jamais d'imputation.
     """
-    evs = _evenements_buts(summary)
+    evs = sorted(_evenements_buts(summary), key=lambda e: _ordre_minute(e[0]))
     if not evs and (sh_fin or sa_fin):
         return None                          # des buts mais aucun évènement
     hn, an = _norme(home), _norme(away)
@@ -233,12 +238,13 @@ def extraire_buts(summary, home, away, sh_fin, sa_fin):
         cands = _score_apres(txt)
         if cands and (sh, sa) not in cands:
             return None                      # contradiction avec le texte → rejeté
-        buts.append({"min": mn, "equipe": cote})
+        buts.append({"min": mn, "minute_base": int(mn_match.group(1)),
+                     "additionnel": int(mn_match.group(2) or 0), "equipe": cote})
     if sh_fin is not None and sa_fin is not None and (sh != sh_fin or sa != sa_fin):
         return None                          # score final différent → rejeté
     if len(evs) != sh + sa:
         return None
-    buts.sort(key=lambda b: b["min"])        # stable : ordre du flux conservé
+    # Déjà trié par (minute réglementaire, additionnel), pas par leur somme.
     return buts
 
 

@@ -181,11 +181,27 @@ UA = {"User-Agent": "curl/8.0"}
 
 
 def _curl_json(url, timeout=25):
-    """ESPN refuse l'empreinte TLS d'urllib mais accepte curl : on passe par curl."""
+    import hashlib, os, time
+    from pathlib import Path
+    cache = Path(__file__).resolve().parent / "data" / "http_cache"
+    cache.mkdir(exist_ok=True)
+    fichier = cache / (hashlib.sha256(url.encode()).hexdigest() + ".json")
+    now = time.time()
     try:
-        p = subprocess.run(["curl", "-s", "--max-time", str(timeout), url],
+        d = json.loads(fichier.read_text())
+        if now - d["fetched_at"] < 900:
+            return d["data"]
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    try:
+        p = subprocess.run(["curl", "-s", "--compressed", "--max-time", str(timeout), url],
                            capture_output=True, text=True, timeout=timeout + 5)
-        return json.loads(p.stdout) if p.stdout.strip() else None
+        data = json.loads(p.stdout) if p.stdout.strip() else None
+        if data is not None and p.returncode == 0:
+            tmp = fichier.with_suffix(f".{os.getpid()}.tmp")
+            tmp.write_text(json.dumps({"fetched_at": now, "data": data}))
+            os.replace(tmp, fichier)
+        return data
     except Exception:
         return None
 
@@ -256,7 +272,8 @@ def _espn_jour(slug, date_iso):
         # affichage en heure de Cotonou (UTC+1), fuseau de l'utilisateur
         loc = dt + datetime.timedelta(hours=1)
         odds = [o for o in (comp.get("odds") or []) if o]
-        out.append({"home_src": h, "away_src": a,
+        out.append({"event_id": str(e.get("id", "")), "debut_utc": e.get("date"),
+                    "home_src": h, "away_src": a,
                     "date": loc.date().isoformat(),
                     "heure": loc.strftime("%H:%M"),
                     "ou_line": odds[0].get("overUnder") if odds else None,
@@ -264,15 +281,18 @@ def _espn_jour(slug, date_iso):
     return out
 
 
-def espn_resultats(slug, date_iso):
+def espn_resultats(slug, date_iso, fin_iso=None):
     """Scores FINAUX des matchs terminés d'une date (ESPN, sans clé).
 
     Retourne [{home_src, away_src, date, heure, buts_home, buts_away}].
     Les dates/heures sont converties en heure de Cotonou (UTC+1), comme le
     calendrier : c'est ce qui permet de retrouver les matchs du suivi.
     """
+    dates = date_iso.replace('-', '')
+    if fin_iso:
+        dates += "-" + fin_iso.replace('-', '')
     d = _curl_json(f"https://site.api.espn.com/apis/site/v2/sports/soccer/"
-                   f"{slug}/scoreboard?dates={date_iso.replace('-', '')}")
+                   f"{slug}/scoreboard?dates={dates}&limit=1000")
     out = []
     if not d:
         return out
@@ -299,7 +319,8 @@ def espn_resultats(slug, date_iso):
         except (ValueError, KeyError):
             continue
         loc = dt + datetime.timedelta(hours=1)
-        out.append({"home_src": h, "away_src": a, "date": loc.date().isoformat(),
+        out.append({"event_id": str(e.get("id", "")), "debut_utc": e.get("date"),
+                    "home_src": h, "away_src": a, "date": loc.date().isoformat(),
                     "heure": loc.strftime("%H:%M"), "buts_home": bh, "buts_away": ba})
     return out
 
@@ -357,6 +378,8 @@ def construire(equipes_par_div, cotes_co_uk, jours=8, log=None):
     def ajouter(div, m, source):
         h = map_.traduire(div, m["home_src"])
         a = map_.traduire(div, m["away_src"])
+        h = h or m.get("home_src")
+        a = a or m.get("away_src")
         if not h or not a or h == a:
             return False
         cle = (div, h, a, m["date"])
@@ -365,7 +388,8 @@ def construire(equipes_par_div, cotes_co_uk, jours=8, log=None):
         vus.add(cle)
         out.append({"div": div, "home": h, "away": a, "date": m["date"],
                     "heure": m["heure"], "arbitre": None,
-                    "source": source, "ou_line": m.get("ou_line"),
+                    "source": source, "event_id": m.get("event_id"),
+                    "debut_utc": m.get("debut_utc"), "ou_line": m.get("ou_line"),
                     "cote_1": None, "cote_X": None, "cote_2": None,
                     "cote_over": None, "cote_under": None,
                     "cote_max_1": None, "cote_max_X": None, "cote_max_2": None})
@@ -389,10 +413,10 @@ def construire(equipes_par_div, cotes_co_uk, jours=8, log=None):
         ajouter("D1", m, "OpenLigaDB")
 
     # jonction des cotes football-data.co.uk (semaine) par équipes
-    idx = {(f["div"], f["home"], f["away"]): f for f in cotes_co_uk}
+    idx = {(f["div"], f["home"], f["away"], f.get("date")): f for f in cotes_co_uk}
     avec_cotes = 0
     for o in out:
-        f = idx.get((o["div"], o["home"], o["away"]))
+        f = idx.get((o["div"], o["home"], o["away"], o["date"]))
         if f:
             for k in ("cote_1", "cote_X", "cote_2", "cote_over", "cote_under",
                       "cote_max_1", "cote_max_X", "cote_max_2", "arbitre"):
@@ -437,6 +461,13 @@ def appliquer(db, cotes=None):
         if L.get("coupe"):
             eq[d] = sorted(_idx)
     bruts = cotes or db.get("fixtures_cotes") or db.get("fixtures", [])
+    try:
+        precedent = db.get("calendrier_log") or {}
+        age = (datetime.datetime.now() - datetime.datetime.fromisoformat(precedent["genere_le"])).total_seconds()
+        if age < 21600 and db.get("fixtures"):
+            return precedent
+    except (KeyError, ValueError, TypeError):
+        pass
     matchs, log = construire(eq, bruts)
     if matchs:
         db["fixtures"] = matchs

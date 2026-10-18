@@ -120,7 +120,7 @@ def fit_goals(hist, teams, shrink=0.0):
     ma, md = att.mean(), dfn.mean()
     s = float(np.exp(p[2 * n + 2]))
     return {"att": att / ma, "dfn": dfn / md, "idx": idx,
-            "gamma": float(np.exp(p[2 * n]) * ma * md * s), "s": s,
+            "gamma": float(np.exp(p[2 * n]) * ma * md * s), "s": s * ma * md,
             "rho": float(np.tanh(p[2 * n + 1]))}
 
 
@@ -182,10 +182,11 @@ def combine(mg, mx, w, n_teams_hint=None):
                 "s": mx["ga"], "rho": mg["rho"], "idx": mg["idx"], "xg_only": True}
     att = np.exp(w * np.log(np.clip(mg["att"], 1e-3, None)) + (1 - w) * np.log(np.clip(mx["att"], 1e-3, None)))
     dfn = np.exp(w * np.log(np.clip(mg["dfn"], 1e-3, None)) + (1 - w) * np.log(np.clip(mx["dfn"], 1e-3, None)))
-    att /= att.mean(); dfn /= dfn.mean()
+    ma, md = att.mean(), dfn.mean()
+    att /= ma; dfn /= md
     gam = mg["gamma"] ** w * mx["gh"] ** (1 - w)
     s = mg["s"] ** w * mx["ga"] ** (1 - w)
-    return {"att": att, "dfn": dfn, "gamma": gam * s, "s": s, "rho": mg["rho"],
+    return {"att": att, "dfn": dfn, "gamma": gam * ma * md, "s": s * ma * md, "rho": mg["rho"],
             "idx": mg["idx"]}
 
 
@@ -274,6 +275,8 @@ def evaluate(bt):
         d = bt[bt["w"] == w]
         # --- 1X2
         e = d.dropna(subset=["o1", "oX", "o2"])
+        if len(e) < 200:
+            continue
         res = np.where(e["hg"] > e["ag"], 0, np.where(e["hg"] == e["ag"], 1, 2))
         P = e[["p1", "pX", "p2"]].values; P = P / P.sum(1, keepdims=True)
         mk = np.array([devig(a, b, c) for a, b, c in zip(e["o1"], e["oX"], e["o2"])])
@@ -288,7 +291,7 @@ def evaluate(bt):
         acc = np.mean(P.argmax(1) == res)
         # --- Over/Under 2.5
         f = d.dropna(subset=["oO", "oU"])
-        r2 = (f["hg"] + f["ag"] > 2.5).astype(int).values
+        r2 = (f["hg"] + f["ag"] < 2.5).astype(int).values
         pm = np.array([devig(a, b) for a, b in zip(f["oO"], f["oU"])])
         po = np.concatenate([f[["pO25"]].values, f[["pU25"]].values], 1)
         ok2 = ~np.isnan(pm).any(1); pm, po, r2 = pm[ok2], po[ok2], r2[ok2]
@@ -327,7 +330,7 @@ def evaluate(bt):
     g = e.dropna(subset=["oo1", "ooX", "oo2"])
     r3 = np.where(g["hg"] > g["ag"], 0, np.where(g["hg"] == g["ag"], 1, 2))
     P3 = g[["p1", "pX", "p2"]].values; P3 = P3 / P3.sum(1, keepdims=True)
-    op = np.array([devig(a, b, c) for a, b, c in zip(g["oo1"], g["ooX"], g["oo2"])])
+    op = np.array([devig(a, b, c) for a, b, c in zip(g["oo1"], g["ooX"], g["oo2"])]).reshape(-1, 3)
     ok3 = ~np.isnan(op).any(1); op, P3, r3 = op[ok3], P3[ok3], r3[ok3]
     if len(r3) > 200:
         f2 = lambda pr: -np.mean(np.log(np.clip(pr[np.arange(len(r3)), r3], 1e-9, 1)))

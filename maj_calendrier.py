@@ -71,60 +71,59 @@ def main():
     import coupes
     coupes.injecter(db)
 
-    # BOUCLE RAPIDE : collecte des scores FINAUX ESPN des derniers jours
-    # (complément d'entraînement en attendant la publication co.uk de
-    # dimanche/mercredi). Échec non bloquant ; n'écrit le fichier que s'il y a
-    # du nouveau — c'est ce fichier qui déclenchera le ré-entraînement dans
-    # maj.py au prochain passage. Voir resultats.py.
+    # Collectes complémentaires lourdes au plus une fois toutes les 6 heures.
+    from pathlib import Path
+    import time
+    complement_path = Path("data/complements_collecte.json")
     try:
-        import resultats
-        n_res = resultats.collecter(db)
-        if n_res:
-            print(f"boucle rapide : {n_res} nouveau(x) résultat(s) final(aux) — "
-                  f"ré-entraînement au prochain passage")
-    except Exception as e:
-        print(f"boucle rapide : échec ignoré ({e})", file=sys.stderr)
+        complement_etat = json.loads(complement_path.read_text())
+    except (OSError, ValueError):
+        complement_etat = {}
+    complets = time.time() - complement_etat.get("timestamp", 0) >= 21600
 
-    # CORNERS 1re MI-TEMPS : découpe MT1/MT2 des matchs terminés des derniers
-    # jours (8 divisions couvertes par le fil ESPN — corners_mt.py).
-    try:
-        import corners_mt
-        n_mt = corners_mt.collecter_recent(db)
-        if n_mt:
-            print(f"corners 1re MT : {n_mt} nouveau(x) match(s) découpés par mi-temps")
-    except Exception as e:
-        print(f"corners 1re MT : échec ignoré ({e})", file=sys.stderr)
+    if complets:
+        # CORNERS 1re MI-TEMPS : découpe MT1/MT2 des matchs terminés des derniers
+        # jours (8 divisions couvertes par le fil ESPN — corners_mt.py).
+        try:
+            import corners_mt
+            n_mt = corners_mt.collecter_recent(db)
+            if n_mt:
+                print(f"corners 1re MT : {n_mt} nouveau(x) match(s) découpés par mi-temps")
+        except Exception as e:
+            print(f"corners 1re MT : échec ignoré ({e})", file=sys.stderr)
 
-    # FATIGUE EUROPÉENNE (étape ③) : calendriers C1/C2/C3 en fenêtre glissante
-    # ±21 jours (matchs joués ET programmés — la fatigue d'un match de
-    # championnat se connaît dès que le calendrier européen existe), puis
-    # re-mesure du barème sur les CSV versionnés. ~6 requêtes ESPN par passage.
-    try:
-        import contextlib
-        import io
-        import fatigue
-        n_fat = fatigue.rafraichir()
-        with contextlib.redirect_stdout(io.StringIO()):
-            fatigue.mesurer()
-        if n_fat:
-            print(f"fatigue européenne : +{n_fat} match(s) de coupes — barème re-mesuré")
-    except Exception as e:
-        print(f"fatigue européenne : échec ignoré ({e})", file=sys.stderr)
+        # FATIGUE EUROPÉENNE (étape ③) : calendriers C1/C2/C3 en fenêtre glissante
+        # ±21 jours (matchs joués ET programmés — la fatigue d'un match de
+        # championnat se connaît dès que le calendrier européen existe), puis
+        # re-mesure du barème sur les CSV versionnés. ~6 requêtes ESPN par passage.
+        try:
+            import contextlib
+            import io
+            import fatigue
+            n_fat = fatigue.rafraichir()
+            with contextlib.redirect_stdout(io.StringIO()):
+                fatigue.mesurer()
+            if n_fat:
+                print(f"fatigue européenne : +{n_fat} match(s) de coupes — barème re-mesuré")
+        except Exception as e:
+            print(f"fatigue européenne : échec ignoré ({e})", file=sys.stderr)
 
-    # ÉTAPE ④ — COMPOSITIONS H−1 (ESPN) : capture les compos des matchs qui
-    # viennent de se terminer (historique) et de ceux dont le coup d'envoi
-    # approche (< 3 h — publication ~1 h avant). Mesure d'impact actualisée.
-    try:
-        import contextlib
-        import io
-        import compos
-        n_comp = compos.collecter()
-        with contextlib.redirect_stdout(io.StringIO()):
-            compos.mesurer()
-        if n_comp:
-            print(f"compositions H−1 : +{n_comp} capturée(s)")
-    except Exception as e:
-        print(f"compositions H−1 : échec ignoré ({e})", file=sys.stderr)
+        # ÉTAPE ④ — COMPOSITIONS H−1 (ESPN) : capture les compos des matchs qui
+        # viennent de se terminer (historique) et de ceux dont le coup d'envoi
+        # approche (< 3 h — publication ~1 h avant). Mesure d'impact actualisée.
+        try:
+            import contextlib
+            import io
+            import compos
+            n_comp = compos.collecter()
+            with contextlib.redirect_stdout(io.StringIO()):
+                compos.mesurer()
+            if n_comp:
+                print(f"compositions H−1 : +{n_comp} capturée(s)")
+        except Exception as e:
+            print(f"compositions H−1 : échec ignoré ({e})", file=sys.stderr)
+
+        complement_path.write_text(json.dumps({"timestamp": time.time()}))
 
     # CORNERS — correction du biais mesuré (backtest_secondaires.py,
     # walk-forward 2023-2026 sur 42 733 prédictions). biais_division =
@@ -163,12 +162,12 @@ def main():
     try:
         import cotes_live
         n_sp = cotes_live.rafraichir(db)
-        n_fx = cotes_live.appliquer(db)
-        print(f"cotes live : {'cache mis à jour' if n_sp else 'cache encore frais'}"
-              f" ({n_sp} sport(s)) | {n_fx} fixture(s) en cotes Pinnacle")
+        print(f"cotes live : {n_sp} événement(s) actualisé(s)")
     except Exception as e:
-        print(f"cotes live : ÉCHEC non bloquant ({e}) — cotes co.uk conservées",
-              file=sys.stderr)
+        print(f"cotes live : collecte indisponible ({e})", file=sys.stderr)
+    # Même en échec réseau, retirer les moyennes CSV et les anciennes cotes.
+    import cotes_live
+    cotes_live.appliquer(db)
     with open(CHEMIN_DB, "w") as f:
         json.dump(db, f)
     with open(os.path.join("data", "calendrier.json"), "w") as f:

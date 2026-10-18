@@ -38,10 +38,11 @@ def ll(mu, disp, obs):
         return -40.0
     if disp <= 1.0001:
         return -mu + obs * math.log(mu) - sum(math.log(i) for i in range(1, int(obs) + 1))
-    p = 1.0 / (1.0 + mu / disp)
-    return (math.lgamma(obs + disp) - math.lgamma(disp)
+    r = mu / (disp - 1.0)
+    p = 1.0 / disp
+    return (math.lgamma(obs + r) - math.lgamma(r)
             - sum(math.log(i) for i in range(1, int(obs) + 1))
-            + disp * math.log(p) + obs * math.log(max(1 - p, 1e-12)))
+            + r * math.log(p) + obs * math.log(max(1 - p, 1e-12)))
 
 
 def main():

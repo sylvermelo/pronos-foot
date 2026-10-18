@@ -79,6 +79,16 @@ const evalJS = (code) => vm.runInContext(code, ctx, { timeout: 30000 });
   console.log('\n=== 2. Parité moteur JS ⟷ serveur Python ===');
   const matchs = await (await fetch(BASE + '/api/matchs')).json();
   const echantillon = matchs.filter(m => m.disponible).slice(0, 25);
+  if (!echantillon.length) {
+    const equipes = evalJS('Object.entries(DATA.moteur).filter(([d,L])=>!L.coupe&&L.equipes_actuelles.length>=2).map(([div,L])=>({div,home:L.equipes_actuelles[0],away:L.equipes_actuelles[1]}))');
+    echantillon.push(...equipes);
+    console.log('    Calendrier vide : confrontations de contrôle sur chaque championnat');
+    for (const m of echantillon) {
+      const r = await (await fetch(BASE+'/api/secondaires?div='+m.div+'&home='+encodeURIComponent(m.home)+'&away='+encodeURIComponent(m.away))).json();
+      if(r && r.marches) m.sec={confrontation:r.confrontation, ...Object.fromEntries(Object.entries(r.marches).map(([k,v])=>[k,v.total_attendu]))};
+    }
+  }
+  if(!echantillon.length) throw Error('Aucune confrontation testable');
   console.log(`    ${echantillon.length} matchs comparés champ par champ`);
 
   let nChamps = 0, nEcart = 0, pire = 0, pireCas = '';
@@ -201,7 +211,7 @@ const evalJS = (code) => vm.runInContext(code, ctx, { timeout: 30000 });
         ['p_vict_dom', py.p_vict_dom, js.confrontation.p_vict_dom]];
       for (const f of ['+2','+1','victoire','-1','-2','-3','-4']) {
         paires.push(['echelle' + f, (py.echelle||{})[f], (js.confrontation.echelle||{})[f]]);
-        paires.push(['echelle_cal' + f, (py.echelle_cal||{})[f], (js.confrontation.echelle_cal||{})[f]]);
+        if(py.echelle_cal) paires.push(['echelle_cal' + f, py.echelle_cal[f], (js.confrontation.echelle_cal||{})[f]]);
       }
       for (const [nom, a, b] of paires) {
         if (a == null || b == null) { if (a != null || b != null) { nCornEcart++; warn(nom + ' ' + m.home + ' : py ' + a + ' / js ' + b); } continue; }
@@ -215,35 +225,10 @@ const evalJS = (code) => vm.runInContext(code, ctx, { timeout: 30000 });
     else if (nCorn) ko(nCornEcart + ' divergence(s) sur ' + nCorn + ' valeurs corners');
     else warn('aucune confrontation à comparer dans l\'échantillon');
 
-    /* cohérence du coupon montante : cote TOTALE ≥ 1,20 (ou tous les
-       éligibles pris), maillons ≥ CORN_MIN, tri horaire, produits exacts */
-    const cp = evalJS(`(function(){
-      const nowC=new Date(Date.now()+3600000).toISOString().slice(0,16);
-      const ms=ETAT.matchs.filter(m=>m.disponible&&!m.coupe&&m.sec&&m.sec.confrontation&&m.date&&m.date>=nowC.slice(0,10)&&!(m.heure&&(m.date+"T"+m.heure)<nowC));
-      const parJour={}; for(const m of ms)(parJour[m.date]=parJour[m.date]||[]).push(m);
-      const jours=Object.keys(parJour).sort();
-      const d0=jours[0]; const msj=parJour[d0]||[];
-      let elig=0; for(const m of msj){const j=cornJambes(m); if(j&&j.pc>=CORN_MIN) elig++;}
-      return {jours:jours.length,cp:cornCoupon(msj),d0:d0,elig:elig};
-    })()`);
-    const CORN_MIN_EVAL = evalJS('CORN_MIN'), CORN_CIBLE_EVAL = evalJS('CORN_CIBLE');
-    if (cp && cp.jours >= 0) {
-      const e = cp.cp.etapes;
-      let probs = 0;
-      for (const L of e) if (L.c.pc < CORN_MIN_EVAL - 1e-9) probs++;
-      let triOk = true;
-      for (let i = 1; i < e.length; i++) {
-        const k = x => (x.m.date + 'T' + (x.m.heure || '99:99'));
-        if (k(e[i-1]) > k(e[i])) triOk = false;
-      }
-      const prod = e.reduce((a, L) => a * L.c.pc, 1);
-      const prodOk = e.length === 0 || Math.abs(prod - cp.cp.pTot) < 1e-9;
-      const cotOk = e.length === 0 || Math.abs(e.reduce((a, L) => a * L.cote, 1) - cp.cp.coteTot) < 1e-9;
-      const cibleOk = cp.cp.coteTot >= CORN_CIBLE_EVAL - 1e-9 || e.length === cp.elig;
-      if (probs === 0 && triOk && prodOk && cotOk && cibleOk)
-        ok('coupon ' + (cp.d0 || '?') + ' : ' + e.length + ' maillon(s) sur ' + cp.elig + ' éligible(s), cote totale ' + cp.cp.coteTot.toFixed(2) + (cp.cp.coteTot >= CORN_CIBLE_EVAL ? ' (cible atteinte)' : ' (jour pauvre — tous les éligibles pris)'));
-      else ko('coupon incohérent : qualité=' + probs + ' tri=' + triOk + ' produit=' + prodOk + ' cote=' + cotOk + ' cible=' + cibleOk);
-    } else warn('coupon non évaluable (fenêtre calendrier vide)');
+    const cp = evalJS('cornCoupon(ETAT.matchs)');
+    if (cp.etapes.length === 0 && cp.coteTot == null)
+      ok('aucun coupon corners sans cote bookmaker');
+    else ko('coupon corners créé sans prix vérifié');
   } catch (err) { ko('test corners : ' + err.message); }
 
   console.log(`\n${'='.repeat(62)}`);

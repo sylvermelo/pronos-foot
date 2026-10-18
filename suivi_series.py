@@ -23,6 +23,7 @@ import datetime
 import json
 import os
 
+os.environ["PRONOS_SANS_CALENDRIER"] = "1"
 import serveur
 from serveur import pronostic, DB
 import buts_affilee as BA
@@ -68,7 +69,7 @@ def non_pick(home, away, p):
     elig.sort(key=lambda e: (e[0] <= SEUIL_MAX, e[0]), reverse=True)
     pp, c, l = elig[0]
     return {"code": c, "option": l, "p": round(pp, 4),
-            "cote_juste": round(1.0 / pp, 2)}
+            "cote_juste": None}
 
 
 # ------------------------------------------------------------------ archive
@@ -121,7 +122,7 @@ def series_de_buts(buts):
     """Longueurs maximales de séries d'affilée depuis les buts minutés."""
     max_match = max_home = max_away = cur = 0
     cote = None
-    for b in sorted(buts, key=lambda x: x.get("min") or 0):
+    for b in buts:  # ordre validé à l’extraction, temps additionnel préservé
         if b.get("equipe") == cote:
             cur += 1
         else:
@@ -163,7 +164,7 @@ def resoudre(a):
         if (datetime.date.today() - d).days > RESOUT_JOURS or jour > auj:
             continue
         en_attente = [m for m in a["jours"][jour]["matchs"]
-                      if m.get("resultat") is None]
+                      if m.get("resultat") is None or not m["resultat"].get("verifiable")]
         if not en_attente:
             continue
         par_div = {}
@@ -184,18 +185,18 @@ def resoudre(a):
                 eid, info = trouve
                 cle = f"{div}:{eid}"
                 ent = cache.get(cle)
-                if ent is None or ent.get("rejete"):
+                if ent is None or ent.get("rejete") or ent.get("schema_version") != 2:
                     s = CAL._curl_json(f"{BA.BASE}/{slug}/summary?event={eid}")
                     buts = BA.extraire_buts(s, info["home"], info["away"],
                                             info["sh"], info["sa"]) if s else None
                     ent = {"div": div, "id": eid, "date": info["date"],
                            "home": info["home"], "away": info["away"],
                            "sh": info["sh"], "sa": info["sa"],
-                           "buts": buts, "rejete": buts is None}
+                           "buts": buts, "rejete": buts is None, "schema_version": 2}
                     cache[cle] = ent
                     cache_modif = True
                 resolu_le = datetime.datetime.now().isoformat(timespec="minutes")
-                if ent.get("rejete") or not ent.get("buts"):
+                if ent.get("rejete") or ent.get("buts") is None:
                     # score connu mais buts minutés non vérifiables → on ne
                     # tranche PAS le conseil (honnêteté), score affiché quand même
                     m["resultat"] = {"verifiable": False, "touche": None,

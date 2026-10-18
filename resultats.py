@@ -34,7 +34,6 @@ RACINE = os.path.dirname(os.path.abspath(__file__))
 CHEMIN = os.path.join(RACINE, "data", "resultats_espn.json")
 
 JOURS = 4              # fenêtre glissante : aujourd'hui + 3 jours en arrière
-CONSERVE_JOURS = 45    # au-delà, co.uk a forcément publié : on purge
 
 
 def saison_pour(date_iso):
@@ -73,42 +72,39 @@ def collecter(db, jours=JOURS, log=None):
 
     eq = {d: sorted(L.get("forces", {}).keys())
           for d, L in db.get("ligues", {}).items() if not L.get("coupe")}
+    import coupes
+    tous = sorted({t for ts in eq.values() for t in ts})
+    for div in coupes.COUPES:
+        eq[div] = tous
     mappeur = CAL.Mappeur(eq)
     d = charger()
     auj = datetime.date.today()
 
-    # purge des entrées anciennes (co.uk les a forcément publiées depuis)
-    limite = (auj - datetime.timedelta(days=CONSERVE_JOURS)).isoformat()
-    matchs = {k: v for k, v in d["matchs"].items() if str(v.get("date", "")) >= limite}
-    purge = len(d["matchs"]) - len(matchs)
-    d["matchs"] = matchs
-
+    # Conservation durable : ne jamais présumer que le CSV a publié un match.
     ajoutes = 0
     dates = [(auj - datetime.timedelta(days=i)).isoformat() for i in range(jours)]
     for div in sorted(eq):
         slug = CAL.ESPN_SLUGS.get(div)
         if not slug:
             continue
-        for date in dates:
-            try:
-                lignes = CAL.espn_resultats(slug, date)
-            except Exception as e:
-                if log:
-                    log(f"  {div} {date} : échec ignoré ({e})", file=sys.stderr)
+        try:
+            lignes = CAL.espn_resultats(slug, dates[-1], dates[0])
+        except Exception:
+            continue
+        for r in lignes:
+            h = mappeur.traduire(div, r["home_src"])
+            a = mappeur.traduire(div, r["away_src"])
+            # Conserver aussi les coupes/inconnus, sans les injecter dans une ligue domestique.
+            h, a = h or r["home_src"], a or r["away_src"]
+            if not h or not a or h == a:
                 continue
-            for r in lignes:
-                h = mappeur.traduire(div, r["home_src"])
-                a = mappeur.traduire(div, r["away_src"])
-                if not h or not a or h == a:
-                    continue
-                cle = f"{div}|{r['date']}|{h}|{a}"
-                if cle in d["matchs"]:
-                    continue
-                d["matchs"][cle] = {
-                    "div": div, "date": r["date"], "home": h, "away": a,
-                    "hg": int(r["buts_home"]), "ag": int(r["buts_away"]),
-                    "season": saison_pour(r["date"]),
-                }
+            cle = f"{div}|{r['date']}|{h}|{a}"
+            entree = {"div": div, "date": r["date"], "home": h, "away": a,
+                      "hg": int(r["buts_home"]), "ag": int(r["buts_away"]),
+                      "season": saison_pour(r["date"]), "event_id": r.get("event_id"),
+                      "heure": r.get("heure"), "source": "ESPN"}
+            if any(d["matchs"].get(cle, {}).get(k) != v for k, v in entree.items()):
+                d["matchs"][cle] = entree
                 ajoutes += 1
     if ajoutes or purge:
         sauver(d)

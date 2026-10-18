@@ -197,8 +197,11 @@ def a_change(dest, entetes):
         return None                      # absent de la source
     pub = date_publiee(entetes)
     if dest.exists() and pub is not None:
-        local = dt.datetime.fromtimestamp(dest.stat().st_mtime, tz=dt.timezone.utc)
-        return pub > local
+        try:
+            meta = json.loads((DATA / "sources_http.json").read_text())
+            return meta.get(dest.name) != pub.isoformat()
+        except (OSError, ValueError):
+            return True
     return not dest.exists() or pub is None
 
 
@@ -263,6 +266,14 @@ def maj_donnees():
             ignorés += 1                   # déjà à jour
             continue
         if telecharger(url, dest):
+            meta_file = DATA / "sources_http.json"
+            try:
+                meta = json.loads(meta_file.read_text())
+            except (OSError, ValueError):
+                meta = {}
+            publiee = date_publiee(h[str(dest)])
+            meta[dest.name] = publiee.isoformat() if publiee else None
+            meta_file.write_text(json.dumps(meta))
             if dest is fx or dest.name == "fixtures.csv":
                 fx_changé = True
                 log(f"  ↓ fixtures.csv ({dest.stat().st_size} o)")
@@ -307,36 +318,6 @@ def copier_vers_sync(cfg):
 
 
 # ------------------------------------------------------------------------ main
-def complement_espn_plus_frais():
-    """BOUCLE RAPIDE : le complément ESPN (resultats.py) contient-il des
-    résultats écrits APRÈS le dernier entraînement ? On compare les
-    horodatages INTERNES des fichiers (champ « genere_le », format ISO donc
-    triable) : les dates de modification (mtime) ne survivent pas de façon
-    fiable au cache GitHub Actions — constaté sur le run du 07/09 20h25."""
-    def horodatage(chemin, cle="genere_le"):
-        try:
-            with open(chemin, encoding="utf-8") as f:
-                return json.load(f).get(cle) or ""
-        except (OSError, ValueError, AttributeError):
-            return ""
-    mod = horodatage(DATA / "modeles.json")
-    res = horodatage(DATA / "resultats_espn.json")
-    if res and mod and res > mod:
-        return True
-    # corners 1re mi-temps : de nouveaux matchs découpés rafraîchissent le
-    # marché « cmt1 » (corners_mt.py) → même déclencheur.
-    cmt = horodatage(DATA / "corners_mt.json", "dernier_ajout")
-    if cmt and mod and cmt > mod:
-        return True
-    if res and mod:
-        return False
-    try:                      # secours : dates de modification des fichiers
-        return (os.path.getmtime(DATA / "resultats_espn.json")
-                > os.path.getmtime(DATA / "modeles.json"))
-    except OSError:
-        return False
-
-
 def main():
     args = set(sys.argv[1:])
     if "--config" in args:
@@ -347,73 +328,75 @@ def main():
     log("MISE À JOUR — pronos-foot")
     cfg = charger_config()
 
-    if not verifier_source():
-        log("source football-data.co.uk inaccessible (pas d'internet ?). "
-            "Rien n'est modifié, les données existantes restent utilisables.", "WARN")
-        # BOUCLE RAPIDE : co.uk en panne ne doit pas bloquer l'entraînement —
-        # entraine.py travaille uniquement sur les fichiers locaux (CSV en
-        # cache + complément ESPN). On ré-entraîne si besoin, puis on sort
-        # quand même en code 2 (le workflow continue : calendrier, app, pub).
-        if complement_espn_plus_frais() and cfg.get("entrainer_si_changement", True):
-            log("boucle rapide : complément ESPN plus récent que les modèles — "
-                "ré-entraînement sans attendre co.uk")
-            lancer("entraine.py", "≈35 s")
-        return 2
-
+    # Collecter les scores AVANT de décider d'entraîner : même passage.
     if "--check" in args:
-        log("mode --check : simple inspection, aucun fichier ne sera modifié")
-        nouveaux, fx_mod, absents = inspecter()
-        log(f"  {nouveaux} fichier(s) historique(s) plus récent(s) sur la source")
-        log(f"  liste des matchs à venir modifiée : {'oui' if fx_mod else 'non'}")
-        log(f"  {absents} combinaison(s) saison/division absente(s) (normal)")
-        if nouveaux or fx_mod:
-            log("→ une mise à jour est utile : relance sans --check")
-        else:
-            log("→ rien de neuf, aucune mise à jour nécessaire")
+        if not verifier_source():
+            return 2
+        log(str(inspecter()))
         return 0
+    import apprentissage
+    apprentissage.restaurer_resultats()
+    try:
+        import resultats
+        with open(DATA / "modeles.json") as f:
+            base = json.load(f)
+        n = resultats.collecter(base)
+        log(f"résultats finaux : {n} ajout(s)/correction(s)")
+        log(str(apprentissage.sauvegarder_resultats()))
+    except Exception as e:
+        log(f"collecte résultats indisponible : {e}", "WARN")
 
-    changés, fx_changé, échecs = maj_donnees()
-
-    # xG RÉELS (Understat, sans compte ni clé) : rafraîchit le cache s'il a plus
-    # de 7 jours, AVANT un éventuel ré-entraînement. Échec non bloquant : le
-    # modèle retombe sur le fichier xG existant (ou sur les buts seuls).
+    # Historique lourd : deux passes quotidiennes maximum (horodatage interne).
+    etat_path = DATA / "collectes.json"
+    try:
+        etat = json.loads(etat_path.read_text())
+    except (OSError, ValueError):
+        etat = {}
+    maintenant = dt.datetime.now(dt.timezone.utc)
+    dernier = etat.get("historique_le")
+    du = not dernier or (maintenant - dt.datetime.fromisoformat(dernier)).total_seconds() >= 43200
+    if du and verifier_source():
+        maj_donnees()
+        etat["historique_le"] = maintenant.isoformat()
+        etat_path.write_text(json.dumps(etat))
+    elif du:
+        log("CSV indisponibles : résultats ESPN et données existantes conservés", "WARN")
     try:
         import xg
-        n_xg = sum(len(v) for v in xg.frais().values())
-        log(f"xG Understat : {n_xg} matchs en cache")
+        xg.frais(jours=1)
     except Exception as e:
-        log(f"xG Understat : échec non bloquant ({e}) — cache existant conservé", "WARN")
+        log(f"xG indisponibles : cache conservé ({e})", "WARN")
 
-    if changés == 0 and not fx_changé:
-        log("aucune nouveauté sur la source co.uk — le calendrier multi-sources "
-            "(ESPN + TheSportsDB + OpenLigaDB) est quand même reconstruit, "
-            "car il évolue tous les jours.")
-
-    # BOUCLE RAPIDE : ré-entraîner aussi quand le complément ESPN est plus
-    # récent que les modèles (voir complement_espn_plus_frais / resultats.py).
-    if (changés > 0 or complement_espn_plus_frais()) and cfg.get("entrainer_si_changement", True):
-        if not lancer("entraine.py", "≈35 s"):
-            log("entraînement échoué : le fichier autonome n'est PAS régénéré, "
-                "l'ancienne version reste en place.", "ERROR")
+    # Le cache réseau ne conserve que 2 jours ; il ne contient pas l'historique métier.
+    for p in (DATA / "http_cache").glob("*.json"):
+        try:
+            if time.time() - json.loads(p.read_text())["fetched_at"] > 172800:
+                p.unlink()
+        except (OSError, ValueError, KeyError):
+            pass
+    empreinte = apprentissage.empreinte()
+    try:
+        modele = json.loads((DATA / "modeles.json").read_text())
+    except (OSError, ValueError):
+        modele = {}
+    if modele.get("apprentissage", {}).get("empreinte") != empreinte:
+        if not lancer("entraine.py", "données nouvelles ou moteur corrigé"):
             return 1
-    elif fx_changé:
-        log("seule la liste des matchs à venir a changé : pas besoin de ré-entraîner")
-
-    if not lancer("maj_calendrier.py", "≈40 s"):
-        log("calendrier multi-sources ÉCHOUÉ (sources injoignables ?) : "
-            "le calendrier existant est conservé.", "WARN")
-
-    if not lancer("genere_app.py", "≈2 s"):
-        log("génération du fichier autonome échouée", "ERROR")
-        return 1
-
-    copier_vers_sync(cfg)
-
-    if échecs:
-        log(f"terminé avec {échecs} échec(s) de téléchargement — "
-            "ils seront retentés à la prochaine exécution", "WARN")
+        modele = json.loads((DATA / "modeles.json").read_text())
+        modele["apprentissage"] = apprentissage.etat(empreinte)
+        tmp = DATA / "modeles.json.part"
+        tmp.write_text(json.dumps(modele))
+        os.replace(tmp, DATA / "modeles.json")
     else:
-        log("mise à jour terminée avec succès")
+        log("données d'apprentissage inchangées : pas de réentraînement")
+    # La CI orchestre une seule génération, sans doublon.
+    if "--donnees-seules" in args:
+        return 0
+    if not lancer("maj_calendrier.py", "calendrier et suivi"):
+        log("calendrier partiellement indisponible", "WARN")
+    if not lancer("genere_app.py", "application"):
+        return 1
+    copier_vers_sync(cfg)
     return 0
 
 

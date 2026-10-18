@@ -58,7 +58,7 @@ def _requete(methode, chemin, donnees, params=""):
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(donnees, f, ensure_ascii=False)
-        cmd = ["curl", "-s", "--max-time", "30", "-X", methode,
+        cmd = ["curl", "-s", "--compressed", "--max-time", "30", "-X", methode,
                url + "/rest/v1/" + chemin + params,
                "-H", "apikey: " + cle,
                "-H", "Authorization: Bearer " + cle,
@@ -70,7 +70,7 @@ def _requete(methode, chemin, donnees, params=""):
         corps = ""
         try:
             with open(reponse, encoding="utf-8") as f:
-                corps = f.read()[:400]
+                corps = f.read() if methode == "GET" else f.read()[:400]
         except OSError:
             pass
         return code, corps
@@ -99,7 +99,7 @@ def _lignes_selections(d):
                 "away": s.get("away") or "?",
                 "option": s.get("option") or "?",
                 "p": s.get("p"),
-                "cote_juste": s.get("cote_juste"),
+                "cote_juste": None,
                 "cote_marche": s.get("cote_marche"),
                 "confiance": s.get("confiance"),
                 "touche": r.get("touche"),
@@ -122,18 +122,8 @@ def _lignes_combines(d):
                        for l in (c.get("legs") or [])
                        if isinstance(l.get("resultat"), dict)
                        and l["resultat"].get("resolu_le")]
-            cote = c.get("cote_combine") or c.get("cote")
-            if not cote:
-                # finaliser() ne renseigne pas la cote des SAFE : on la
-                # recalcule depuis les cotes justes des jambes (produit des
-                # 1/p) — pas un chiffre inventé (correctif 11/09).
-                prod, ok = 1.0, True
-                for l in c.get("legs") or []:
-                    if l.get("p"):
-                        prod *= 1.0 / l["p"]
-                    else:
-                        ok = False
-                cote = round(prod, 2) if ok and c.get("legs") else None
+            from cotation import produit
+            cote = produit(c.get("legs") or [])
             lignes.append({
                 "jour": jour,
                 "nom": nom,
@@ -227,6 +217,8 @@ if __name__ == "__main__":
         except (OSError, ValueError) as e:
             print(f"db.py : data/suivi.json illisible ({e}) — rien à synchroniser")
             sys.exit(0)
+        import apprentissage
+        print("mémoire scores :", apprentissage.sauvegarder_resultats())
         r = sync_suivi(d)
         print("db.py :", json.dumps(r, ensure_ascii=False))
         sys.exit(0 if r.get("statut") in ("ok", "ignore") else 1)

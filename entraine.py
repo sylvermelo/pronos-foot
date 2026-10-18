@@ -386,7 +386,23 @@ def main():
             print(f"corners 1re MT : marche « cmt1 » greffe sur {g} division(s)")
     except Exception as e:
         print(f"corners 1re MT : echec non bloquant ({e})")
-    json.dump(out, open("data/modeles.json", "w"))
+    if not out["ligues"]:
+        raise RuntimeError("Aucune ligue entraînée : ancien modèle conservé")
+    try:
+        with open("data/modeles.json") as f:
+            ancien = json.load(f)
+        attendues = {d for d,L in ancien.get("ligues", {}).items() if not L.get("coupe")}
+        if not attendues.issubset(out["ligues"]):
+            raise RuntimeError("Entraînement incomplet : ancien modèle conservé")
+        # Garder le calendrier frais pendant le réentraînement.
+        for key in ("fixtures", "calendrier_log"):
+            if ancien.get(key):
+                out[key] = ancien[key]
+    except (OSError, ValueError):
+        pass
+    with open("data/modeles.json.part", "w") as f:
+        json.dump(out, f)
+    os.replace("data/modeles.json.part", "data/modeles.json")
     print(f"\nmodeles.json sauvegarde : {os.path.getsize('data/modeles.json')/1024:.0f} Ko | "
           f"{len(out['ligues'])} ligues | {len(fix)} matchs a venir | {time.time()-t0:.0f}s")
 

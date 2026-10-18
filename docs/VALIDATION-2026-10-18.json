@@ -1,0 +1,471 @@
+{
+  "genere_le": "2026-10-18T20:12:06.016924+00:00",
+  "protocole": "Holdout chronologique, derniers 120 matchs par division, sans réajustement dans le test. Comparaison du cœur statistique ; ne simule pas toute la stratégie de production, fatigue/compositions/lissage/cotes exclus. xG seulement sur son sous-ensemble : comparer par ligue, pas ses agrégats au groupe complet.",
+  "divisions": [
+    {
+      "division": "B1",
+      "train_n": 1468,
+      "train_fin": "2026-03-15",
+      "test_debut": "2026-03-22",
+      "test_fin": "2026-09-06",
+      "mesures": {
+        "buts_corriges": {
+          "n": 110,
+          "logloss_1x2": 1.0087053962214168,
+          "logloss_ou25": 0.729192970529118,
+          "brier_ou25": 0.2673683361765653,
+          "precision_favori": 0.509090909090909
+        },
+        "buts_avant": {
+          "n": 110,
+          "logloss_1x2": 1.0078609448261537,
+          "logloss_ou25": 0.7269563223355722,
+          "brier_ou25": 0.2663247541188829,
+          "precision_favori": 0.509090909090909
+        }
+      }
+    },
+    {
+      "division": "D1",
+      "train_n": 1427,
+      "train_fin": "2026-02-21",
+      "test_debut": "2026-02-22",
+      "test_fin": "2026-09-06",
+      "mesures": {
+        "buts_corriges": {
+          "n": 116,
+          "logloss_1x2": 0.9781245760188354,
+          "logloss_ou25": 0.6538566118871989,
+          "brier_ou25": 0.23083777035776315,
+          "precision_favori": 0.5258620689655172
+        },
+        "buts_avant": {
+          "n": 116,
+          "logloss_1x2": 0.9782019585211411,
+          "logloss_ou25": 0.6543871213145352,
+          "brier_ou25": 0.23111997994510505,
+          "precision_favori": 0.5258620689655172
+        },
+        "xg_recales": {
+          "n": 116,
+          "logloss_1x2": 0.9801280690281924,
+          "logloss_ou25": 0.6389694051285857,
+          "brier_ou25": 0.2241181349560174,
+          "precision_favori": 0.5431034482758621
+        }
+      }
+    },
+    {
+      "division": "D2",
+      "train_n": 1140,
+      "train_fin": "2026-03-07",
+      "test_debut": "2026-03-08",
+      "test_fin": "2026-09-06",
+      "mesures": {
+        "buts_corriges": {
+          "n": 113,
+          "logloss_1x2": 1.070120510961632,
+          "logloss_ou25": 0.6788923395489208,
+          "brier_ou25": 0.24280649684961145,
+          "precision_favori": 0.40707964601769914
+        },
+        "buts_avant": {
+          "n": 113,
+          "logloss_1x2": 1.068067013588168,
+          "logloss_ou25": 0.6802171756482751,
+          "brier_ou25": 0.24352162026055865,
+          "precision_favori": 0.3893805309734513
+        }
+      }
+    },
+    {
+      "division": "E1",
+      "train_n": 2686,
+      "train_fin": "2026-04-03",
+      "test_debut": "2026-04-06",
+      "test_fin": "2026-09-06",
+      "mesures": {
+        "buts_corriges": {
+          "n": 105,
+          "logloss_1x2": 1.10471685960837,
+          "logloss_ou25": 0.72094230524462,
+          "brier_ou25": 0.263252302703331,
+          "precision_favori": 0.38095238095238093
+        },
+        "buts_avant": {
+          "n": 105,
+          "logloss_1x2": 1.105076881797769,
+          "logloss_ou25": 0.7283651607068188,
+          "brier_ou25": 0.2666901182504523,
+          "precision_favori": 0.3904761904761905
+        }
+      }
+    },
+    {
+      "division": "E3",
+      "train_n": 2683,
+      "train_fin": "2026-04-02",
+      "test_debut": "2026-04-03",
+      "test_fin": "2026-09-05",
+      "mesures": {
+        "buts_corriges": {
+          "n": 113,
+          "logloss_1x2": 1.0589854121411748,
+          "logloss_ou25": 0.709344370278088,
+          "brier_ou25": 0.25790681223051215,
+          "precision_favori": 0.4690265486725664
+        },
+        "buts_avant": {
+          "n": 113,
+          "logloss_1x2": 1.0565627523089645,
+          "logloss_ou25": 0.7139162505177787,
+          "brier_ou25": 0.26008027680303464,
+          "precision_favori": 0.4424778761061947
+        }
+      }
+    },
+    {
+      "division": "F1",
+      "train_n": 1583,
+      "train_fin": "2026-02-28",
+      "test_debut": "2026-03-01",
+      "test_fin": "2026-09-06",
+      "mesures": {
+        "buts_corriges": {
+          "n": 117,
+          "logloss_1x2": 1.0735508210324702,
+          "logloss_ou25": 0.6656295563161693,
+          "brier_ou25": 0.2366609519784413,
+          "precision_favori": 0.42735042735042733
+        },
+        "buts_avant": {
+          "n": 117,
+          "logloss_1x2": 1.0713141314652654,
+          "logloss_ou25": 0.6636391885201982,
+          "brier_ou25": 0.2357115331942104,
+          "precision_favori": 0.4358974358974359
+        },
+        "xg_recales": {
+          "n": 117,
+          "logloss_1x2": 1.0778894238087793,
+          "logloss_ou25": 0.6756891231490207,
+          "brier_ou25": 0.2414997082378979,
+          "precision_favori": 0.41025641025641024
+        }
+      }
+    },
+    {
+      "division": "F2",
+      "train_n": 1294,
+      "train_fin": "2026-03-06",
+      "test_debut": "2026-03-07",
+      "test_fin": "2026-09-07",
+      "mesures": {
+        "buts_corriges": {
+          "n": 115,
+          "logloss_1x2": 1.057726086808082,
+          "logloss_ou25": 0.6850446479287381,
+          "brier_ou25": 0.24599614965681843,
+          "precision_favori": 0.43478260869565216
+        },
+        "buts_avant": {
+          "n": 115,
+          "logloss_1x2": 1.0571025416004631,
+          "logloss_ou25": 0.6857655505497446,
+          "brier_ou25": 0.2462831289584528,
+          "precision_favori": 0.41739130434782606
+        }
+      }
+    },
+    {
+      "division": "G1",
+      "train_n": 1087,
+      "train_fin": "2026-02-07",
+      "test_debut": "2026-02-08",
+      "test_fin": "2026-09-07",
+      "mesures": {
+        "buts_corriges": {
+          "n": 114,
+          "logloss_1x2": 1.021275721407695,
+          "logloss_ou25": 0.7071086937153672,
+          "brier_ou25": 0.2565605158027552,
+          "precision_favori": 0.4824561403508772
+        },
+        "buts_avant": {
+          "n": 114,
+          "logloss_1x2": 1.0193571820062155,
+          "logloss_ou25": 0.7078331219021871,
+          "brier_ou25": 0.25684355640762896,
+          "precision_favori": 0.4824561403508772
+        }
+      }
+    },
+    {
+      "division": "I1",
+      "train_n": 1810,
+      "train_fin": "2026-03-16",
+      "test_debut": "2026-03-20",
+      "test_fin": "2026-09-07",
+      "mesures": {
+        "buts_corriges": {
+          "n": 120,
+          "logloss_1x2": 0.9597579357315321,
+          "logloss_ou25": 0.6773933805056448,
+          "brier_ou25": 0.24225899872314177,
+          "precision_favori": 0.5666666666666667
+        },
+        "buts_avant": {
+          "n": 120,
+          "logloss_1x2": 0.9612409565274986,
+          "logloss_ou25": 0.6771279133346007,
+          "brier_ou25": 0.242132705313608,
+          "precision_favori": 0.5666666666666667
+        },
+        "xg_recales": {
+          "n": 120,
+          "logloss_1x2": 0.9773685958047321,
+          "logloss_ou25": 0.6696172621192716,
+          "brier_ou25": 0.23834033052598916,
+          "precision_favori": 0.5583333333333333
+        }
+      }
+    },
+    {
+      "division": "I2",
+      "train_n": 1430,
+      "train_fin": "2026-03-08",
+      "test_debut": "2026-03-13",
+      "test_fin": "2026-09-07",
+      "mesures": {
+        "buts_corriges": {
+          "n": 112,
+          "logloss_1x2": 1.0240915247893037,
+          "logloss_ou25": 0.6911275226627401,
+          "brier_ou25": 0.24897061003178797,
+          "precision_favori": 0.5267857142857143
+        },
+        "buts_avant": {
+          "n": 112,
+          "logloss_1x2": 1.0200109255552483,
+          "logloss_ou25": 0.6923751223000648,
+          "brier_ou25": 0.24956110167122672,
+          "precision_favori": 0.5267857142857143
+        }
+      }
+    },
+    {
+      "division": "N1",
+      "train_n": 1450,
+      "train_fin": "2026-03-06",
+      "test_debut": "2026-03-07",
+      "test_fin": "2026-09-06",
+      "mesures": {
+        "buts_corriges": {
+          "n": 115,
+          "logloss_1x2": 0.9729677112409909,
+          "logloss_ou25": 0.6335572743255987,
+          "brier_ou25": 0.22222403182296674,
+          "precision_favori": 0.5130434782608696
+        },
+        "buts_avant": {
+          "n": 115,
+          "logloss_1x2": 0.9752434056962089,
+          "logloss_ou25": 0.6364503924481186,
+          "brier_ou25": 0.2235964096349178,
+          "precision_favori": 0.5130434782608696
+        }
+      }
+    },
+    {
+      "division": "P1",
+      "train_n": 1452,
+      "train_fin": "2026-03-14",
+      "test_debut": "2026-03-15",
+      "test_fin": "2026-09-07",
+      "mesures": {
+        "buts_corriges": {
+          "n": 115,
+          "logloss_1x2": 0.9611436698990569,
+          "logloss_ou25": 0.6781632490039722,
+          "brier_ou25": 0.24261278888990576,
+          "precision_favori": 0.5217391304347826
+        },
+        "buts_avant": {
+          "n": 115,
+          "logloss_1x2": 0.9596070124186799,
+          "logloss_ou25": 0.6781999306226689,
+          "brier_ou25": 0.24271484860975215,
+          "precision_favori": 0.5391304347826087
+        }
+      }
+    },
+    {
+      "division": "SC0",
+      "train_n": 1044,
+      "train_fin": "2026-01-20",
+      "test_debut": "2026-01-24",
+      "test_fin": "2026-09-06",
+      "mesures": {
+        "buts_corriges": {
+          "n": 120,
+          "logloss_1x2": 0.9418668289302744,
+          "logloss_ou25": 0.6754778276761286,
+          "brier_ou25": 0.24097998253587535,
+          "precision_favori": 0.55
+        },
+        "buts_avant": {
+          "n": 120,
+          "logloss_1x2": 0.94013586299676,
+          "logloss_ou25": 0.6836628399278548,
+          "brier_ou25": 0.24492665162509775,
+          "precision_favori": 0.55
+        }
+      }
+    },
+    {
+      "division": "SC1",
+      "train_n": 805,
+      "train_fin": "2025-12-12",
+      "test_debut": "2025-12-13",
+      "test_fin": "2026-09-05",
+      "mesures": {
+        "buts_corriges": {
+          "n": 115,
+          "logloss_1x2": 1.072711133388746,
+          "logloss_ou25": 0.7174143921848029,
+          "brier_ou25": 0.26158018159362106,
+          "precision_favori": 0.40869565217391307
+        },
+        "buts_avant": {
+          "n": 115,
+          "logloss_1x2": 1.0664632534521399,
+          "logloss_ou25": 0.7104420370939719,
+          "brier_ou25": 0.2581814208129126,
+          "precision_favori": 0.391304347826087
+        }
+      }
+    },
+    {
+      "division": "SC2",
+      "train_n": 804,
+      "train_fin": "2025-12-13",
+      "test_debut": "2025-12-20",
+      "test_fin": "2026-08-29",
+      "mesures": {
+        "buts_corriges": {
+          "n": 112,
+          "logloss_1x2": 1.0681222230507885,
+          "logloss_ou25": 0.679807867716784,
+          "brier_ou25": 0.24346414285907653,
+          "precision_favori": 0.4375
+        },
+        "buts_avant": {
+          "n": 112,
+          "logloss_1x2": 1.058775125257715,
+          "logloss_ou25": 0.6742349341230975,
+          "brier_ou25": 0.24083081463571268,
+          "precision_favori": 0.4375
+        }
+      }
+    },
+    {
+      "division": "SC3",
+      "train_n": 805,
+      "train_fin": "2025-12-20",
+      "test_debut": "2025-12-27",
+      "test_fin": "2026-08-29",
+      "mesures": {
+        "buts_corriges": {
+          "n": 120,
+          "logloss_1x2": 1.0578630483958218,
+          "logloss_ou25": 0.6751060116412402,
+          "brier_ou25": 0.24110969918581232,
+          "precision_favori": 0.425
+        },
+        "buts_avant": {
+          "n": 120,
+          "logloss_1x2": 1.0493464585492387,
+          "logloss_ou25": 0.6784890181716537,
+          "brier_ou25": 0.2427927217950197,
+          "precision_favori": 0.4666666666666667
+        }
+      }
+    },
+    {
+      "division": "SP1",
+      "train_n": 1820,
+      "train_fin": "2026-04-06",
+      "test_debut": "2026-04-10",
+      "test_fin": "2026-09-07",
+      "mesures": {
+        "buts_corriges": {
+          "n": 109,
+          "logloss_1x2": 0.997900925188892,
+          "logloss_ou25": 0.6852325311449396,
+          "brier_ou25": 0.24584088961709058,
+          "precision_favori": 0.5412844036697247
+        },
+        "buts_avant": {
+          "n": 109,
+          "logloss_1x2": 0.996369195398323,
+          "logloss_ou25": 0.685738648621363,
+          "brier_ou25": 0.24603552969853493,
+          "precision_favori": 0.5321100917431193
+        },
+        "xg_recales": {
+          "n": 109,
+          "logloss_1x2": 0.9898363156404242,
+          "logloss_ou25": 0.6839504524914033,
+          "brier_ou25": 0.24549012922618302,
+          "precision_favori": 0.5229357798165137
+        }
+      }
+    },
+    {
+      "division": "SP2",
+      "train_n": 1771,
+      "train_fin": "2026-04-13",
+      "test_debut": "2026-04-17",
+      "test_fin": "2026-09-07",
+      "mesures": {
+        "buts_corriges": {
+          "n": 104,
+          "logloss_1x2": 1.001791858272259,
+          "logloss_ou25": 0.6829279852823645,
+          "brier_ou25": 0.24484003061794765,
+          "precision_favori": 0.5096153846153846
+        },
+        "buts_avant": {
+          "n": 104,
+          "logloss_1x2": 1.0055470965453102,
+          "logloss_ou25": 0.6860654414212561,
+          "brier_ou25": 0.24634168400740292,
+          "precision_favori": 0.5
+        }
+      }
+    }
+  ],
+  "total": {
+    "buts_corriges": {
+      "n": 2045,
+      "logloss_1x2": 1.0234143192459477,
+      "logloss_ou25": 0.6855084936098724,
+      "brier_ou25": 0.24621471434683853,
+      "precision_favori": 0.48019559902200487
+    },
+    "buts_avant": {
+      "n": 2045,
+      "logloss_1x2": 1.0214242910992068,
+      "logloss_ou25": 0.6864778282373036,
+      "brier_ou25": 0.24667789833523898,
+      "precision_favori": 0.4792176039119804
+    },
+    "xg_recales": {
+      "n": 462,
+      "logloss_1x2": 1.006459542195393,
+      "logloss_ou25": 0.6668414484398851,
+      "brier_ou25": 0.237256349063863,
+      "precision_favori": 0.5086580086580087
+    }
+  }
+}

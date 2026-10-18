@@ -77,7 +77,7 @@ _VERROU = threading.Lock()
 def _curl_json(url, timeout=25):
     import subprocess
     try:
-        p = subprocess.run(["curl", "-s", "--max-time", str(timeout), url],
+        p = subprocess.run(["curl", "-s", "--compressed", "--max-time", str(timeout), url],
                            capture_output=True, text=True, timeout=timeout + 5)
         return json.loads(p.stdout) if p.stdout.strip() else None
     except Exception:

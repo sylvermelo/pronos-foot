@@ -273,14 +273,14 @@ def pronostic(lig, home, away):
     # comparaison au marche si des cotes existent
     for fx in DB.get("fixtures", []):
         if fx["div"] == lig and fx["home"] == home and fx["away"] == away:
-            m = devig(fx["cote_1"], fx["cote_X"], fx["cote_2"])
+            m = devig(fx.get("cote_1"), fx.get("cote_X"), fx.get("cote_2"))
             if m:
                 out["marche"] = {"victoire_1": round(m[0], 4), "nul": round(m[1], 4),
                                  "victoire_2": round(m[2], 4),
-                                 "cote_1": fx["cote_1"], "cote_X": fx["cote_X"],
-                                 "cote_2": fx["cote_2"],
-                                 "cote_max_1": fx["cote_max_1"],
-                                 "cote_over": fx["cote_over"], "cote_under": fx["cote_under"],
+                                 "cote_1": fx.get("cote_1"), "cote_X": fx.get("cote_X"),
+                                 "cote_2": fx.get("cote_2"),
+                                 "cote_max_1": fx.get("cote_max_1"),
+                                 "cote_over": fx.get("cote_over"), "cote_under": fx.get("cote_under"),
                                  "ecart_1": round(out["victoire_1"] - m[0], 4),
                                  "ecart_X": round(out["nul"] - m[1], 4),
                                  "ecart_2": round(out["victoire_2"] - m[2], 4),
@@ -380,10 +380,11 @@ def api_matchs():
                 "pays": lig["pays"] if lig else "?",
                 "date": fx["date"], "heure": fx["heure"],
                 "home": fx["home"], "away": fx["away"], "arbitre": fx["arbitre"],
-                "cote_1": fx["cote_1"], "cote_X": fx["cote_X"], "cote_2": fx["cote_2"],
-                "cote_over": fx["cote_over"], "cote_under": fx["cote_under"],
+                "cote_1": fx.get("cote_1"), "cote_X": fx.get("cote_X"), "cote_2": fx.get("cote_2"),
+                "cote_over": fx.get("cote_over"), "cote_under": fx.get("cote_under"),
                 "source": fx.get("source") or "co.uk", "ou_line": fx.get("ou_line"),
-                "source_cotes": fx.get("source_cotes") or "co.uk",
+                "source_cotes": fx.get("source_cotes"),
+                "cotations": fx.get("cotations", {}),
                 "coupe": bool(lig and lig.get("coupe")),
                 "disponible": p is not None}
         # libelle de journee : aujourd'hui, demain, puis J+2, J+3...
@@ -419,8 +420,8 @@ def api_matchs():
                 ec = [(m["ecart_1"], "1"), (m["ecart_X"], "X"), (m["ecart_2"], "2")]
                 mv = max(ec, key=lambda z: z[0])
                 item["meilleur_ecart"] = mv[0]; item["meilleur_pari"] = mv[1]
-                item["cote_meilleur"] = {"1": fx["cote_max_1"], "X": fx["cote_max_X"],
-                                         "2": fx["cote_max_2"]}[mv[1]]
+                item["cote_meilleur"] = {"1": fx.get("cote_max_1"), "X": fx.get("cote_max_X"),
+                                         "2": fx.get("cote_max_2")}[mv[1]]
         enrichir_secondaires(item)
         out.append(item)
     out.sort(key=lambda x: (x["date"] or "9999", x["heure"] or ""))
@@ -536,6 +537,9 @@ def _combinaisons(sels, seuil, pool_risque, aujourdhui=None):
     RÈGLE UTILISATEUR 07/09 : les divisions instables (2es/3es échelons,
     surestime mesurée 4-8 pts) n'entrent dans AUCUN combiné sous 90 %.
     """
+    sels = [x for x in sels if x.get("cotation") and x.get("cote_marche")
+            and (x.get("avantage_estime") or 0) > 0]
+    pool_risque = [x for x in pool_risque if x.get("cotation")]
     sels = [x for x in sels
             if x["div"] not in DIVS_INSTABLES
             or x["p"] >= SEUIL_COMBINES_INSTABLES]
@@ -565,7 +569,7 @@ def _combinaisons(sels, seuil, pool_risque, aujourdhui=None):
         return legs
 
     def finaliser(legs, par_jour=None):
-        if not legs:
+        if not legs or len({s["cotation"]["bookmaker"] for s in legs}) != 1:
             return None
         p, cote, toutes_cotes = 1.0, 1.0, True
         for s in legs:
@@ -576,7 +580,7 @@ def _combinaisons(sels, seuil, pool_risque, aujourdhui=None):
                 toutes_cotes = False
         out = {"legs": legs, "p_combine": round(p, 4),
                "cote_combine": round(cote, 2) if toutes_cotes else None,
-               "cote_juste_combine": round(1 / p, 2) if p > 0 else None}
+               "cote_juste_combine": None}
         if par_jour is not None:
             out["par_jour"] = par_jour
         return out
@@ -601,7 +605,7 @@ def _combinaisons(sels, seuil, pool_risque, aujourdhui=None):
         for s in tri:
             if len(legs) >= max_legs or prod >= cible_min:
                 break
-            cote_leg = s.get("cote_marche") or s.get("cote_juste")
+            cote_leg = s.get("cote_marche")
             if not cote_leg or cote_leg <= 1.0:
                 continue
             mid = (s["date"], s["home"], s["away"])
@@ -612,14 +616,14 @@ def _combinaisons(sels, seuil, pool_risque, aujourdhui=None):
                 n_m += 1
             else:
                 n_j += 1
-        if not legs or prod < cible_min:
+        if not legs or prod < cible_min or len({l["cotation"]["bookmaker"] for l in legs}) != 1:
             return None
         p = 1.0
         for s in legs:
             p *= s["p"]
         return {"legs": legs, "p_combine": round(p, 4),
                 "cote_combine": round(prod, 2),
-                "cote_juste_combine": round(1 / p, 2) if p > 0 else None,
+                "cote_juste_combine": None,
                 "cote_type": "marché" if not n_j else "juste" if not n_m else "mixte",
                 "cible": [cible_min, cible_max]}
 
@@ -636,6 +640,8 @@ def _combinaisons(sels, seuil, pool_risque, aujourdhui=None):
         legs_d = construire([s for s in sels if s.get("date") == d], "p", seuil)
         par_jour[d] = len(legs_d)
         legs_w.extend(legs_d)
+    legs_w = legs_w[:3]
+    par_jour = {d: sum(l["date"] == d for l in legs_w) for d in par_jour}
     safe_weekend = finaliser(legs_w, par_jour=par_jour)
 
     # --- RISQUE : aujourd'hui + demain, options cotées, SAFE exclus ----------
@@ -654,9 +660,9 @@ def _combinaisons(sels, seuil, pool_risque, aujourdhui=None):
         exclus_j = {(l["date"], l["home"], l["away"]) for l in safe["legs"]}
         pool_jour = [s for s in pool_jour
                      if (s["date"], s["home"], s["away"]) not in exclus_j]
-    cote2 = construire_cible(pool_jour, 1.90, 2.35, 10)
-    cote5 = construire_cible(pool_jour, 4.60, 5.90, 10)
-    fun = construire_cible(pool_jour, 20.0, 50.0, 15, p_asc=True)
+    cote2 = construire_cible(pool_jour, 1.90, 2.35, 3)
+    cote5 = construire_cible(pool_jour, 4.60, 5.90, 3)
+    fun = construire_cible(pool_jour, 20.0, 50.0, 3, p_asc=True)
 
     return {"safe": safe, "safe_weekend": safe_weekend, "risque": risque,
             "cote2": cote2, "cote5": cote5, "fun": fun}
@@ -708,7 +714,7 @@ def api_conseils(seuil=0.75):
             if elig:
                 k, p_, c_ = max(elig, key=lambda z: z[1])
                 pool_risque.append({**base, "option": k, "p": round(p_, 4),
-                                    "cote_juste": round(1 / p_, 2) if p_ > 0 else None,
+                                    "cote_juste": None,
                                     "cote_marche": c_})
         cands = [("1", m["p1"]), ("X", m["pX"]), ("2", m["p2"]),
                  ("over 1.5", o.get("1.5")), ("over 2.5", o.get("2.5")),
@@ -718,26 +724,21 @@ def api_conseils(seuil=0.75):
                  ("les deux ne marquent pas", round(1 - m["btts"], 4) if m.get("btts") is not None else None),
                  ("double chance 1X", dc.get("1X")), ("double chance 12", dc.get("12")),
                  ("double chance X2", dc.get("X2"))]
-        cands = [(k, v) for k, v in cands if v is not None]
-        opt, p = max(cands, key=lambda z: z[1])
-        plancher = (SEUIL_CONSEILS_INSTABLES
-                    if m["div"] in DIVS_INSTABLES else 0.0)
-        if p < max(seuil, plancher) + MARGES_MARCHE.get(opt, 0.0) - 1e-9:
-            continue        # seuil de base (+ plancher divisions instables)
-                            # + marge pour les marchés fragiles
-        item = {**base, "option": opt, "p": round(p, 4),
-                "cote_juste": round(1 / p, 2) if p > 0 else None}
-        # cote réelle du marché quand elle existe pour cette option
-        if opt == "1":
-            item["cote_marche"] = m.get("cote_1")
-        elif opt == "X":
-            item["cote_marche"] = m.get("cote_X")
-        elif opt == "2":
-            item["cote_marche"] = m.get("cote_2")
-        elif opt == "over 2.5":
-            item["cote_marche"] = m.get("cote_over")
-        elif opt == "under 2.5":
-            item["cote_marche"] = m.get("cote_under")
+        plancher = SEUIL_CONSEILS_INSTABLES if m["div"] in DIVS_INSTABLES else 0.0
+        cands = [(k, v) for k, v in cands if v is not None
+                 and v >= max(seuil, plancher) + MARGES_MARCHE.get(k, 0.0) - 1e-9]
+        if not cands:
+            continue
+        from cotation import valide
+        prix = {k: q for k,q in m.get("cotations", {}).items() if valide(q)}
+        cotes = [(k, v) for k,v in cands if k in prix and v * prix[k]["price"] > 1]
+        opt, p = max(cotes, key=lambda kv: kv[1] * prix[kv[0]]["price"] - 1) if cotes else max(cands, key=lambda kv: kv[1])
+        q = prix.get(opt)
+        item = {**base, "option": opt, "p": round(p, 4), "cote_juste": None,
+                "cote_marche": q["price"] if q else None, "cotation": q,
+                "avantage_estime": round(p*q["price"]-1, 4) if q else None,
+                "statut": "prix_disponible" if cotes else "analyse",
+                "version_modele": DB.get("apprentissage", {}).get("empreinte")}
         jours.setdefault(m["jour_delta"], []).append(item)
     liste = []
     for delta in sorted(jours):
@@ -747,17 +748,7 @@ def api_conseils(seuil=0.75):
     a_plat = [s for j in liste for s in j["selections"]]
     return {"seuil": seuil, "jours": liste,
             "combines": _combinaisons(a_plat, seuil, pool_risque),
-            "note": "Probabilités du moteur : pour les 5 grandes ligues (Angleterre, Espagne, Italie, Allemagne, France), les forces des équipes sont estimées sur les xG RÉELS d'Understat puis recalées sur les buts observés — gain validé par un test A/B en walk-forward sur 7 118 matchs (2022-2026). Ailleurs : Dixon-Coles sur les buts réels. Ensemble calibré sur 29 295 matchs. "
-                    "Une option à 75 % se réalise environ 3 fois sur 4 en moyenne, "
-                    "pas à chaque fois. Les unders sont DURCIS (marge exigée au-dessus "
-                    "du seuil) : le suivi réel et les fréquences historiques montrent "
-                    "que le modèle les surestime — il sous-estime les matchs à 4-5 buts. "
-                    "Depuis le 07/09 : les 2es/3es divisions (Championship, League One/Two, "
-                    "Liga 2, Serie B, Ligue 2, Bundesliga 2, Écosse 2/3/4) — où le modèle "
-                    "se surestimait de 4 à 8 points (mesuré sur ≈ 20 000 matchs en "
-                    "walk-forward) — n'entrent dans les conseils qu'à partir de 85 % et "
-                    "dans les SAFE/combinés qu'à partir de 90 %. "
-                    "Rentabilité face aux cotes non démontrée (voir l'onglet Fiabilité)."}
+            "note": "Probabilités estimées à partir des résultats et, pour les cinq grands championnats, des xG Understat. Les scores finaux alimentent les prochains entraînements. Chaque option doit respecter son seuil avant comparaison avec une vraie cote bookmaker. Sans prix exact récent : analyse seule. Les performances de cette version restent à mesurer ; aucune rentabilité démontrée."}
 
 
 def api_bilan():
@@ -858,56 +849,8 @@ def api_secondaires(div, home, away, arbitre=None):
 
 
 def coupon_corners(jour=None):
-    """COUPON MONTANTE corners du jour (règle utilisateur), côté serveur.
-
-    Tous les matchs du jour dont le meilleur handicap corners CALIBRÉ atteint
-    corners.MIN_JAMBE entrent dans la sélection ; la cote totale est le produit
-    des maillons (de 1,20 à l'infini selon la qualité du jour). Même jour
-    uniquement, jamais de report. Retourne une ligne prête pour la table
-    `combines` (nom « corners_montante ») — aucune table nouvelle.
-    """
-    import corners as CN
-    jour = jour or datetime.date.today().isoformat()
-    jambes = []
-    for m in DB.get("fixtures", []):
-        if m.get("date") != jour or m.get("coupe"):
-            continue
-        L = DB["ligues"].get(m["div"])
-        if not L or not L.get("secondaires"):
-            continue
-        cf = MS.confrontation(L["secondaires"], m["home"], m["away"])
-        if not cf:
-            continue
-        dom = m["home"] if cf["dom"] == "home" else m["away"]
-        # SAFE CORNERS (règle utilisateur 07/09) : handicap le plus pénalisant
-        # qui tient (≥ 85 % mesurés ET cote juste ≥ 1,05) — choisir_jambe.
-        cf["echelle_cal"] = {k: CN.calibrer(k, v) for k, v in cf["echelle"].items()}
-        best = CN.choisir_jambe(cf)
-        if not best:
-            continue
-        pc, p, fam = best
-        jambes.append({"date": jour, "heure": m.get("heure"),
-                       "ligue": m.get("ligue"), "home": m["home"],
-                       "away": m["away"], "dom": dom, "fam": fam,
-                       "option": f"{dom} {fam} corners",
-                       "p_cal": pc, "p_brut": p,
-                       "cote": round(1.0 / pc, 2)})
-    if not jambes:
-        return None
-    jambes.sort(key=lambda j: (j.get("heure") or "99:99", j["home"]))
-    cote = ptot = mise = 1.0
-    for j in jambes:
-        j["mise"] = round(mise, 2)
-        mise *= 1.0 / j["p_cal"]
-        cote *= 1.0 / j["p_cal"]
-        ptot *= j["p_cal"]
-    return {"jour": jour, "nom": "corners_montante",
-            "p_combine": round(ptot, 4), "cote": round(cote, 2),
-            "touche": None, "resolu_le": None, "jambes": jambes,
-            "brut": {"regle": "tous les bons matchs du jour (handicap le plus "
-                              f"pénalisant >= {CN.MIN_JAMBE} mesuré ET cote juste "
-                              f">= {CN.COTE_PLANCHER}), même jour uniquement",
-                     "mise_fin": round(mise, 2)}}
+    """Pas de coupon sans prix bookmaker exact pour les handicaps corners."""
+    return None
 
 
 def api_corners():

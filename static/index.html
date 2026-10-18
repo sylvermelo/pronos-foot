@@ -396,7 +396,7 @@ function carteCombine(titre,c,couleur,avert,videTxt,groupe){
       <div class="sub">${esc(l.date)} · ${esc(l.heure||"—")} · ${esc(l.ligue)} ·
         <span style="color:${couleur}">${esc(l.option)}</span></div></div>
       <div class="r"><div class="p" style="color:${couleur}">${pct1(l.p)} %</div>
-      <div class="sub">${l.cote_marche?"@ "+f2(l.cote_marche):(l.cote_juste?"juste @ "+f2(l.cote_juste):"sans cote")}</div>${res}</div></div>`;};
+      <div class="sub">${l.cote_marche?"@ "+f2(l.cote_marche):(l.cote_juste?"cote indisponible":"sans cote")}</div>${res}</div></div>`;};
   const _res=c.legs.filter(l=>l.resultat&&l.resultat.touche!=null);
   const _perd=_res.filter(l=>!l.resultat.touche).length;
   const _v=_perd?["✗ PERDU","var(--red)"]
@@ -420,10 +420,7 @@ function carteCombine(titre,c,couleur,avert,videTxt,groupe){
   }
   h+=`<div class="det" style="margin-top:10px">Probabilité combinée :
       <b class="g" style="font-size:15px">${pct1(c.p_combine)} %</b>`+
-     (c.cote_combine?` &nbsp;·&nbsp; Cote combinée : <b class="cy" style="font-size:15px">${f2(c.cote_combine)}</b>`+
-       (c.cote_type?` <span class="lbl mu">(source : ${esc(c.cote_type)})</span>`:"")+
-       (c.cote_juste_combine&&c.cote_type&&c.cote_type!=="marché"?` &nbsp;·&nbsp; cote juste 1/p : <b class="cy">${f2(c.cote_juste_combine)}</b>`:"")
-      :(c.cote_juste_combine?` &nbsp;·&nbsp; Cote juste (1/p) : <b class="cy" style="font-size:15px">${f2(c.cote_juste_combine)}</b> <span class="lbl mu">(cotes marché indisponibles pour ces options)</span>`:""))+`</div>
+     (c.cote_combine?` &nbsp;·&nbsp; Cote bookmaker combinée : <b class="cy">${f2(c.cote_combine)}</b>`:" · Cote indisponible")+`</div>
     <div class="det mu" style="margin-top:6px;line-height:1.6">${avert}</div></div>`;
   return h;
 }
@@ -460,8 +457,8 @@ function tabConseils(){
             <div class="tsub">${esc(s.ligue||"")}</div></td>
           <td><span class="tagv" style="background:rgba(0,245,155,.12);color:var(--green)">${esc(s.option)}</span></td>
           <td class="num g" style="font-size:15px">${pct1(s.p)} %</td>
-          <td class="num cy">${f2(s.cote_juste)}</td>
-          <td class="num ${s.cote_marche&&s.cote_marche>=s.cote_juste?"g":"mu"}" title="${s.cotes_source==="pinnacle"?"Cote Pinnacle en direct":"Cote moyenne football-data.co.uk"}">${s.cote_marche?f2(s.cote_marche):"—"}</td>
+          <td class="num cy">—</td>
+          <td class="num ${s.cote_marche&&s.cote_marche>=s.cote_juste?"g":"mu"}" title="${esc(s.cotation?s.cotation.bookmaker:"Cote indisponible")}">${s.cote_marche?f2(s.cote_marche):"—"}</td>
           <td class="num mu">${f2(s.buts)}</td>
           <td><span class="tagv" style="color:${s.confiance==="haute"?"var(--green)":s.confiance==="moyenne"?"var(--amber)":"var(--red)"};background:rgba(148,163,184,.08)">${esc(s.confiance||"—")}</span></td>
           ${cellRes(s)}</tr>`;
@@ -479,10 +476,10 @@ function tabConseils(){
         "Cotes élevées = probabilité faible : ce combiné perdra plus souvent qu'il ne gagnera. Sur le backtest, le modèle ne bat pas les bookmakers (ROI −8,8 %). Divertissement uniquement — ne misez jamais plus que ce que vous acceptez de perdre.",
         "Pas assez d'options cotées éligibles (aujourd'hui + demain) : le robot s'abstient.")}
       ${carteCombine("COTE 2 DU JOUR — produit des cotes ≈ 2",cb.cote2,"var(--blue)",
-        "Objectif : doubler la mise (cote totale entre 1,90 et 2,35) avec les options les plus sûres du jour, 10 matchs maximum. Cote du marché quand elle existe, sinon cote juste calculée (1/probabilité) — la source est affichée. Beaucoup de jambes très probables ne font PAS un combiné sûr : à 8 jambes, la probabilité combinée reste modeste. Aucun gain garanti.",
+        "Objectif : doubler la mise (cote totale entre 1,90 et 2,35) avec les options les plus sûres du jour, 3 matchs maximum. Vraies cotes bookmaker uniquement ; sans prix exact, aucun coupon. Beaucoup de jambes très probables ne font PAS un combiné sûr : à 8 jambes, la probabilité combinée reste modeste. Aucun gain garanti.",
         "0 — pas assez de sélections aujourd'hui pour atteindre une cote totale de 1,90 dans la limite de 10 matchs. Le robot s'abstient plutôt que de forcer.")}
       ${carteCombine("COTE 5 DU JOUR — produit des cotes ≈ 5",cb.cote5,"var(--green-s)",
-        "Objectif : quintupler la mise (cote totale entre 4,60 et 5,90), 10 matchs maximum, mêmes règles que le COTE 2. Plus la cote monte, plus la probabilité combinée chute : viser ×5 avec des jambes à ~80 % donne environ 1 chance sur 3 au mieux. Aucun gain garanti.",
+        "Objectif : quintupler la mise (cote totale entre 4,60 et 5,90), 3 matchs maximum, mêmes règles que le COTE 2. Plus la cote monte, plus la probabilité combinée chute : viser ×5 avec des jambes à ~80 % donne environ 1 chance sur 3 au mieux. Aucun gain garanti.",
         "0 — pas assez de sélections aujourd'hui pour atteindre une cote totale de 4,60 dans la limite de 10 matchs. Le robot s'abstient plutôt que de forcer.")}
       ${carteCombine("FUN DU JOUR — grosse cote 20 à 50",cb.fun,"var(--red)",
         "Le billet de loterie du jour : cote totale entre 20 et 50, 15 matchs maximum, en prenant les jambes les plus longues d'abord (toutes quand même au-dessus du seuil). Soyons clairs : la probabilité combinée est de l'ordre de 1 à 5 % — ce combiné perdra presque toujours. C'est du divertissement : ne misez jamais plus que ce que vous acceptez de perdre intégralement.",
@@ -507,7 +504,7 @@ function tabConseils(){
         <span class="lbl ${toutes.length?"g":"mu"}">${toutes.length?toutes.length+" sélection"+(toutes.length>1?"s":""):"aucun"}${manq.length?" · dont "+manq.length+" déjà joué"+(manq.length>1?"s":"")+" (résultat affiché)":""}</span></div>`;
       if(!toutes.length) continue;
       h+=`<div class="tblwrap"><table><thead><tr><th>Heure</th><th>Match</th>
-        <th>Option conseillée</th><th>Probabilité</th><th>Cote juste</th>
+        <th>Option conseillée</th><th>Probabilité</th><th>Cote bookmaker</th>
         <th>Cote marché</th><th>E(buts)</th><th>Conf.</th><th>Résultat</th></tr></thead><tbody>`;
       for(const s of toutes) h+=ligneSel(s);
       h+="</tbody></table></div>";
@@ -596,7 +593,7 @@ function renduSuivi(){
     if(!c||!c.legs) continue;
     const rr=c.resultat;
     h+=`<div class="warn" style="margin:6px 0"><b>${nom}</b> · ${c.legs.length} matchs ·
-      probabilité combinée ${pct1(c.p_combine)} %${c.cote_combine?` · cote ${f2(c.cote_combine)}${c.cote_type?` (${c.cote_type})`:""}`:(c.cote_juste_combine?` · cote juste ${f2(c.cote_juste_combine)}`:"")}<br>
+      probabilité combinée ${pct1(c.p_combine)} %${c.cote_combine?` · cote ${f2(c.cote_combine)}${c.cote_type?` (${c.cote_type})`:""}`:(c.cote_juste_combine?` · cote bookmaker —`:"")}<br>
       ${c.legs.map(l=>`${esc(l.home)}/${esc(l.away)} : <b>${esc(l.option)}</b>`).join(" + ")}<br>
       ${rr?`Verdict : <b class="${rr.touche?"g":"rd"}">${rr.touche?"✓ GAGNÉ":"✗ PERDU"}</b> — `+
            rr.legs.map(l=>`${esc(l.home)}/${esc(l.away)} ${esc(l.score)} ${l.touche?"✓":"✗"}`).join(" · ")+
@@ -604,7 +601,7 @@ function renduSuivi(){
         :`<span class="mu">en attente — le verdict apparaîtra quand tous les matchs seront finis.</span>`}</div>`;
   }
   h+=`<div class="tblwrap"><table><thead><tr><th>Heure</th><th>Match</th><th>Ligue</th>
-    <th>Option conseillée</th><th>Probabilité</th><th>Cote juste</th><th>Cote marché</th>
+    <th>Option conseillée</th><th>Probabilité</th><th>Cote bookmaker</th><th>Cote marché</th>
     <th>Confiance</th><th>Score final</th><th>Verdict</th><th>Gain (1u)</th></tr></thead><tbody>`;
   for(const s of j.selections){
     const rs=s.resultat;
@@ -616,7 +613,7 @@ function renduSuivi(){
       <td class="mu" style="font-size:11px">${esc(s.ligue)}</td>
       <td><span class="tagv" style="background:rgba(0,245,155,.12);color:var(--green)">${esc(s.option)}</span></td>
       <td class="num g" style="font-size:15px">${pct1(s.p)} %</td>
-      <td class="num cy">${f2(s.cote_juste)}</td>
+      <td class="num cy">—</td>
       <td class="num ${s.cote_marche&&s.cote_juste&&s.cote_marche>=s.cote_juste?"g":"mu"}">${s.cote_marche?f2(s.cote_marche):"—"}</td>
       <td><span class="tagv" style="color:${s.confiance==="haute"?"var(--green)":s.confiance==="moyenne"?"var(--amber)":"var(--red)"};background:rgba(148,163,184,.08)">${esc(s.confiance||"—")}</span></td>
       <td class="num"${score?` data-v="${rs.buts_home+rs.buts_away}"`:""}>${score||'<span class="mu">en attente</span>'}</td>
@@ -646,8 +643,7 @@ function tabMatchs(){
       TheSportsDB et OpenLigaDB (fenêtre ~8 jours), les cotes venant de
       football-data.co.uk, complétées par les cotes Pinnacle en direct
       (The Odds API) sur les matchs des 48 prochaines heures quand elles
-      sont disponibles. Si cette liste est vide, aucune source n'a publié de
-      match : ce n'est pas un bug, réessayez après le prochain rafraîchissement.</div>`;
+      sont disponibles. Une liste vide peut signaler une source indisponible ; vérifiez la fraîcheur et réessayez après le prochain passage.</div>`;
   }
   for(const j of jours){
     const ms=parJour[j];
@@ -670,7 +666,7 @@ function tabMatchs(){
         <td class="num cy">${pct1(m.under&&m.under["2.5"])}</td>
         <td class="num">${pct1(m.btts)}</td>
         <td class="num cy">${f2(m.buts)}</td>
-        <td><span class="tagv" style="color:${m.confiance==="haute"?"var(--green)":m.confiance==="moyenne"?"var(--amber)":"var(--red)"};background:rgba(148,163,184,.08)">${esc(m.confiance||"—")}</span></td>
+        <td><span class="tagv" style="color:${m.confiance==="haute"?"var(--green)":m.confiance==="moyenne"?"var(--amber)":"var(--red)"};background:rgba(148,163,184,.08)">${esc(m.disponible?(m.confiance||"—"):"Analyse indisponible")}</span></td>
       </tr>`;
     }
     liste+="</tbody></table></div>";
@@ -680,7 +676,7 @@ function tabMatchs(){
     <div>
       <div class="htitle"><h1>Matchs à venir</h1>
         <span class="badge cy">CALENDRIER : ESPN + THESPORTSDB + OPENLIGADB</span>
-        <span class="badge cy">COTES : CO.UK + PINNACLE EN DIRECT</span>
+        <span class="badge cy">COTES BOOKMAKER HORODATÉES</span>
         <span class="badge gy"><span class="dot"></span>FILTRAGE ANTI-PASSÉ ACTIF</span></div>
       <p class="desc">Calendrier trié du jour le plus proche au plus lointain : aujourd'hui, demain, puis J+2…
       Les matchs déjà joués sont exclus automatiquement. Cliquez sur une ligne pour ouvrir
@@ -740,7 +736,7 @@ function panneauMatch(p,sec,s){
   </div>`;
   const scores=p.scores_top.slice(0,6).map(sc=>{
     return `<div class="sc"><div class="s">${esc(sc.score)}</div><div class="p">${pct1(sc.p)} %</div>
-      <div class="c">cote juste ${sc.p>0?(1/sc.p).toFixed(2):"—"}</div></div>`;}).join("");
+      <div class="c">cote bookmaker indisponible</div></div>`;}).join("");
   const fiab=p.fiabilite||{};
   const m=p.marche;
   const CH=(typeof DATA!=='undefined'&&DATA.corners_histo&&DATA.corners_histo.divisions)?(DATA.corners_histo.divisions[p.ligue]||null):null;
@@ -794,13 +790,13 @@ function panneauMatch(p,sec,s){
   /* ---- CORNERS 1re MI-TEMPS (qui en obtient le plus ?) ---- */
   const cmt=sec&&sec.cmt1;
   if(cmt){
-    const cj=v=>v>0?(1/v).toFixed(2):"—";
+    const cj=v=>"indisponible";
     html+=`<div style="margin:16px 0 4px"><span class="lbl">Corners 1re mi-temps — qui en obtient le plus ?</span></div>
-    <div class="ligne"><div class="l">${esc(p.home)}<div class="sub">cote juste ${cj(cmt.p_home)} · λ ${f2(cmt.lambda_home)}</div></div>
+    <div class="ligne"><div class="l">${esc(p.home)}<div class="sub">cote bookmaker ${cj(cmt.p_home)} · λ ${f2(cmt.lambda_home)}</div></div>
       <div class="r"><div class="p cy">${pct1(cmt.p_home)} %</div></div></div>
-    <div class="ligne"><div class="l">Égalité à la mi-temps<div class="sub">cote juste ${cj(cmt.p_nul)}</div></div>
+    <div class="ligne"><div class="l">Égalité à la mi-temps<div class="sub">cote bookmaker ${cj(cmt.p_nul)}</div></div>
       <div class="r"><div class="p">${pct1(cmt.p_nul)} %</div></div></div>
-    <div class="ligne"><div class="l">${esc(p.away)}<div class="sub">cote juste ${cj(cmt.p_away)} · λ ${f2(cmt.lambda_away)}</div></div>
+    <div class="ligne"><div class="l">${esc(p.away)}<div class="sub">cote bookmaker ${cj(cmt.p_away)} · λ ${f2(cmt.lambda_away)}</div></div>
       <div class="r"><div class="p cy">${pct1(cmt.p_away)} %</div></div></div>
     <div class="ligne"><div class="l">Total corners 1re MT<div class="sub">over 3.5 : ${pct1(cmt.over["3.5"])} · over 4.5 : ${pct1(cmt.over["4.5"])} · under 4.5 : ${pct1(cmt.under["4.5"])}</div></div>
       <div class="r"><div class="p">${f2(cmt.lambda_home+cmt.lambda_away)}</div></div></div>
@@ -870,10 +866,10 @@ function tabCoupon(){
   }else{
     const P=c.reduce((a,x)=>a*x.p,1);
     corps=`<div class="split"><div class="tblwrap"><table><thead><tr>
-      <th>Sélection</th><th>Probabilité moteur</th><th>Cote juste implicite</th><th></th></tr></thead><tbody>`+
+      <th>Sélection</th><th>Probabilité moteur</th><th>Cote bookmaker</th><th></th></tr></thead><tbody>`+
       c.map((x,i)=>`<tr><td><div class="tname">${esc(x.label)}</div></td>
         <td class="num g">${pct1(x.p)} %</td>
-        <td class="num cy">${x.p>0?(1/x.p).toFixed(2):"—"}</td>
+        <td class="num cy">cote indisponible</td>
         <td><button class="fchip" data-x="${i}">retirer</button></td></tr>`).join("")+
       `</tbody></table></div>
       <div class="panel"><div class="card hi glow">
@@ -881,8 +877,8 @@ function tabCoupon(){
         <div class="ligne"><div class="l">Sélections</div><div class="r"><div class="p">${c.length}</div></div></div>
         <div class="ligne"><div class="l">Probabilité combinée<div class="sub">hypothèse d'indépendance</div></div>
           <div class="r"><div class="p g">${pct1(P)} %</div></div></div>
-        <div class="ligne"><div class="l">Cote juste du combiné</div>
-          <div class="r"><div class="p cy">${P>0?(1/P).toFixed(1):"—"}</div></div></div>
+        <div class="ligne"><div class="l">Cote bookmaker du combiné</div>
+          <div class="r"><div class="p cy">cote indisponible</div></div></div>
         <div class="ligne"><div class="l">Chance de perdre</div>
           <div class="r"><div class="p rd">${pct1(1-P)} %</div></div></div>
         <div class="warn rd" style="margin-top:10px">La multiplication suppose des sélections
@@ -969,117 +965,18 @@ function chargerEquipes(div){
      ≥ 70 % (réel 75,6 %, n=82). 3 jambes max, même jour, ligues variées,
      Big 5 uniquement (périmètre calibré), coupes exclues. Jamais forcé.
    - GROSSE COTE : jambes « 3+ » (match/dom/ext) ≥ 10 % (paliers mesurés
-     ≈ prédits, n>400/famille), cote juste = 1/p, produit cible 20→50,
+     ≈ prédits, n>400/famille), cote bookmaker = 1/p, produit cible 20→50,
      5 jambes max, 1 option par match, matchs du SAFE exclus, Big 5, même jour.
    - Aucun marché bookmaker pour ces évènements dans nos sources → cotes
      JUSTES calculées, information chiffrée, JAMAIS dans le coupon ni le suivi. */
 function tabSeries(){
-  const BIG5=["E0","SP1","I1","D1","F1"];
-  const ms=ETAT.matchs.filter(m=>m.disponible&&m.serie2!=null&&m.jour_delta===0);
-  const elig=ms.filter(m=>BIG5.includes(m.div)&&!m.coupe);
-  const nonOui=(x)=>x==null?`<span class="mu">—</span>`
-    :`<b>NON ${pct1(1-x)} %</b><div class="sub mu">oui ${pct1(x)} %</div>`;
-  /* ---- SAFE DU JOUR ---- */
-  const cand=elig.map(m=>{
-    const opts=[{lib:"2+ match",p:m.serie2,seuil:0.75,fiche:"79 % mesuré (n=115)"},
-                {lib:"2+ "+m.home,p:m.serie2_dom,seuil:0.70,fiche:"76 % mesuré (n=82)"}]
-      .filter(o=>o.p!=null&&o.p>=o.seuil);
-    if(!opts.length) return null;
-    opts.sort((a,b)=>b.p-a.p);
-    return {m,opt:opts[0]};
-  }).filter(Boolean);
-  let legs=[],ligues=new Set();
-  for(const diversifie of [true,false]){
-    legs=[];ligues=new Set();
-    const tri=cand.slice().sort((a,b)=>b.opt.p-a.opt.p||a.m.date.localeCompare(b.m.date)||a.m.home.localeCompare(b.m.home));
-    for(const c of tri){
-      if(legs.length>=3) break;
-      if(diversifie&&ligues.has(c.m.div)) continue;
-      legs.push(c);ligues.add(c.m.div);
-    }
-    if(legs.length>=2) break;
-  }
-  const exclusSafe=new Set(legs.map(c=>c.m.home+"|"+c.m.away));
-  const carteSafe=legs.length?`<div class="card"><div class="top">
-      <span class="lbl" style="color:var(--green)">SAFE DU JOUR — BUTS D'AFFILÉE</span>
-      <span class="lbl">${legs.length} match${legs.length>1?"s":""}</span></div>
-    ${legs.map(c=>`<div class="ligne" style="margin-top:8px"><div class="l">
-      <b>${esc(c.m.home)} <span class="mu">vs</span> ${esc(c.m.away)}</b>
-      <div class="sub">${esc(c.m.date)} · ${esc(c.m.heure||"—")} · ${esc(c.m.ligue)} ·
-        <span style="color:var(--green)">${esc(c.opt.lib)} · ${esc(c.opt.fiche)}</span></div></div>
-      <div class="r"><div class="p" style="color:var(--green)">${pct1(1-c.opt.p)} %</div>
-      <div class="sub mu">NON · oui ${pct1(c.opt.p)} %</div></div></div>`).join("")}
-    <div class="det" style="margin-top:10px">Fiabilité MESURÉE sur 2 saisons (2024-25 + 2025-26,
-      2 923 matchs réels) : ~76 à 79 % de réussite selon le palier — pas 100 %.
-      Aucun bookmaker de nos sources ne propose ce marché : information chiffrée,
-      jamais un conseil, aucun gain garanti.</div></div>`
-    :`<div class="card"><div class="top"><span class="lbl" style="color:var(--green)">SAFE DU JOUR — BUTS D'AFFILÉE</span>
-      <span class="lbl" style="font-size:22px">0</span></div>
-      <div class="det" style="margin-top:8px">Aucun match du jour (Big 5, hors coupe) n'atteint les
-      seuils mesurés (2+ match ≥ 75 % ou 2+ domicile ≥ 70 %). Le robot s'abstient plutôt que de forcer.</div></div>`;
-  /* ---- COMBINÉ GROSSE COTE ---- */
-  const opts3=[];
-  for(const m of elig){
-    if(exclusSafe.has(m.home+"|"+m.away)) continue;
-    for(const [lib,p] of [["3+ match",m.serie3],["3+ "+m.home,m.serie3_dom],["3+ "+m.away,m.serie3_ext]]){
-      if(p!=null&&p>=0.10) opts3.push({m,lib,p,cote:1/p});
-    }
-  }
-  opts3.sort((a,b)=>a.p-b.p||a.m.date.localeCompare(b.m.date)||a.m.home.localeCompare(b.m.home));
-  let legs3=[],vus=new Set(),prod=1;
-  for(const o of opts3){
-    if(legs3.length>=5||prod>=20) break;
-    const k=o.m.home+"|"+o.m.away;
-    if(vus.has(k)||prod*o.cote>50) continue;
-    legs3.push(o);vus.add(k);prod*=o.cote;
-  }
-  if(prod<20) legs3=[];
-  const pTot=legs3.reduce((a,o)=>a*o.p,1);
-  const carteGrosse=legs3.length?`<div class="card"><div class="top">
-      <span class="lbl" style="color:var(--amber)">COMBINÉ GROSSE COTE DU JOUR — BUTS D'AFFILÉE</span>
-      <span class="lbl">${legs3.length} jambes · cote juste ${f2(prod)}</span></div>
-    ${legs3.map(o=>`<div class="ligne" style="margin-top:8px"><div class="l">
-      <b>${esc(o.m.home)} <span class="mu">vs</span> ${esc(o.m.away)}</b>
-      <div class="sub">${esc(o.m.heure||"—")} · ${esc(o.m.ligue)} ·
-        <span style="color:var(--amber)">${esc(o.lib)}</span></div></div>
-      <div class="r"><div class="p" style="color:var(--amber)">${pct1(o.p)} %</div>
-      <div class="sub mu">juste @ ${f2(o.cote)}</div></div></div>`).join("")}
-    <div class="det" style="margin-top:10px">Probabilité combinée ${pct1(pTot)} % (indépendance supposée —
-      approximation) · cote juste totale ${f2(prod)} = produit des 1/p. Billet de loterie assumé :
-      les paliers 10-20 % sont mesurés exacts (n>400/famille) mais ça reste ≈ 1 chance sur ${Math.round(prod)}.
-      Marché inexistant chez nos bookmakers → rien dans le coupon.</div></div>`
-    :`<div class="card"><div class="top"><span class="lbl" style="color:var(--amber)">COMBINÉ GROSSE COTE DU JOUR — BUTS D'AFFILÉE</span>
-      <span class="lbl" style="font-size:22px">0</span></div>
-      <div class="det" style="margin-top:8px">Pas assez de jambes « 3 buts d'affilée » ≥ 10 % aujourd'hui
-      pour atteindre la cible de cote juste 20 à 50. Jamais forcé.</div></div>`;
-  /* ---- TABLEAU DU JOUR ---- */
-  const tri=ms.slice().sort((a,b)=>(b.serie2||0)-(a.serie2||0)||a.date.localeCompare(b.date)||a.home.localeCompare(b.home));
-  const ligneM=(m)=>{const inBig5=BIG5.includes(m.div)&&!m.coupe;
-    return `<tr${inBig5?"":' class="mu"'}}>
-      <td>${esc(m.heure||"—")}<div class="sub mu">${esc(m.div)}</div></td>
-      <td><b>${esc(m.home)}</b><div class="sub mu">vs ${esc(m.away)} · ${esc(m.ligue)}</div></td>
-      <td class="num">${nonOui(m.serie2)}</td><td class="num">${nonOui(m.serie3)}</td>
-      <td class="num">${nonOui(m.serie2_dom)}</td><td class="num">${nonOui(m.serie3_dom)}</td>
-      <td class="num">${nonOui(m.serie2_ext)}</td><td class="num">${nonOui(m.serie3_ext)}</td></tr>`;};
-  const tbl=tri.length?`<div class="tblwrap"><table class="tbl"><thead><tr>
-      <th>Heure</th><th>Match</th>
-      <th class="num">2 d'affilée — match</th><th class="num">3 d'affilée — match</th>
-      <th class="num">2 — domicile</th><th class="num">3 — domicile</th>
-      <th class="num">2 — extérieur</th><th class="num">3 — extérieur</th></tr></thead>
-    <tbody>${tri.map(ligneM).join("")}</tbody></table></div>`
-    :`<div class="card empty"><b>Aucun match aujourd'hui dans le calendrier</b>
-      Le calendrier couvre ~8 jours glissants ; vérifiez l'onglet Matchs à venir.</div>`;
-  $("#main").innerHTML=`
-    <div class="warn" style="margin:0 0 12px"><b>Information chiffrée, jamais un conseil.</b>
-      Probabilités de séries de buts d'affilée (même équipe, sans but adverse entre-temps),
-      biais mesurés puis corrigés sur 2 923 matchs réels (2 saisons, 5 grands championnats).
-      NON = la série ne se produit pas. Aucun bookmaker de nos sources ne propose ces marchés :
-      les cotes affichées sont des cotes JUSTES (1/probabilité). Rien n'entre dans le coupon ni le suivi.</div>
-    ${tbl}
-    <div style="margin:14px 0 4px"><span class="lbl mu">En grisé : hors Big 5 ou coupe — prédiction affichée,
-      mais jamais dans le SAFE ni la grosse cote (périmètre calibré = les 5 grands championnats).</span></div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;margin-top:12px">
-      ${carteSafe}${carteGrosse}</div>`;
+  const ms=ETAT.matchs.filter(m=>m.disponible&&m.serie2!=null);
+  const non=p=>p==null?"—":pct1(1-p)+" %";
+  $("#main").innerHTML=`<div class="band"><h1>Buts d'affilée</h1></div>
+    <div class="warn">Analyse statistique : les prix bookmaker de ces marchés ne sont pas disponibles. Aucun coupon ni cote calculée. Les résultats vérifiés sont consultables dans la vitrine, onglet Choix exotiques.</div>
+    <div class="tblwrap"><table><thead><tr><th>Match</th><th>NON 2+ match</th><th>NON 3+ match</th><th>NON 2+ domicile</th><th>NON 2+ extérieur</th></tr></thead><tbody>
+    ${ms.map(m=>`<tr><td>${esc(m.date)} ${esc(m.heure||"")} · ${esc(m.ligue)}<br>${esc(m.home)} — ${esc(m.away)}</td><td>${non(m.serie2)}</td><td>${non(m.serie3)}</td><td>${non(m.serie2_dom)}</td><td>${non(m.serie2_ext)}</td></tr>`).join("")}
+    </tbody></table></div>${ms.length?"":"<div class='card'>Pas d'analyse disponible dans le calendrier courant.</div>"}`;
 }
 
 function tabFleuves(){
@@ -1305,13 +1202,13 @@ function tabSec(){
 const CORN_FAMS=["+2","+1","victoire","-1","-2","-3","-4"];
 const CORN_MIN=0.85;    /* « bon match » : meilleur handicap ≥ 85 % de fréquence RÉELLE mesurée */
 const CORN_CIBLE=1.20;  /* cote TOTALE plancher de la sélection entière — jamais par match ! */
-const CORN_COTE=1.05;   /* RÈGLE UTILISATEUR 07/09 : sous 1,05 de cote juste, la ligne ne vaut rien
+const CORN_COTE=1.05;   /* RÈGLE UTILISATEUR 07/09 : sous 1,05 de cote bookmaker, la ligne ne vaut rien
                            (favori trop fort) — miroir de corners.COTE_PLANCHER */
 /* Jambe d'un match = le handicap le plus sûr de son échelle (calibré). */
 function cornJambes(m){
   /* SAFE CORNERS (règle utilisateur 07/09) — miroir de corners.choisir_jambe :
      le handicap le PLUS PÉNALISANT que le réel soutient (≥ CORN_MIN mesurés ET
-     cote juste ≥ CORN_COTE). Le favori trop fort est pénalisé d'un corner de
+     cote bookmaker ≥ CORN_COTE). Le favori trop fort est pénalisé d'un corner de
      plus tant que ça tient ; quand plus rien ne tient, le match saute. */
   const cf=m.sec&&m.sec.confrontation; if(!cf||!cf.echelle) return null;
   const dom=cf.dom==="home"?m.home:m.away;
@@ -1319,7 +1216,7 @@ function cornJambes(m){
   for(const fam of CORN_FAMS){          /* +2 (sûr) → −4 (pénalisant) */
     const p=cf.echelle[fam],pc=(cf.echelle_cal||{})[fam];
     if(p==null||pc==null||pc<CORN_MIN) continue;   /* le réel ne suit plus */
-    if(1/pc<CORN_COTE) continue;                   /* cote trop basse — rien à gagner */
+    if(false) continue;                   /* cote trop basse — rien à gagner */
     retenu={fam,dom,p,pc};                          /* le plus profond éligible gagne */
   }
   return retenu;
@@ -1342,173 +1239,17 @@ function cornProfil(cf){
    produit des maillons — de 1,20 à l'infini selon la qualité du jour.
    Ordre de la montante = coups d'envoi, même jour uniquement. */
 function cornCoupon(msJour){
-  const elig=[];
-  for(const m of msJour){
-    const j=cornJambes(m);
-    if(j&&j.pc>=CORN_MIN) elig.push({m,c:j});
-  }
-  const cle=x=>x.m.date+"T"+(x.m.heure||"99:99");
-  elig.sort((a,b)=>(cle(a)<cle(b)?-1:cle(a)>cle(b)?1:0)||(a.m.home<b.m.home?-1:1));
-  let cote=1,pTot=1,mise=1,cum=1;
-  const etapes=elig.map(L=>{
-    const c=1/L.c.pc; cum*=c;
-    const e={m:L.m,c:L.c,cote:c,mise:mise,coteCum:cum};
-    cote*=c; pTot*=L.c.pc; mise*=c; return e;
-  });
-  return {etapes,coteTot:cote,pTot,miseFin:mise,nElig:elig.length};
+  return {etapes:[],coteTot:null,pTot:null,miseFin:null,nElig:0};
 }
+
 function tabCorners(){
-  const nowC=new Date(Date.now()+3600000).toISOString().slice(0,16);
-  const auj=nowC.slice(0,10);
-  const ms=ETAT.matchs.filter(m=>m.disponible&&!m.coupe&&m.sec&&m.sec.confrontation&&
-    m.date&&m.date>=auj&&!(m.heure&&(m.date+"T"+m.heure)<nowC));
-  const parJour={};
-  for(const m of ms)(parJour[m.date]=parJour[m.date]||[]).push(m);
-  const jours=Object.keys(parJour).sort();
-  for(const d of jours) parJour[d].sort((a,b)=>((a.heure||"99:99")<(b.heure||"99:99")?-1:1));
-  if(ETAT.cornJour==null||!jours.includes(ETAT.cornJour))
-    ETAT.cornJour=jours.includes(auj)?auj:(jours[0]||null);
-  const dj=ETAT.cornJour,msj=dj?parJour[dj]:[];
-  const cp=dj?cornCoupon(msj):{etapes:[],coteTot:1,pTot:1,miseFin:1,nElig:0};
-
-  let h=`<div class="band"><div><div class="htitle"><h1>Corners — espace exclusif</h1>
-    <span class="badge cy">COTE TOTALE ${f2(CORN_CIBLE)} → L'INFINI SELON LA QUALITÉ DU JOUR</span>
-    <span class="badge gy"><span class="dot"></span>MAILLON ≥ ${Math.round(CORN_MIN*100)} % RÉEL · COTE ≥ ${f2(CORN_COTE)}</span></div>
-    <p class="desc">Ce n'est pas un match qui fait la cote : c'est la SÉLECTION ENTIÈRE. <b>Tous les bons
-    matchs du jour</b> entrent dans le coupon — chaque match apporte le handicap <b>le plus pénalisant que le
-    réel soutient encore</b> (échelle +2 → −4 relative à la dominante) : retenu s'il atteint
-    <b>${Math.round(CORN_MIN*100)} % de fréquence réelle mesurée</b> ET une cote juste ≥ ${f2(CORN_COTE)} —
-    le favori trop fort (ligne sous ${f2(CORN_COTE)}) est pénalisé d'un corner de plus ; quand plus rien
-    ne tient, le match saute. La cote totale va de ${f2(CORN_CIBLE)} à l'infini selon la qualité du jour — beaucoup de bons
-    matchs = sélection longue et cote haute. Même jour uniquement, jamais de report. Probabilités CALIBRÉES = fréquences réelles mesurées sur
-    16 408 matchs (pas l'annonce du modèle). Cotes = cotes justes : celles des bookmakers seront plus basses.</p>
-    ${jours.map(d=>`<button class="fchip ${dj===d?"on":""}" data-cj="${d}">${d===auj?"Aujourd'hui":d} · ${parJour[d].length}</button>`).join("")}
-  </div></div>`;
-
-  if(!dj){
-    h+=`<div class="card empty"><b>Aucun match couvert</b> Pas de match analysable avec le modèle corners dans la fenêtre du calendrier.</div>`;
-  }else if(!cp.etapes.length){
-    h+=`<div class="card empty"><b>Aucun coupon corners ce jour (${dj})</b>
-      Aucun handicap du jour ne tient les deux conditions (${Math.round(CORN_MIN*100)} % de fréquence réelle
-      mesurée ET cote juste ≥ ${f2(CORN_COTE)}) — pas de bons matchs, pas de sélection (« si y a de bons matchs »). Une montante ne vaut que par la qualité de ses
-      maillons : mieux vaut sauter un jour que forcer.</div>`;
-  }else{
-    const sousCible=cp.coteTot<CORN_CIBLE-1e-9;
-    h+=`<div class="card hi glow"><div class="top"><span class="lbl" style="color:var(--green)">Coupon montante — ${dj===auj?"aujourd'hui":dj}</span>
-      <span class="lbl">${cp.etapes.length} match${cp.etapes.length>1?"s":""} · <b style="color:var(--cyan)">cote totale ${f2(cp.coteTot)}</b> · probabilité combinée ${pct1(cp.pTot)} %</span></div>
-      <div class="tblwrap" style="margin-top:10px"><table><thead><tr><th>Étape</th><th>Heure</th><th>Match</th>
-      <th>Handicap retenu (calibré)</th><th>Modèle → réel</th><th>Cote juste</th><th>Mise (départ 1 u)</th><th>Cote cumulée</th></tr></thead><tbody>`;
-    cp.etapes.forEach((e,i)=>{
-      h+=`<tr><td class="num">${i+1}</td><td class="num">${esc(e.m.heure||"—")}</td>
-        <td><div class="tname">${esc(e.m.home)} <span class="mu">vs</span> ${esc(e.m.away)}</div>
-          <div class="tsub">${esc(e.m.ligue)}</div></td>
-        <td style="max-width:290px">${esc(cornLibelle(e.c))}</td>
-        <td class="num"><span class="mu">${pct1(e.c.p)} →</span> <b class="g">${pct1(e.c.pc)} %</b></td>
-        <td class="num cy">${f2(e.cote)}</td><td class="num">${f2(e.mise)} u</td>
-        <td class="num">${f2(e.coteCum)}</td></tr>`;
-    });
-    h+=`</tbody></table></div>
-    <div class="det" style="margin-top:10px">Si tout passe : <b class="g">${f2(cp.miseFin)} u</b> récupérées pour 1 u misée
-      (gain net +${f2(cp.miseFin-1)} u) — probabilité combinée ${pct1(cp.pTot)} % (produit des probabilités calibrées,
-      indépendance supposée : des matchs d'un même championnat peuvent être corrélés).
-      ${sousCible?" Cote totale SOUS "+f2(CORN_CIBLE)+" : le jour est pauvre en bons matchs ("+cp.nElig+" maillon(s) éligible(s) seulement) — la sélection s'arrête là où la qualité s'arrête, on ne complète pas avec du doute.":" Cible de "+f2(CORN_CIBLE)+" atteinte"+(cp.coteTot>CORN_CIBLE+0.05?" et dépassée : la journée est riche en bons matchs":"")+"."}</div>
-    <div class="det mu" style="margin-top:6px;line-height:1.6">Totaux over/under corners : affichés dans le tableau ci-dessous à titre informatif,
-      jamais dans le coupon (le coupon = handicaps uniquement). Corners 1re mi-temps : MESURÉS corner par
-      corner sur 4 109 matchs — la victoire sèche du favori en 1re MT ne tient que 54 % en moyenne (63 % même
-      pour un très gros écart) : TROP LOIN des ${Math.round(CORN_MIN*100)} % — la 1re mi-temps n'entre JAMAIS
-      dans le safe (chiffres détaillés sous la calibration). Pas de suivi automatique du verdict des coupons corners : aucune source gratuite ne fournit
-      les corners EN DIRECT (résolution en différé possible via ESPN — à demander).</div></div>`;
-  }
-
-  /* ---- SAFE CORNERS : la liste détaillée (règle utilisateur 07/09 :
-     la montante en haut + la liste match par match en dessous) ---- */
-  if(dj&&cp.etapes.length){
-    h+=`<div style="margin:16px 0 4px"><span class="lbl">SAFE CORNERS — la liste · ${dj===auj?"aujourd'hui":dj} (${cp.etapes.length} match${cp.etapes.length>1?"s":""})</span></div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px">`;
-    for(const e of cp.etapes){
-      const cf=e.m.sec.confrontation;
-      h+=`<div class="card" style="margin:0"><div class="top">
-        <span class="lbl" style="color:var(--green)">${esc(e.c.dom)} · ${e.c.fam==="victoire"?"victoire du duel corners":"handicap "+esc(e.c.fam)}</span>
-        <span class="lbl"><b class="g">${pct1(e.c.pc)} %</b> <span class="mu">mesuré</span> · <span class="cy">cote ${f2(1/e.c.pc)}</span></span></div>
-        <div class="tname" style="margin-top:6px">${esc(e.m.home)} <span class="mu">vs</span> ${esc(e.m.away)}</div>
-        <div class="tsub">${esc(e.m.ligue)} · ${esc(e.m.heure||"—")}</div>
-        <div class="det mu" style="margin-top:6px;line-height:1.6">${esc(cornLibelle(e.c))}<br>
-        corners attendus : <b class="cy">${f2(cf.lambda_home)} – ${f2(cf.lambda_away)}</b> · duel ${pct1(cf.p_vict_dom)} % ${esc(e.c.dom)} ·
-        O8,5 ${pct1((cf.over_cal||{})["8.5"])} % / U10,5 ${pct1((cf.under_cal||{})["10.5"])} %<br>
-        annonce du modèle ${pct1(e.c.p)} % → réel mesuré <b class="g">${pct1(e.c.pc)} %</b></div></div>`;
-    }
-    h+=`</div>`;
-  }
-
-  if(dj&&msj.length){
-    const selMap=new Map(cp.etapes.map(e=>[e.m,e.c.fam]));
-    h+=`<div style="margin:16px 0 4px"><span class="lbl">Confrontations & échelle complète — ${dj} (${msj.length} match${msj.length>1?"s":""})</span></div>
-    <div class="tblwrap"><table><thead><tr><th>Heure</th><th>Match</th><th>Corners att. (dom–ext)</th><th>Profil</th>`+
-      CORN_FAMS.map(f=>`<th style="text-align:center">${f==="victoire"?"V":f}</th>`).join("")+
-      `<th style="text-align:center">O8,5 / U10,5</th></tr></thead><tbody>`;
-    for(const m of msj){
-      const cf=m.sec.confrontation;
-      const dom=cf.dom==="home"?m.home:m.away;
-      const inCoupon=selMap.has(m);
-      h+=`<tr><td class="num">${esc(m.heure||"—")}</td>
-        <td><div class="tname">${esc(m.home)} <span class="mu">vs</span> ${esc(m.away)}</div>
-          <div class="tsub">${esc(m.ligue)}</div></td>
-        <td class="num cy">${f2(cf.lambda_home)} – ${f2(cf.lambda_away)}</td>
-        <td style="font-size:11px" class="mu">${esc(cornProfil(cf))} · <span class="cy">${pct1(cf.partage_dom)} % ${esc(dom)}</span></td>`+
-        CORN_FAMS.map(f=>{
-          const p=cf.echelle[f],pc=(cf.echelle_cal||{})[f];
-          const on=inCoupon&&selMap.get(m)===f;
-          return `<td class="num" style="text-align:center;font-size:11px${on?";color:var(--green);font-weight:700":""}" title="annonce ${pct1(p)} % → réalisé mesuré ${pct1(pc)} %${on?" — retenu dans le coupon":""}">${pct1(pc)}</td>`;
-        }).join("")+
-        `<td class="num" style="font-size:11px;text-align:center">${pct1((cf.over_cal||{})["8.5"])} / ${pct1((cf.under_cal||{})["10.5"])}</td></tr>`;
-    }
-    h+=`</tbody></table></div>
-    <div class="det mu" style="margin-top:6px">Chiffres = probabilités CALIBRÉES (fréquences réelles walk-forward). Échelle relative à la dominante attendue :
-    +2 = elle donne 2 corners d'avance (peut perdre de 1) · +1 = victoire ou nul · V = gagne le duel · −1 à −4 = gagne avec 2, 3, 4, 5+ corners d'écart.
-    <span style="color:var(--green)">Vert</span> = jambe retenue dans le safe (le handicap le plus pénalisant ≥ ${Math.round(CORN_MIN*100)} % mesurés ET cote ≥ ${f2(CORN_COTE)}). Survoler une case pour voir l'annonce brute du modèle.</div>`;
-  }
-
-  h+=`<div id="cornCal"><div class="card empty"><span class="spin"></span> chargement de la calibration…</div></div>`;
-  $("#main").innerHTML=h;
-  document.querySelectorAll("[data-cj]").forEach(b=>b.onclick=()=>{ETAT.cornJour=b.dataset.cj;tabCorners();});
-  api("/api/corners").then(r=>{
-    const w=$("#cornCal"); if(!w||!r) return;
-    const zs=(r.resume||{}).zone_securite||{};
-    let c=`<div style="margin:16px 0 4px"><span class="lbl">Calibration mesurée — annoncé vs réalisé (walk-forward ${fmtN((r.resume||{}).n_matchs||16408)} matchs, saisons ${((r.resume||{}).saisons||[]).join(", ")})</span></div>
-    <div class="tblwrap"><table><thead><tr><th>Barreau (zone ≥ 90 % annoncé)</th><th>n</th><th>Annoncé</th><th>Réalisé</th><th>Écart</th></tr></thead><tbody>`;
-    let lignes=0;
-    for(const f of CORN_FAMS){
-      const z=zs[f]; if(!z) continue;
-      lignes++;
-      c+=`<tr><td class="mono">${f==="victoire"?"victoire (gagne le duel)":f}</td><td class="num mu">${fmtN(z.n)}</td>
-        <td class="num">${pct1(z.annonce)} %</td><td class="num g">${pct1(z.realise)} %</td>
-        <td class="num ${z.ecart<-0.03?"rd":"mu"}">${(z.ecart*100).toFixed(1)} pts</td></tr>`;
-    }
-    c+=`</tbody></table></div>`;
-    if(!lignes) c=`<div class="card empty">Calibration indisponible (data/backtest_corners.json absent).</div>`;
-    else c+=`<div class="det mu" style="margin-top:8px;line-height:1.6">C'est exactement pour ça que le coupon utilise les probabilités CALIBRÉES : le modèle brut surestime la
-    domination corners (rotation d'effectif, scénario de match — une équipe menée pousse et obtient des corners).
-    Un maillon à 85 % mesurés tient environ 17 fois sur 20 — jamais 20 sur 20 : plus la sélection est longue,
-    plus la cote totale monte… et plus elle est risquée. La montante doit rester un divertissement à petit
-    budget.</div>`;
-    const mt1=r.mt1_mesure;
-    if(mt1&&mt1.n){
-      const bd=mt1.bandes||[];
-      const pire=bd.length?bd[bd.length-1]:null;
-      c+=`<div style="margin:16px 0 4px"><span class="lbl">Corners 1re mi-temps — pourquoi ils n'entrent JAMAIS dans le safe (mesuré sur ${fmtN(mt1.n)} matchs)</span></div>
-      <div class="det mu" style="line-height:1.6">Victoire sèche de la dominante en 1re mi-temps : <b>${pct1(mt1.victoire_moy)} %</b> en moyenne,
-      <b>${pct1(pire?pire.victoire:0)} %</b> même quand l'écart de force est très grand (${pire?fmtN(pire.n):0} matchs).
-      Victoire ou nul : ${pct1(mt1.victoire_ou_nul_moy)} % → ${pct1(pire?pire.victoire_ou_nul:0)} %.
-      Trop loin des ${Math.round(CORN_MIN*100)} % : la 1re mi-temps produit peu de corners (4-5 au total), les nuls y sont fréquents —
-      elle reste affichée à titre informatif dans le panneau des matchs, mais n'entre jamais dans SAFE CORNERS.
-      La réponse honnête au favori trop fort = le handicap plus profond sur le match entier (−1, −2…) : c'est ce que le safe calcule.</div>`;
-    }
-    w.innerHTML=c;
-  }).catch(()=>{const w=$("#cornCal");if(w)w.innerHTML="";});
+  const ms=ETAT.matchs.filter(m=>m.disponible&&!m.coupe&&m.sec&&m.sec.confrontation);
+  $("#main").innerHTML=`<div class="band"><h1>Corners</h1></div>
+    <div class="warn">Analyses de corners, sans prix inventé. Aucun coupon montante n'est construit sans vraies cotes bookmaker. Résultats finaux : ESPN lorsqu'ils sont complets, CSV en complément.</div>
+    <div class="tblwrap"><table><thead><tr><th>Match</th><th>Corners attendus domicile</th><th>Extérieur</th><th>Équipe dominante</th></tr></thead><tbody>
+    ${ms.map(m=>{const c=m.sec.confrontation;return `<tr><td>${esc(m.date)} ${esc(m.heure||"")} · ${esc(m.ligue)}<br>${esc(m.home)} — ${esc(m.away)}</td><td>${f2(c.lambda_home)}</td><td>${f2(c.lambda_away)}</td><td>${esc(c.dom==="home"?m.home:m.away)}</td></tr>`;}).join("")}</tbody></table></div>`;
 }
 
-/* ================================================================ ONGLET 6
-   CLASSEMENT DES CLUBS — puissance calculée, pas classement officiel.     */
 function tabClassement(){
   const divs=ETAT.ligues;
   if(!ETAT.clDiv&&divs.length) ETAT.clDiv=divs[0].div;

@@ -19,6 +19,7 @@ import json
 import os
 import unicodedata
 
+os.environ["PRONOS_SANS_CALENDRIER"] = "1"
 import serveur
 from serveur import DB
 import modeles_secondaires as MS
@@ -61,15 +62,13 @@ def pick_corners(m):
         pc = ech_cal.get(fam)
         if pc is None or pc < SEUIL_MIN:
             continue
-        if 1.0 / pc < COTE_PLANCHER:
-            continue
         retenu = (fam, pc, (cf.get("echelle") or {}).get(fam))
     if not retenu:
         return None
     fam, pc, pb = retenu
     return {"dom": dom, "fam": fam, "option": f"{dom} {fam} corners",
             "p": round(pc, 4), "p_brut": round(pb, 4) if pb else None,
-            "cote_juste": round(1.0 / pc, 2)}
+            "cote_juste": None}
 
 
 # ------------------------------------------------------------------ archive
@@ -92,6 +91,9 @@ def archiver(a):
     n_ajout = n_maj = 0
     for fx in _source():
         if fx.get("date") != auj:
+            continue
+        now = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=1)).isoformat()[:16]
+        if not fx.get("heure") or f"{auj}T{fx['heure']}" <= now:
             continue
         pk = pick_corners(fx)
         if pk is None:
@@ -144,7 +146,7 @@ def ligne_csv(div, jour, home, away):
         return None
     hn, an = _norme(home), _norme(away)
     try:
-        with open(f, encoding="utf-8", errors="replace") as fh:
+        with open(f, encoding="latin-1") as fh:
             for row in csv.DictReader(fh):
                 if _date_csv(row.get("Date")) != jour:
                     continue
@@ -163,14 +165,20 @@ def resoudre(a):
             if m.get("resultat") is not None:
                 continue
             row = ligne_csv(m["div"], jour, m["home"], m["away"])
-            if not row:
-                continue
+            source = "football-data.co.uk"
             try:
-                hc, ac = int(row.get("HC")), int(row.get("AC"))
+                hc, ac = int((row or {}).get("HC")), int((row or {}).get("AC"))
+                if min(hc, ac) < 0:
+                    raise ValueError("corners absents")
             except (TypeError, ValueError):
-                continue                    # corners pas encore publiés
+                import resultats_corners
+                resultat = resultats_corners.chercher(m["div"], jour, m["home"], m["away"])
+                if resultat is None:
+                    continue
+                hc, ac = resultat
+                source = "ESPN"
             d = hc - ac if m["dom"] == m["home"] else ac - hc
-            m["resultat"] = {"hc": hc, "ac": ac, "d": d,
+            m["resultat"] = {"hc": hc, "ac": ac, "d": d, "source": source,
                              "touche": d >= SEUILS.get(m["fam"], 0),
                              "resolu_le": datetime.datetime.now()
                              .isoformat(timespec="minutes")}
@@ -189,8 +197,8 @@ def publier(a):
                  "pénalisant sur la dominante attendue qui tient encore "
                  "≥ 60 % de fréquence réelle mesurée (walk-forward, décote "
                  "intégrée). Résultats via football-data.co.uk (colonnes "
-                 "corners) : 1 à 3 jours de délai selon la publication de "
-                 "la source — « en attente » tant qu'ils manquent."),
+                 "corners) et ESPN après validation du résultat final ; "
+                 "« en attente » tant que la statistique manque."),
     }
     with open(PUBLIE, "w", encoding="utf-8") as f:
         json.dump(vue, f, ensure_ascii=False)

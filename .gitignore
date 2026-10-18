@@ -64,3 +64,13 @@ maj_silencieux.vbs
 
 # ---- maquettes de design personnelles (fichiers de travail) -------------
 design/
+
+# État de collecte privé/régénérable, préservé par le cache CI
+data/http_cache/
+data/sources_http.json
+data/collectes.json
+data/*meta.json
+data/resultats_synchronises.json
+data/corners_finaux.json
+data/odds_budget.json
+data/complements_collecte.json

@@ -137,17 +137,20 @@ def collecter_plage(comp, debut, fin, etat):
         fini = e.get("status", {}).get("type", {}).get("completed", False)
         cle = f"{comp}|{loc.date().isoformat()}|{h}|{a}"
         with _VERROU:
-            deja = cle in etat["matchs"]
+            deja = etat["matchs"].get(cle, {}).get("fini") and not fini
         if deja:
             continue
-        with _VERROU:
-            etat["matchs"][cle] = {
+        entree = {
                 "comp": comp, "date": loc.date().isoformat(),
                 "heure": loc.strftime("%H:%M"),
                 "home_src": h, "away_src": a,
                 "hg": bh if fini else None, "ag": ba if fini else None,
                 "fini": fini, "evt": str(e.get("id")),
             }
+        with _VERROU:
+            if etat["matchs"].get(cle) == entree:
+                continue
+            etat["matchs"][cle] = entree
         ajoutes += 1
     with _VERROU:
         if cle_plage not in etat["plages_ok"]:
@@ -194,8 +197,7 @@ def rafraichir():
     debut = (auj - datetime.timedelta(days=21)).isoformat()
     fin = (auj + datetime.timedelta(days=21)).isoformat()
     cle = f"rafraichir|{debut}|{fin}"
-    if cle in set(etat["plages_ok"]):
-        return 0
+    # Revoir aussi les événements programmés devenus finaux dans la journée.
     total = 0
     for comp in COMPETITIONS:
         n = collecter_plage(comp, debut, fin, etat)

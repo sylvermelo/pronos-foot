@@ -303,9 +303,8 @@ def absences(div, home_src, away_src, date_iso, etat=None):
 
 # ------------------------------------------------------------------ mesures
 def _saison_csv(date_iso):
-    y, mo = int(date_iso[:4]), int(date_iso[5:7])
-    a = y + (1 if mo >= 7 else 0)
-    return str(a)[2:] + str(a + 1)[2:]
+    from resultats import saison_pour
+    return saison_pour(date_iso)
 
 
 def _resultat_csv(div, date_iso, home_co, away_co):
