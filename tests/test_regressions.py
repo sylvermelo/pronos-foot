@@ -31,6 +31,37 @@ import backtest_secondaires as BS
 
 
 class Regressions(unittest.TestCase):
+    def test_memoire_scores_delta_et_restauration(self):
+        import apprentissage as A
+        import db
+        with tempfile.TemporaryDirectory() as t:
+            chemin=Path(t)
+            m={"div":"E0","season":"2627","date":"2026-10-18","heure":"20:00","home":"H","away":"A","hg":2,"ag":1}
+            with patch.object(A,"DATA",chemin), patch.object(resultats,"CHEMIN",str(chemin/"resultats.json")), patch.object(db,"disponible",return_value=True):
+                resultats.sauver({"matchs":{"E0|2026-10-18|H|A":m}})
+                with patch.object(db,"_requete",return_value=("201","")) as req:
+                    self.assertEqual(A.sauvegarder_resultats()["resultats_sauvegardes"],1)
+                    self.assertEqual(A.sauvegarder_resultats()["resultats_sauvegardes"],0)
+                    self.assertEqual(req.call_count,1)
+                    row=req.call_args.args[2][0]
+                resultats.sauver({"matchs":{}})
+                with patch.object(db,"_requete",return_value=("200",json.dumps([row]))):
+                    self.assertEqual(A.restaurer_resultats(),1)
+                    self.assertEqual(A.restaurer_resultats(),0)
+                restored=list(resultats.charger()["matchs"].values())[0]
+                self.assertEqual((restored["hg"],restored["ag"]),(2,1))
+                restored["hg"]=3
+                resultats.sauver({"matchs":{"E0|2026-10-18|H|A":restored}})
+                with patch.object(db,"_requete",return_value=("201","")):
+                    self.assertEqual(A.sauvegarder_resultats()["resultats_sauvegardes"],1)
+
+    def test_sauvegarde_echouee_reste_a_retenter(self):
+        import apprentissage as A
+        import db
+        with tempfile.TemporaryDirectory() as t, patch.object(A,"DATA",Path(t)), patch.object(db,"disponible",return_value=True), patch.object(resultats,"charger",return_value={"matchs":{"k":{"div":"E0","date":"2026-10-18","home":"H","away":"A","hg":0,"ag":0}}}), patch.object(db,"_requete",return_value=("500","")):
+            with self.assertRaises(RuntimeError): A.sauvegarder_resultats()
+            self.assertFalse((Path(t)/"resultats_synchronises.json").exists())
+
     def test_normalisation_conserve_les_deux_intensites(self):
         p = np.log([1.2, .8, 1.5, 1.5, 1.3, 1, 1])
         hist = pd.DataFrame({"date": pd.to_datetime(["2026-01-01"]),
