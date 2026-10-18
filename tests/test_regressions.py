@@ -31,6 +31,19 @@ import backtest_secondaires as BS
 
 
 class Regressions(unittest.TestCase):
+    def test_coupes_predictions_connues_et_inconnues(self):
+        import copy,coupes
+        d=copy.deepcopy(S.DB)
+        coupes.injecter(d)
+        divs=[k for k,v in d["ligues"].items() if not v.get("coupe") and len(v.get("equipes_actuelles",[]))>=2]
+        h,a=d["ligues"][divs[0]]["equipes_actuelles"][:2]
+        autre=d["ligues"][divs[1]]["equipes_actuelles"][0]
+        with patch.object(S,"DB",d), patch.object(S,"_CACHE",{}):
+            self.assertIsNotNone(S.pronostic("UCL",h,a))
+            self.assertIsNotNone(S.pronostic("UEL",h,autre))
+            self.assertIsNone(S.pronostic("UCL",h,"Club inconnu sans données"))
+
+
     def test_echec_xg_conserve_cache_et_temporise(self):
         import xg
         with tempfile.TemporaryDirectory() as t, patch.object(xg,"CHEMIN",str(Path(t)/"xg.json")), patch.object(xg,"telecharger",return_value={}) as collecte:

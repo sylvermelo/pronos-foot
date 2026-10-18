@@ -257,15 +257,21 @@ def maj_donnees():
 
     ignorés = 0
     fx_changé = False
+    a_telecharger = []
     for dest, url in cibles:
-        r = a_change(dest, h[str(dest)])
-        if r is None:
-            ignorés += 1                   # absent de la source : normal
-            continue
-        if not r:
-            ignorés += 1                   # déjà à jour
-            continue
-        if telecharger(url, dest):
+        if a_change(dest, h[str(dest)]):
+            a_telecharger.append((dest, url))
+        else:
+            ignorés += 1
+    def transfert(cible):
+        dest, url = cible
+        succes = telecharger(url, dest)
+        time.sleep(0.12)
+        return dest, succes
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        transferts = list(ex.map(transfert, a_telecharger))
+    for dest, succes in transferts:
+        if succes:
             meta_file = DATA / "sources_http.json"
             try:
                 meta = json.loads(meta_file.read_text())
@@ -284,7 +290,6 @@ def maj_donnees():
                     + (f" (publié le {pub:%d/%m/%Y %H:%M} UTC)" if pub else ""))
         else:
             échecs += 1
-        time.sleep(0.12)                   # rester poli avec le serveur gratuit
 
     log(f"historiques : {changés_hist} téléchargés, {ignorés} déjà à jour, {échecs} échecs")
     return changés_hist, fx_changé, échecs

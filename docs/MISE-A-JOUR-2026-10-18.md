@@ -85,3 +85,11 @@ Compte rendu programmé le 19 octobre à 08:00, heure de Porto-Novo : vérifier 
 - https://the-odds-api.com/sports-odds-data/betting-markets.html
 
 Le contrôle de sécurité Supabase a été relancé après ajout du bilan : la nouvelle fonction utilise les droits de l’appelant. Les alertes préexistantes (vue codes_promo, fonctions privilégiées, protection des mots de passe) ne sont pas déclarées résolues par cette mise à jour. Référence : https://supabase.com/docs/guides/database/database-linter?lint=0010_security_definer_view
+
+## Vérifications de production pendant la publication
+
+- Vitrine et affiliés : déploiements réussis, nouveau JavaScript/service worker vérifiés aux URLs publiques.
+- Supabase : 944 scores finaux présents, dernier match daté du 18/10/2026. La mémoire des résultats est donc confirmée en production, au-delà des tests simulés.
+- Le premier build du robot a été arrêté avant publication par une erreur de variable dans le chemin des coupes. Correction ajoutée, ainsi qu'un test passant par le calcul complet d'une coupe domestique, d'une coupe inter-ligues et d'une équipe inconnue.
+- Les journaux ont montré que le premier rechargement des CSV (100 fichiers téléchargés, cinq délais réseau dépassés) expliquait la lenteur. Les téléchargements sont désormais bornés à quatre simultanés ; le nombre de fichiers demandés ne change pas. Les anciennes données sont conservées si un téléchargement échoue.
+- Les changements de code remplacent une exécution obsolète. Vérifier le dernier workflow sur `main` pour le statut final de publication : https://github.com/sylvermelo/pronos-foot/actions

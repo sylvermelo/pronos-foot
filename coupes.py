@@ -99,13 +99,8 @@ def parametres(db, cle, home, away):
         (approximation assumée, signalée « confiance faible » en amont) ;
       · équipe inconnue → (None, …) : pas de prédiction.
     """
-    index = {}
-    for div in sorted(ligues):
-        if div in COUPES:
-            continue
-        for t in ligues[div].get("equipes_actuelles", []):
-            index.setdefault(t, div)
     ligues = db.get("ligues") or {}
+    index = db.get("index_equipes") or {}
     dh, da = index.get(home), index.get(away)
     if not dh or not da:
         return None, dh, da

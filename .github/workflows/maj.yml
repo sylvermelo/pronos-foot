@@ -33,10 +33,10 @@ permissions:
   pages: write
   id-token: write
 
-# une seule exécution à la fois ; laisser finir le calcul et la sauvegarde
+# une seule exécution à la fois ; le dernier code remplace une exécution obsolète
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   mise-a-jour:
