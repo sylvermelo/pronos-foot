@@ -31,6 +31,13 @@ import backtest_secondaires as BS
 
 
 class Regressions(unittest.TestCase):
+    def test_echec_xg_conserve_cache_et_temporise(self):
+        import xg
+        with tempfile.TemporaryDirectory() as t, patch.object(xg,"CHEMIN",str(Path(t)/"xg.json")), patch.object(xg,"telecharger",return_value={}) as collecte:
+            Path(xg.CHEMIN).write_text(json.dumps({"E0":[{"date":"2026-01-01"}]}))
+            self.assertEqual(xg.frais(),xg.frais())
+            self.assertEqual(collecte.call_count,1)
+
     def test_collecte_sans_nouveau_score_preserve_la_memoire(self):
         with tempfile.TemporaryDirectory() as t, patch.object(resultats,"CHEMIN",str(Path(t)/"r.json")), patch.object(CAL,"espn_resultats",return_value=[]):
             resultats.sauver({"matchs":{"ancien":{"hg":2,"ag":1}}})

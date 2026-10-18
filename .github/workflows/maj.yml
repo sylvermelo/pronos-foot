@@ -47,6 +47,8 @@ jobs:
       # Settings → Secrets and variables → Actions, JAMAIS dans le dépôt.
       # Sans elle : analyses seules, aucune cote de remplacement.
       ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
       TZ: Africa/Porto-Novo
       PRONOS_SANS_CALENDRIER: "1"
     # environnement requis par actions/deploy-pages pour publier correctement

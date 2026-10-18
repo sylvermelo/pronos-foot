@@ -153,11 +153,21 @@ def frais(force=False, jours=1):
     now = datetime.datetime.now(datetime.timezone.utc)
     try:
         with open(meta_path) as f:
-            dernier = datetime.datetime.fromisoformat(json.load(f)["collecte_le"])
-        if not force and (now - dernier).total_seconds() < jours * 86400:
-            return ancien
-    except (OSError, ValueError, KeyError):
-        pass
+            meta = json.load(f)
+    except (OSError, ValueError):
+        meta = {}
+    if not force:
+        for cle, delai in (("collecte_le", jours * 86400), ("tentative_le", 3600)):
+            try:
+                dernier = datetime.datetime.fromisoformat(meta[cle])
+                if (now - dernier).total_seconds() < delai:
+                    return ancien
+            except (KeyError, ValueError, TypeError):
+                pass
+    # Réserver l'essai même si la source échoue ; éviter 96 relances/jour.
+    meta["tentative_le"] = now.isoformat()
+    with open(meta_path, "w") as f:
+        json.dump(meta, f)
     an = now.year if now.month >= 7 else now.year - 1
     data = telecharger(saisons=[str(an)] if ancien else None)
     for div, matchs in data.items():

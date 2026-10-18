@@ -41,7 +41,7 @@ The Odds API est appelé uniquement par le serveur CI. Marchés ciblés : totaux
 | Scores, verdicts et publication | Cron souhaité toutes les 15 minutes, soit 96 passages/jour ; GitHub peut retarder/sauter des passages |
 | Calendrier complet et compléments lourds | Au plus toutes les 6 heures |
 | Vérification des historiques CSV | Au plus toutes les 12 heures lorsque la source répond |
-| xG | Actualisation quotidienne ; cache conservé en cas d'échec |
+| xG | Actualisation quotidienne ; cache conservé et réessai au plus horaire en cas d'échec |
 | Entraînement | Seulement si données/version changent |
 | Cotes payantes en crédits gratuits | Au plus 10 crédits/jour, 310 sur 31 jours, réserve 80 ; arrêt si quota inconnu |
 | Navigateur | Aucun appel au fournisseur de cotes ; aucun entraînement |
