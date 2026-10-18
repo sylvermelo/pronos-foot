@@ -160,7 +160,8 @@ def ligne_csv(div, jour, home, away):
 
 def resoudre(a):
     n_res = 0
-    for jour in sorted(a["jours"]):
+    # Priorité aux derniers résultats dans le budget de 40 summaries par passage.
+    for jour in sorted(a["jours"], reverse=True):
         for m in a["jours"][jour]["matchs"]:
             if m.get("resultat") is not None:
                 continue

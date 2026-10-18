@@ -95,3 +95,5 @@ Le contrôle de sécurité Supabase a été relancé après ajout du bilan : la 
 - Les changements de code remplacent une exécution obsolète. Vérifier le dernier workflow sur `main` pour le statut final de publication : https://github.com/sylvermelo/pronos-foot/actions
 
 Le correctif des plages ESPN concerne également les scores destinés à l’apprentissage, les buts minutés, la fatigue et les compositions. Vérification reproduite : Premier League du 18/10, zéro événement avec la plage contre quatre avec le jour seul ; UCL du 20/10, neuf événements avec le jour seul. Aucun zéro artificiel n’est utilisé pour résoudre les exotiques.
+
+Vérification supplémentaire : le passage corrigé du 18/10 a traité 281 verdicts de séries et 40 dossiers corners. Les corners du jour passent désormais avant l’arriéré, dans le même plafond de 40 requêtes summary. Le cas réel Zwolle–Go Ahead (4–1, corners 5–6, quatre buts consécutifs de Zwolle) a permis de vérifier les deux extracteurs. Aucune cote bookmaker nouvelle n’a été reçue dans les passages observés ce soir : les prix calculés ne sont pas rétablis pour combler cette absence.

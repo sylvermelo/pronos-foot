@@ -31,6 +31,16 @@ import backtest_secondaires as BS
 
 
 class Regressions(unittest.TestCase):
+    def test_corners_recents_prioritaires_dans_le_budget(self):
+        import corners_jour as CJ
+        def match():
+            return {"div":"E0","home":"H","away":"A","dom":"H","fam":"victoire","resultat":None}
+        a={"jours":{"2026-10-17":{"matchs":[match()]},"2026-10-18":{"matchs":[match()]}}}
+        with patch.object(CJ,"ligne_csv",return_value=None), patch.object(RC,"chercher",side_effect=[(5,6),None]):
+            self.assertEqual(CJ.resoudre(a),1)
+        self.assertIsNotNone(a["jours"]["2026-10-18"]["matchs"][0]["resultat"])
+        self.assertIsNone(a["jours"]["2026-10-17"]["matchs"][0]["resultat"])
+
     def test_scoreboards_separes_par_jour(self):
         urls=[]
         def reponse(url, **kwargs):
