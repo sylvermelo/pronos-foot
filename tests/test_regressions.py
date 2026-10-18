@@ -31,6 +31,12 @@ import backtest_secondaires as BS
 
 
 class Regressions(unittest.TestCase):
+    def test_collecte_sans_nouveau_score_preserve_la_memoire(self):
+        with tempfile.TemporaryDirectory() as t, patch.object(resultats,"CHEMIN",str(Path(t)/"r.json")), patch.object(CAL,"espn_resultats",return_value=[]):
+            resultats.sauver({"matchs":{"ancien":{"hg":2,"ag":1}}})
+            self.assertEqual(resultats.collecter({"ligues":{}}),0)
+            self.assertEqual(resultats.charger()["matchs"]["ancien"]["hg"],2)
+
     def test_memoire_scores_delta_et_restauration(self):
         import apprentissage as A
         import db

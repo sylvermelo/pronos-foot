@@ -83,14 +83,20 @@ def collecter(db, jours=JOURS, log=None):
     # Conservation durable : ne jamais présumer que le CSV a publié un match.
     ajoutes = 0
     dates = [(auj - datetime.timedelta(days=i)).isoformat() for i in range(jours)]
-    for div in sorted(eq):
+    from concurrent.futures import ThreadPoolExecutor
+    def lire(div):
         slug = CAL.ESPN_SLUGS.get(div)
         if not slug:
-            continue
+            return div, []
         try:
-            lignes = CAL.espn_resultats(slug, dates[-1], dates[0])
+            return div, CAL.espn_resultats(slug, dates[-1], dates[0])
         except Exception:
-            continue
+            return div, []
+    # Même nombre de requêtes ; concurrence bornée pour ne pas attendre
+    # 29 délais réseau successifs lorsqu'une source est lente.
+    with ThreadPoolExecutor(max_workers=4) as executant:
+        collectes = list(executant.map(lire, sorted(eq)))
+    for div, lignes in collectes:
         for r in lignes:
             h = mappeur.traduire(div, r["home_src"])
             a = mappeur.traduire(div, r["away_src"])
@@ -106,7 +112,7 @@ def collecter(db, jours=JOURS, log=None):
             if any(d["matchs"].get(cle, {}).get(k) != v for k, v in entree.items()):
                 d["matchs"][cle] = entree
                 ajoutes += 1
-    if ajoutes or purge:
+    if ajoutes:
         sauver(d)
     return ajoutes
 
