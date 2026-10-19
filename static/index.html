@@ -421,6 +421,7 @@ function carteCombine(titre,c,couleur,avert,videTxt,groupe){
   h+=`<div class="det" style="margin-top:10px">Probabilité combinée :
       <b class="g" style="font-size:15px">${pct1(c.p_combine)} %</b>`+
      (c.cote_combine?` &nbsp;·&nbsp; Cote bookmaker combinée : <b class="cy">${f2(c.cote_combine)}</b>`:" · Cote indisponible")+`</div>
+    ${c.matchs_partages_safe?`<div class="det mu">${c.matchs_partages_safe} match(s) également dans le SAFE : les coupons partagent ce risque.</div>`:""}
     <div class="det mu" style="margin-top:6px;line-height:1.6">${avert}</div></div>`;
   return h;
 }
@@ -476,14 +477,14 @@ function tabConseils(){
         "Cotes élevées = probabilité faible : ce combiné perdra plus souvent qu'il ne gagnera. Sur le backtest, le modèle ne bat pas les bookmakers (ROI −8,8 %). Divertissement uniquement — ne misez jamais plus que ce que vous acceptez de perdre.",
         "Pas assez d'options cotées éligibles (aujourd'hui + demain) : le robot s'abstient.")}
       ${carteCombine("COTE 2 DU JOUR — produit des cotes ≈ 2",cb.cote2,"var(--blue)",
-        "Objectif : doubler la mise (cote totale entre 1,90 et 2,35) avec les options les plus sûres du jour, 3 matchs maximum. Vraies cotes bookmaker uniquement ; sans prix exact, aucun coupon. Beaucoup de jambes très probables ne font PAS un combiné sûr : à 8 jambes, la probabilité combinée reste modeste. Aucun gain garanti.",
-        "0 — pas assez de sélections aujourd'hui pour atteindre une cote totale de 1,90 dans la limite de 10 matchs. Le robot s'abstient plutôt que de forcer.")}
+        "Cote totale entre 1,90 et 2,35, un ou deux matchs. Le robot compare les associations admissibles et retient la probabilité combinée estimée la plus élevée. Même bookmaker, prix réels uniquement. Les meilleurs matchs du SAFE restent admissibles. Aucun gain garanti.",
+        "Aucun coupon admissible entre 1,90 et 2,35 avec un ou deux matchs aujourd'hui.")}
       ${carteCombine("COTE 5 DU JOUR — produit des cotes ≈ 5",cb.cote5,"var(--green-s)",
-        "Objectif : quintupler la mise (cote totale entre 4,60 et 5,90), 3 matchs maximum, mêmes règles que le COTE 2. Plus la cote monte, plus la probabilité combinée chute : viser ×5 avec des jambes à ~80 % donne environ 1 chance sur 3 au mieux. Aucun gain garanti.",
-        "0 — pas assez de sélections aujourd'hui pour atteindre une cote totale de 4,60 dans la limite de 10 matchs. Le robot s'abstient plutôt que de forcer.")}
+        "Cote totale entre 4,60 et 5,90, trois ou quatre matchs. Le quatrième est retenu seulement si l'association obtient une meilleure probabilité estimée ou permet un coupon admissible. Quatre matchs ne rendent pas le coupon automatiquement plus sûr. Aucun critère abaissé pour compléter.",
+        "Aucun coupon admissible entre 4,60 et 5,90 avec trois ou quatre matchs aujourd'hui.")}
       ${carteCombine("FUN DU JOUR — grosse cote 20 à 50",cb.fun,"var(--red)",
-        "Le billet de loterie du jour : cote totale entre 20 et 50, 15 matchs maximum, en prenant les jambes les plus longues d'abord (toutes quand même au-dessus du seuil). Soyons clairs : la probabilité combinée est de l'ordre de 1 à 5 % — ce combiné perdra presque toujours. C'est du divertissement : ne misez jamais plus que ce que vous acceptez de perdre intégralement.",
-        "0 — pas assez de sélections aujourd'hui pour atteindre une cote totale de 20 dans la limite de 15 matchs. Le robot s'abstient plutôt que de forcer.")}
+        "Le billet de loterie du jour : cote totale entre 20 et 50, 3 matchs maximum, en comparant les associations admissibles (toutes quand même au-dessus du seuil). Soyons clairs : la probabilité combinée est de l'ordre de 1 à 5 % — ce combiné perdra presque toujours. C'est du divertissement : ne misez jamais plus que ce que vous acceptez de perdre intégralement.",
+        "0 — pas assez de sélections aujourd'hui pour atteindre une cote totale de 20 dans la limite de 3 matchs. Le robot s'abstient plutôt que de forcer.")}
     </div>`;
     if(!r.jours.length){
       h=`<div class="card empty"><b>Aucun</b>

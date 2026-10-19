@@ -567,28 +567,33 @@ function combinaisonsJS(sels,seuil,poolRisque){
     if(parJour)out.par_jour=parJour;
     return out;
   }
-  function construireCible(pool_,cMin,cMax,maxLegs,pAsc){
-    /* combiné « à cote cible » : idem serveur.py _combinaisons.construire_cible.
-       cote jambe = cote marché sinon cote juste (1/p). Jamais forcé : null si
-       la cible minimale n'est pas atteinte dans la limite de jambes. */
-    const tri=pool_.slice().sort(pAsc
-      ?((a,b)=>(a.p-b.p)||cmp(a.date,b.date)||cmp(a.home,b.home)||cmp(a.away,b.away))
-      :((a,b)=>(b.p-a.p)||cmp(a.date,b.date)||cmp(a.home,b.home)||cmp(a.away,b.away)));
-    const legs=[],vus=new Set();let prod=1,nM=0,nJ=0;
-    for(const s of tri){
-      if(legs.length>=maxLegs||prod>=cMin)break;
-      const cl=s.cote_marche;
-      if(!cl||cl<=1.0)continue;
-      const mid=s.date+"|"+s.home+"|"+s.away;
-      if(vus.has(mid)||prod*cl>cMax)continue;
-      legs.push(s);vus.add(mid);prod*=cl;
-      if(s.cote_marche)nM++;else nJ++;
+  function construireCible(pool_,cMin,cMax,maxLegs,pAsc,minLegs=1){
+    /* Miroir exact de la recherche serveur : probabilités, puis nombre de jambes. */
+    const tri=pool_.slice().sort((a,b)=>(b.p-a.p)||cmp(a.date,b.date)||
+      cmp(a.home,b.home)||cmp(a.away,b.away)||cmp(a.option||"",b.option||"")||
+      cmp(a.cotation.bookmaker,b.cotation.bookmaker));
+    let best=null,rank=null;
+    function visit(start,legs,seen,prod,prob,book){
+      if(legs.length>=minLegs&&prod>=cMin&&prod<=cMax){
+        const r=[-prob,legs.length,Math.abs(prod-(cMin+cMax)/2)];
+        if(!rank||r[0]<rank[0]||(r[0]===rank[0]&&(r[1]<rank[1]||
+          (r[1]===rank[1]&&r[2]<rank[2])))){
+          rank=r;best={legs:legs.slice(),p_combine:+prob.toFixed(4),
+            cote_combine:+prod.toFixed(2),cote_juste_combine:null,
+            cote_type:"marché",cible:[cMin,cMax]};
+        }
+      }
+      if(legs.length>=maxLegs||prod>=cMax||(rank&&prob < -rank[0]))return;
+      for(let i=start;i<tri.length;i++){
+        const s=tri[i],cl=s.cote_marche,mid=s.date+"|"+s.home+"|"+s.away;
+        const bk=s.cotation.bookmaker;
+        if(!cl||cl<=1||!(s.p>0&&s.p<=1)||seen.has(mid)||prod*cl>cMax||
+          (book!==null&&bk!==book))continue;
+        const next=new Set(seen);next.add(mid);
+        visit(i+1,legs.concat([s]),next,prod*cl,prob*s.p,bk);
+      }
     }
-    if(!legs.length||prod<cMin||new Set(legs.map(l=>l.cotation.bookmaker)).size!==1)return null;
-    let pr_=1;for(const s of legs)pr_*=s.p;
-    return {legs:legs,p_combine:+pr_.toFixed(4),cote_combine:+prod.toFixed(2),
-      cote_juste_combine:null,
-      cote_type:nJ===0?"marché":nM===0?"juste":"mixte",cible:[cMin,cMax]};
+    visit(0,[],new Set(),1,1,null);return best;
   }
   /* SAFE DU JOUR : aujourd'hui UNIQUEMENT, 1 à 3 jambes, jamais le lendemain */
   const safe=finaliser(construire(sels.filter(s=>s.date===aujIso),"p",seuil));
@@ -608,13 +613,16 @@ function combinaisonsJS(sels,seuil,poolRisque){
   if(safe)for(const l of safe.legs)exclus.add(l.date+"|"+l.home+"|"+l.away);
   const pr=(poolRisque||[]).filter(s=>!exclus.has(s.date+"|"+s.home+"|"+s.away));
   const lr=construire(pr,"cote_marche",0.55);
-  /* COTE 2 / COTE 5 / FUN DU JOUR : aujourd'hui uniquement, SAFE exclu */
-  const exj=new Set(safe?safe.legs.map(l=>l.date+"|"+l.home+"|"+l.away):[]);
-  const pj=sels.filter(s=>s.date===aujIso&&!exj.has(s.date+"|"+s.home+"|"+s.away));
+  /* Les meilleurs matchs du SAFE restent admissibles. */
+  const pj=sels.filter(s=>s.date===aujIso);
+  const c2=construireCible(pj,1.90,2.35,2,false);
+  const c5=construireCible(pj,4.60,5.90,4,false,3);
+  const fun=construireCible(pj,20.0,50.0,3,true);
+  const ids=new Set(safe?safe.legs.map(l=>l.date+"|"+l.home+"|"+l.away):[]);
+  for(const c of [c2,c5,fun])if(c)c.matchs_partages_safe=c.legs.filter(
+    l=>ids.has(l.date+"|"+l.home+"|"+l.away)).length;
   return {safe:safe,safe_weekend:safeWeekend,risque:lr.length>=2?finaliser(lr):null,
-    cote2:construireCible(pj,1.90,2.35,3,false),
-    cote5:construireCible(pj,4.60,5.90,3,false),
-    fun:construireCible(pj,20.0,50.0,3,true)};
+    cote2:c2,cote5:c5,fun:fun};
 }
 
 function conseilsJS(seuil){

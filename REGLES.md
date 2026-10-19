@@ -1,3 +1,10 @@
+# Actualisation autorisée — 19 octobre 2026
+
+- Cote 2 : un ou deux matchs ; cote 5 : trois ou quatre matchs (demande utilisateur).
+- Comparer les combinaisons admissibles, maximiser la probabilité estimée ; ne pas abaisser les seuils ni forcer une cible. Prix réels, même bookmaker, un pari par rencontre.
+- Les matchs du SAFE restent admissibles ; signaler le chevauchement des coupons.
+- Les autres coupons conservent leur plafond de trois matchs. Aucun succès accru démontré sans suivi futur à prix réels.
+
 # Mise à jour prioritaire — 18 octobre 2026
 
 La demande utilisateur du 18/10 autorise les corrections et leur publication après tests.

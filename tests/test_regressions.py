@@ -31,6 +31,37 @@ import backtest_secondaires as BS
 
 
 class Regressions(unittest.TestCase):
+    @staticmethod
+    def selection(i, cote, p=.85, book="A"):
+        return {"date":"2026-10-19", "home":str(i), "away":"Away", "div":"E0",
+                "ligue":"EPL", "option":"1", "p":p, "cote_marche":cote,
+                "avantage_estime":.1, "cotation":{"bookmaker":book}}
+
+    def coupons(self, sels):
+        return S._combinaisons(sels,.75,[],dt.date(2026,10,19))
+
+    def test_cote2_compare_et_reutilise_safe(self):
+        sels=[self.selection(0,1.8,.95),self.selection(1,1.45,.9),self.selection(2,1.4,.9)]
+        c=self.coupons(sels)["cote2"]
+        self.assertEqual([s["home"] for s in c["legs"]],["1","2"])
+        self.assertEqual(c["matchs_partages_safe"],2)
+        self.assertAlmostEqual(c["p_combine"],.81)
+
+    def test_cote5_trois_ou_quatre_et_abstention(self):
+        for n, cote in [(3,1.7),(4,1.5)]:
+            c=self.coupons([self.selection(i,cote) for i in range(n)])["cote5"]
+            self.assertEqual(len(c["legs"]),n)
+        self.assertIsNone(self.coupons([self.selection(i,1.5) for i in range(3)])["cote5"])
+        self.assertIsNone(self.coupons([self.selection(i,2.2) for i in range(2)])["cote5"])
+
+    def test_coupons_meme_bookmaker_pas_doublon(self):
+        sels=[self.selection(0,1.4,.9,"A"),self.selection(1,1.4,.9,"B"),
+              self.selection(2,1.4,.85,"B")]
+        c=self.coupons(sels)["cote2"]
+        self.assertEqual({s["cotation"]["bookmaker"] for s in c["legs"]},{"B"})
+        dup=[self.selection(0,1.4),self.selection(0,1.4)]
+        self.assertIsNone(self.coupons(dup)["cote2"])
+
     def test_corners_recents_prioritaires_dans_le_budget(self):
         import corners_jour as CJ
         def match():
