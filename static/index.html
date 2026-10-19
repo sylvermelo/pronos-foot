@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pronos Foot — moteur Dixon-Coles</title>
+<title>Pronos Foot — conseils et analyses</title>
 <style>
 /* ============ QUANT EDGE TERMINAL — système de design embarqué ============
    Palette et typographie reprises de DESIGN.md (Quant Edge Terminal).
@@ -190,6 +190,27 @@ footer{border-top:1px solid rgba(59,74,63,.35);background:var(--surface);margin-
 .spin{width:14px;height:14px;border:2px solid rgba(0,245,155,.25);border-top-color:var(--green);
   border-radius:50%;animation:rot .8s linear infinite;display:inline-block}
 @keyframes rot{to{transform:rotate(360deg)}}
+
+/* Présentation commune — navigation par usage, lecture confortable. */
+:root{--bg:#0b1118;--surface:#0e1821;--card:#111c26;--card2:#16232e;--card3:#182733;--bord:#283b48;--txt:#edf3f5;--mut:#b7c6ce;--mut2:#94a9b5;--green:#6fddba;--green-d:#6fddba;--green-s:#6fddba;--cyan:#9acfe5}
+body{background:radial-gradient(ellipse at 15% 0,rgba(111,221,186,.045),transparent 45%),var(--bg)}
+header{box-shadow:none;border-bottom:1px solid var(--bord);background:rgba(11,17,24,.96)}
+.hrow{max-width:1440px;height:70px;padding:0 24px}.brand{text-transform:none;font-size:20px;letter-spacing:-.7px}.chip{border-radius:6px;color:var(--green);border-color:var(--bord);font-family:var(--fI)}
+.hstats>.hbox:first-child{display:none}.hbox{border-radius:12px;border-color:var(--bord);min-height:40px}
+.nav-groupes{display:flex;gap:8px;max-width:1440px;margin:auto;padding:8px 24px 0}
+.nav-groupe{background:none;border:0;border-radius:9px;padding:10px 18px;font:600 13px var(--fI);color:var(--mut2)}
+.nav-groupe:hover{background:var(--card2);color:var(--txt)}.nav-groupe.on{background:rgba(111,221,186,.12);color:var(--green)}
+nav{max-width:1440px;padding:4px 24px 8px;height:54px;gap:6px;scrollbar-width:thin}
+.tab{padding:10px 13px;min-height:40px;border:0;border-radius:9px}.tab.on{background:var(--card2);color:var(--txt);box-shadow:inset 0 -2px var(--green)}
+main{padding:176px 24px 48px;max-width:1440px}.band{margin:20px 0 24px;gap:18px}h1{font-size:clamp(24px,3vw,34px);letter-spacing:-1px;text-transform:none;line-height:1.2}.htitle{gap:12px}.desc{font-size:14px;line-height:1.8;margin-top:12px;max-width:750px}
+.card,.tblwrap{border-radius:20px}.card{padding:22px}.card .top{gap:12px;flex-wrap:wrap}.grid{gap:18px}.split{gap:18px}.tblhead{padding:16px 20px}.tblwrap{overflow:auto}th{padding:13px 16px}td{padding:16px}.tname{white-space:normal;min-width:140px}.ligne{padding:13px 0;gap:14px}.ligne .l{min-width:0}.ligne .l b{line-height:1.55}.det{line-height:1.75}.sub{line-height:1.7}
+button,input,select{min-height:40px}input,select{border-radius:10px}.fchip{border-radius:9px;padding:10px 13px}.badge,.tagv{border-radius:6px}.lbl{letter-spacing:.04em;line-height:1.5}.empty{padding:48px 20px}.empty b{font-size:18px}
+.ux-explication{margin-top:16px;padding-top:13px;border-top:1px solid var(--bord)}.ux-explication summary{color:var(--mut2);cursor:pointer;font-size:12px}.ux-explication[open] summary{color:var(--green)}
+button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--green);outline-offset:4px}.fline{max-width:1440px;padding:20px 24px;letter-spacing:0}
+@media(max-width:640px){.hrow{padding:0 14px;gap:8px;height:64px}.brand{font-size:17px}.chip{display:none}.hstats{gap:6px}.hbox{padding:6px 8px}.hstats .num{font-size:11px}.nav-groupes{padding:8px 12px 0}.nav-groupe{flex:1;padding:10px}nav{padding-left:12px;padding-right:12px}main{padding:170px 14px 32px}.card{padding:17px}.band{margin-top:16px}.desc{font-size:13px}.split{gap:14px}.tbadge{font-size:9px}.grid{gap:14px}}
+@media(max-width:420px){.hstats #btnMaj .col{display:none}.hstats #btnMaj{width:40px;justify-content:center}.logo,.logotxt{min-width:0}#hsub{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:140px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -204,7 +225,7 @@ footer{border-top:1px solid rgba(59,74,63,.35);background:var(--surface);margin-
         <circle cx="24" cy="8" r="2.4" fill="#4cd7f6"/>
       </svg>
       <div class="logotxt">
-        <div class="logoline"><span class="brand">Dixon-Coles</span><span class="chip">QUANT ENGINE</span></div>
+        <div class="logoline"><span class="brand">Pronos Foot</span><span class="chip">LE ROBOT</span></div>
         <span class="subline"><span class="dot"></span><span id="hsub">chargement…</span></span>
       </div>
     </div>
@@ -223,7 +244,8 @@ footer{border-top:1px solid rgba(59,74,63,.35);background:var(--surface);margin-
       </button>
     </div>
   </div>
-  <nav id="nav"></nav>
+  <div id="nav-groupes" class="nav-groupes" aria-label="Univers du robot"></div>
+  <nav id="nav" aria-label="Pages du robot"></nav>
 </header>
 
 <main id="main"></main>
@@ -257,7 +279,7 @@ const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&g
 const clsEdge=v=>v>0.02?"g":v<-0.02?"rd":"mu";
 const sgnEdge=v=>(v>0?"+":"")+pct1(v)+" %";
 
-const ETAT={onglet:"matchs",matchs:[],ligues:[],bilan:null,coupon:[],sel:null,suiviData:null,suiviJour:"",
+const ETAT={onglet:"conseils",matchs:[],ligues:[],bilan:null,coupon:[],sel:null,suiviData:null,suiviJour:"",
             fsous:"over",fligue:"toutes",simDiv:"",simH:"",simA:"",clDiv:"",
             seuil:0.75,jourFiltre:"tous"};
 
@@ -313,13 +335,21 @@ const ONGLETS=[["matchs","Matchs à venir"],["conseils","Sélection conseillée"
   ["fleuves","Scores fleuves"],["buteurs","Buteurs"],["series","Buts d'affilée"],["sec","Fautes & cartons"],["corners","Corners"],["classement","Classement des clubs"],
   ["bilan","Fiabilité du moteur"],["admin","Admin"]];
 
+const UNIVERS=[
+  {id:"conseils",label:"Conseils",pages:["conseils","buteurs","corners","series","suivi"]},
+  {id:"analyse",label:"Analyse",pages:["matchs","fleuves","sec","classement","bilan"]},
+  {id:"outils",label:"Outils",pages:["coupon","sim","admin"]}
+];
 function renduNav(){
-  $("#nav").innerHTML=ONGLETS.map(([id,lb])=>{
+  const univers=UNIVERS.find(g=>g.pages.includes(ETAT.onglet))||UNIVERS[0];
+  $("#nav-groupes").innerHTML=UNIVERS.map(g=>`<button type="button" class="nav-groupe ${g.id===univers.id?"on":""}" data-univers="${g.id}" aria-pressed="${g.id===univers.id}">${g.label}</button>`).join("");
+  $("#nav-groupes").querySelectorAll("[data-univers]").forEach(b=>b.onclick=()=>{ETAT.onglet=UNIVERS.find(g=>g.id===b.dataset.univers).pages[0];rendu();});
+  $("#nav").innerHTML=ONGLETS.filter(([id])=>univers.pages.includes(id)).map(([id,lb])=>{
     let b="";
     if(id==="matchs"){const n=ETAT.matchs.length;
       b=n?`<span class="tbadge">${joursDisponibles()}</span>`:"";}
     if(id==="coupon") b=`<span class="tbadge n">${ETAT.coupon.length}</span>`;
-    return `<button class="tab ${ETAT.onglet===id?"on":""}" data-o="${id}">${lb}${b}</button>`;
+    return `<button type="button" class="tab ${ETAT.onglet===id?"on":""}" data-o="${id}" aria-current="${ETAT.onglet===id?"page":"false"}">${lb}${b}</button>`;
   }).join("");
   $("#nav").querySelectorAll(".tab").forEach(t=>t.onclick=()=>{ETAT.onglet=t.dataset.o;rendu();});
 }
@@ -422,19 +452,17 @@ function carteCombine(titre,c,couleur,avert,videTxt,groupe){
       <b class="g" style="font-size:15px">${pct1(c.p_combine)} %</b>`+
      (c.cote_combine?` &nbsp;·&nbsp; Cote bookmaker combinée : <b class="cy">${f2(c.cote_combine)}</b>`:" · Cote indisponible")+`</div>
     ${c.matchs_partages_safe?`<div class="det mu">${c.matchs_partages_safe} match(s) également dans le SAFE : les coupons partagent ce risque.</div>`:""}
-    <div class="det mu" style="margin-top:6px;line-height:1.6">${avert}</div></div>`;
+    <details class="ux-explication"><summary>Comment lire ce coupon</summary><div class="det mu" style="margin-top:8px;line-height:1.6">${avert}</div></details></div>`;
   return h;
 }
 
 function tabConseils(){
   ETAT.seuil=ETAT.seuil||0.75;
-  $("#main").innerHTML=`<div class="band"><div><div class="htitle"><h1>Sélection conseillée</h1>
+  $("#main").innerHTML=`<div class="band"><div><div class="htitle"><h1>Les conseils du robot</h1>
     <span class="badge gy"><span class="dot"></span>SEUIL ${Math.round(ETAT.seuil*100)} %</span>
     <span class="badge cy">LISTE PAR JOUR</span></div>
-    <p class="desc">Pour chaque match à venir, le moteur regarde toutes ses options
-    (victoire, nul, over/under 1.5 à 3.5, les deux équipes marquent, double chance)
-    et retient la plus probable. Si elle atteint le seuil, le match entre dans la liste
-    du jour avec son option idéale. Aucun match au-dessus du seuil → « aucun ».</p></div>
+    <p class="desc">Retrouve les sélections par jour et compare les coupons en un regard.
+    Le seuil filtre la probabilité estimée de chaque sélection. Le robot peut s’abstenir quand aucun match ne remplit les conditions.</p></div>
     <div class="hbox"><span class="lbl">Seuil</span>
       ${[0.70,0.75,0.80].map(s=>`<button class="fchip ${ETAT.seuil===s?"on":""}" data-s="${s}">${s*100} %</button>`).join("")}
     </div></div>
@@ -463,7 +491,7 @@ function tabConseils(){
           <td class="num mu">${f2(s.buts)}</td>
           <td><span class="tagv" style="color:${s.confiance==="haute"?"var(--green)":s.confiance==="moyenne"?"var(--amber)":"var(--red)"};background:rgba(148,163,184,.08)">${esc(s.confiance||"—")}</span></td>
           ${cellRes(s)}</tr>`;
-    h+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;margin-bottom:14px">
+    h+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px;margin-bottom:14px">
       ${carteCombine("SAFE DU JOUR — 3 matchs max, aujourd'hui uniquement",cb.safe,"var(--green)",
         "Probabilité combinée = produit des probabilités (indépendance supposée, approximation). Trois jambes à ~85 % donnent ~61 % : environ 2 échecs sur 5. Aucun gain garanti.",
         "0 — aucune sélection au-dessus du seuil AUJOURD'HUI. Le robot ne va jamais chercher un match des jours suivants pour compléter.")}
