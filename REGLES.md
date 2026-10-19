@@ -153,3 +153,7 @@ Voir aussi ORGANISATION.md (la carte complète des fichiers).
   vitrine (sylvermelo.github.io/vitrine). Pas de Vercel. URLs conservées.
 - Supabase : ref xqogordfcqymkmvzhrby ; les fichiers RLS sont dans
   supabase/ (déjà collés par l'utilisateur dans l'éditeur SQL).
+
+## Expérience buteurs — demande du 19/10 au soir
+
+L'onglet présente des conseils sous forme de cartes classées globalement par probabilité décroissante, avec plage min/max inclusive, jour et filtre titulaires confirmés. Douze profils puis chargement local des suivants ; détails statistiques repliés. Les filtres ne changent ni les probabilités ni les historiques et ne déclenchent aucun appel fournisseur. Ne pas afficher tous les joueurs en tableaux par match. Source canonique : ui/buteurs-conseils.js ; synchronisation : python3 scripts/sync_buteurs_ui.py --vitrine ../vitrine ; contrôle : node tests/test_buteurs_ui.js. L'absence de profil dans une plage reste explicite, sans gonfler un pourcentage.
