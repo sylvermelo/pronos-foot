@@ -1023,6 +1023,7 @@ function buteursConseilsHTML(data,filtre) {
       <label>Quand ?<select data-bc="jour"><option value="auj" ${filtre.jour==='auj'?'selected':''}>Aujourd’hui</option><option value="demain" ${filtre.jour==='demain'?'selected':''}>Demain</option><option value="tous" ${filtre.jour==='tous'?'selected':''}>Tous les matchs à venir</option></select></label>
       <label>De (%)<input data-bc="min" type="number" min="0" max="100" step="1" value="${e(filtre.min)}" inputmode="numeric"></label>
       <label>À (%)<input data-bc="max" type="number" min="0" max="100" step="1" value="${e(filtre.max)}" inputmode="numeric"></label>
+      <button type="button" class="bc-chip on" data-bc-apply>Appliquer la plage</button>
       <label class="bc-check"><input data-bc="confirmes" type="checkbox" ${filtre.confirmes?'checked':''}>Titulaires confirmés seulement</label></div>
       <div class="bc-range">${plages.map(([label,min,max])=>`<button type="button" class="bc-chip ${Number(filtre.min)===min&&Number(filtre.max)===max?'on':''}" data-bc-range="${min},${max}" aria-pressed="${Number(filtre.min)===min&&Number(filtre.max)===max}">${label}</button>`).join('')}</div></div>
     <div class="bc-results" aria-live="polite"><b>${lignes.length} profil${lignes.length>1?'s':''} ${erreur?'':`entre ${e(filtre.min)} et ${e(filtre.max)} %`}</b><span>Probabilité décroissante ↓</span></div>
@@ -1033,8 +1034,9 @@ function buteursConseilsHTML(data,filtre) {
 }
 function buteursConseilsBind(root,filtre,refresh){
   root.querySelectorAll('[data-bc]').forEach(el=>el.addEventListener('change',()=>{
-    const k=el.dataset.bc;filtre[k]=el.type==='checkbox'?el.checked:el.value;filtre.limite=12;refresh();
+    const k=el.dataset.bc;filtre[k]=el.type==='checkbox'?el.checked:el.value;filtre.limite=12;if(k!=='min'&&k!=='max')refresh();
   }));
+  root.querySelectorAll('[data-bc-apply]').forEach(el=>el.addEventListener('click',()=>{filtre.limite=12;refresh();}));
   root.querySelectorAll('[data-bc-range]').forEach(el=>el.addEventListener('click',()=>{
     const [min,max]=el.dataset.bcRange.split(',').map(Number);Object.assign(filtre,{min,max,limite:12});refresh();
   }));

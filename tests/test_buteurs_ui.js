@@ -23,7 +23,7 @@ assert.strictEqual(data.matchs[0].joueurs[0].analyse.p,.3);
 const elements=[{dataset:{bc:'min'},type:'number',value:'40'},{dataset:{bcRange:'40,60'}}];
 for(const el of elements)el.addEventListener=(type,fn)=>{el.click=fn;};
 const root={querySelectorAll(sel){return sel==='[data-bc]'?[elements[0]]:sel==='[data-bc-range]'?[elements[1]]:[];}};
-let refreshed=0;ctx.buteursConseilsBind(root,f,()=>refreshed++);elements[0].click();assert.strictEqual(f.min,'40');elements[1].click();assert.strictEqual(f.max,60);assert.strictEqual(refreshed,2);
+let refreshed=0;ctx.buteursConseilsBind(root,f,()=>refreshed++);elements[0].click();assert.strictEqual(f.min,'40');elements[1].click();assert.strictEqual(f.max,60);assert.strictEqual(refreshed,1);
 for(const file of ['static/index.html','../vitrine/docs/assets/app.js']){
  if(!fs.existsSync(file)&&file.startsWith('../vitrine/'))continue;
  const built=fs.readFileSync(file,'utf8');assert(built.includes(source),file+' : la vue canonique doit être synchronisée');
