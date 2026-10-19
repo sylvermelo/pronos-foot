@@ -84,7 +84,7 @@ const propre = t => !/NaN|undefined/.test(t || '');
 
   /* --- chaque onglet --- */
   console.log('\n=== 2. Rendu des 11 onglets ===');
-  for (const id of ['matchs', 'conseils', 'suivi', 'coupon', 'sim', 'fleuves', 'series', 'sec', 'corners', 'classement', 'bilan']) {
+  for (const id of ['matchs', 'conseils', 'suivi', 'coupon', 'sim', 'fleuves', 'buteurs', 'series', 'sec', 'corners', 'classement', 'bilan']) {
     try {
       elements.clear();
       vm.runInContext(`ETAT.onglet=${JSON.stringify(id)};rendu();`, ctx, { timeout: 30000 });

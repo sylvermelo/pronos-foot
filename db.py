@@ -46,7 +46,7 @@ def disponible():
     return config() is not None
 
 
-def _requete(methode, chemin, donnees, params=""):
+def _requete(methode, chemin, donnees, params="", resolution="merge-duplicates"):
     """Appel PostgREST via curl (même tuyauterie que le reste du projet).
     Retourne (code_http, corps). (None, raison) si non configuré / échec."""
     cfg = config()
@@ -63,7 +63,7 @@ def _requete(methode, chemin, donnees, params=""):
                "-H", "apikey: " + cle,
                "-H", "Authorization: Bearer " + cle,
                "-H", "Content-Type: application/json",
-               "-H", "Prefer: return=minimal,resolution=merge-duplicates",
+               "-H", "Prefer: return=minimal,resolution=" + resolution,
                "-w", "%{http_code}", "-o", reponse, "-d", "@" + tmp]
         p = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
         code = (p.stdout or "").strip() or "000"

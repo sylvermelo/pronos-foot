@@ -42,6 +42,7 @@ def precalculer():
         "apprentissage": S.DB.get("apprentissage", {}),
         "calendrier": S.DB.get("calendrier_log") or {},
         "suivi": __import__("suivi").vue(),
+        "buteurs": __import__("buteurs").vue(),
         "corners_cal": S.api_corners(),
         "fatigue": __import__("fatigue").export_app(),
         "absences": __import__("compos").export_app(),
@@ -710,6 +711,7 @@ async function api(p){
     case '/api/bilan':    return DATA.bilan;
     case '/api/corners':  return DATA.corners_cal;
     case '/api/suivi':    return DATA.suivi;
+    case '/api/buteurs':  return DATA.buteurs;
     case '/api/classement': return DATA.classements[g('div')]||null;
     case '/api/fleuves':  return DATA.fleuves[g('div')]||null;
     case '/api/pronostic':{

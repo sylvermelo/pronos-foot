@@ -109,6 +109,13 @@ jobs:
       - name: Reconstruire le calendrier multi-sources
         run: python maj_calendrier.py || echo "calendrier inchangé (sources injoignables ?)"
 
+      - name: Apprendre les buteurs et figer les prévisions
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: python3 -u buteurs.py
+
       - name: Régénérer l'application autonome
         run: python genere_app.py
 
@@ -181,6 +188,7 @@ jobs:
           cp pronos-foot-autonome.html site/index.html
           # copie de secours sous son nom d'origine, téléchargeable
           cp pronos-foot-autonome.html site/pronos-foot-autonome.html
+          cp data/buteurs_jour.json site/buteurs_jour.json
           cp data/series_jour.json site/series_jour.json 2>/dev/null || true
           cp data/combines_jour.json site/combines_jour.json 2>/dev/null || true
           cp data/corners_jour.json site/corners_jour.json 2>/dev/null || true

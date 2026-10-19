@@ -310,7 +310,7 @@ async function api(p){const r=await fetch(p);if(!r.ok)throw new Error(p);return 
 
 /* ---------------------------------------------------------------- onglets */
 const ONGLETS=[["matchs","Matchs à venir"],["conseils","Sélection conseillée"],["suivi","Pronos vs Résultats"],["coupon","Mon coupon"],["sim","Simulateur"],
-  ["fleuves","Scores fleuves"],["series","Buts d'affilée"],["sec","Fautes & cartons"],["corners","Corners"],["classement","Classement des clubs"],
+  ["fleuves","Scores fleuves"],["buteurs","Buteurs"],["series","Buts d'affilée"],["sec","Fautes & cartons"],["corners","Corners"],["classement","Classement des clubs"],
   ["bilan","Fiabilité du moteur"],["admin","Admin"]];
 
 function renduNav(){
@@ -372,7 +372,7 @@ async function init(){
 function fmtN(n){return n==null?"—":String(n).replace(/\B(?=(\d{3})+(?!\d))/g," ");}
 
 function rendu(){renduNav();
-  ({matchs:tabMatchs,conseils:tabConseils,suivi:tabSuivi,coupon:tabCoupon,sim:tabSim,fleuves:tabFleuves,series:tabSeries,sec:tabSec,
+  ({matchs:tabMatchs,conseils:tabConseils,suivi:tabSuivi,coupon:tabCoupon,sim:tabSim,fleuves:tabFleuves,buteurs:tabButeurs,series:tabSeries,sec:tabSec,
     corners:tabCorners,classement:tabClassement,bilan:tabBilan,admin:tabAdmin})[ETAT.onglet]();}
 
 /* ================================================================ ONGLET 2
@@ -970,6 +970,36 @@ function chargerEquipes(div){
      5 jambes max, 1 option par match, matchs du SAFE exclus, Big 5, même jour.
    - Aucun marché bookmaker pour ces évènements dans nos sources → cotes
      JUSTES calculées, information chiffrée, JAMAIS dans le coupon ni le suivi. */
+function tabButeurs(){
+  $("#main").innerHTML='<div class="empty">Chargement des buteurs…</div>';
+  return api('/api/buteurs').then(r=>{
+    const h=r.historique||{},ev=r.evaluation||{},test=ev.test||{};
+    let html=`<div class="card"><div class="hd"><span class="lbl">BUTEURS — APPRENTISSAGE INDIVIDUEL</span></div>
+      <p class="det">${esc(r.note||'Collecte en cours.')}</p>
+      <p class="det">${h.matchs||0} matchs vérifiés · ${h.joueurs||0} joueurs observés · Dernier match : ${esc(h.dernier_match||'—')}<br>
+      Actualisation : ${esc(r.genere_le||'—')}<br>Évaluation : <b>${esc(ev.statut||'collecte_en_cours')}</b> · Test chronologique : ${test.matchs||0} matchs / ${test.n||0} prévisions.
+      ${test.brier!=null?`Brier : ${f3(test.brier)} (référence ${f3(test.baseline_brier)})`:'Validation encore insuffisante.'}</p>
+      <p class="det mu">La probabilité suppose une titularisation et utilise les minutes des titularisations précédentes.
+      Avant composition officielle : liste d’observation. Les petits historiques sont exclus ; aucun bonus manuel ni coupon automatique.</p></div>`;
+    const now=Date.now(),matches=(r.matchs||[]).filter(m=>Date.parse(m.debut_utc)>now);
+    if(!matches.length)html+='<div class="empty"><b>Aucun match à venir dans la fenêtre collectée</b>Le robot poursuit l’historique. Aucune sélection forcée.</div>';
+    for(const m of matches){
+      html+=`<div class="card"><div class="hd"><span class="lbl">${esc(m.home)} — ${esc(m.away)}</span>
+        <span class="lbl mu">${esc(m.date)} ${esc(m.heure||'')} · ${m.composition_confirmee?'Titulaires confirmés':'Observation — composition attendue'}</span></div>
+        <div class="tblwrap"><table><thead><tr><th>Joueur</th><th>Équipe</th><th>Historique</th><th>Temps si titulaire</th><th>Marque au moins une fois</th><th>Cote reçue</th></tr></thead><tbody>`;
+      for(const p of m.joueurs||[]){const a=p.analyse,q=p.cotation;
+        html+=`<tr><td>${esc(p.nom)}</td><td>${esc(p.equipe)}</td><td>${a?`${a.buts} buts / ${a.matchs} matchs`:'Données insuffisantes'}</td>
+          <td>${a?esc(a.minutes_si_titulaire)+' min':'—'}</td><td>${a?pct(a.p)+(a.intervalle_taux_90?`<div class="det mu">Intervalle du modèle : ${pct(a.intervalle_taux_90[0])}–${pct(a.intervalle_taux_90[1])}</div>`:''):'—'}</td>
+          <td>${q&&Date.parse(q.commence_time)>now&&now-Date.parse(q.last_update)>=0&&now-Date.parse(q.last_update)<=86400000?f2(q.price)+' · '+esc(q.bookmaker_nom||q.bookmaker)+' (US)':'Cote indisponible'}</td></tr>`;
+      }
+      html+='</tbody></table></div></div>';
+    }
+    const sr=r.suivi||{};
+    html+=`<div class="card"><div class="hd"><span class="lbl">SUIVI DES PRÉVISIONS FIGÉES</span></div><p class="det">${sr.n||0} prévisions résolues sur ${sr.matchs||0} matchs. ${sr.brier!=null?'Brier : '+f3(sr.brier):'Le suivi commence avec les prochaines compositions confirmées.'} Aucun ROI annoncé sans prix bookmaker archivés.</p></div>`;
+    if(ETAT.onglet==='buteurs')$("#main").innerHTML=html;
+  }).catch(()=>{if(ETAT.onglet==='buteurs')$("#main").innerHTML='<div class="empty">Données buteurs temporairement indisponibles.</div>';});
+}
+
 function tabSeries(){
   const ms=ETAT.matchs.filter(m=>m.disponible&&m.serie2!=null);
   const non=p=>p==null?"—":pct1(1-p)+" %";

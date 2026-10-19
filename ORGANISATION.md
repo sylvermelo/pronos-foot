@@ -125,3 +125,7 @@ casserait la chaîne horaire — c'est voulu. Cette carte remplace les dossiers.
 | docs/ | le site publié (sylvermelo.github.io/vitrine) |
 | docs/assets/app.js | la logique : connexion, abonnement 30 j, codes promo, verdicts des sélections (lit les tables `selections`, `combines`, `abonnements` écrites par db.py côté robot) |
 | docs/assets/config.js | URL + clé anon Supabase (publique, protégée par RLS) |
+
+## Buteurs — 19/10/2026
+
+`buteurs_collecte.py` → mémoire privée `joueurs_matchs`, `buteurs_modele.py` → apprentissage, `buteurs_cotes.py` → prix exacts, `buteurs.py` → prévisions figées et export `buteurs_jour.json`. Onglets robot/vitrine. Détails et limites : docs/BUTEURS-IMPLEMENTATION-2026-10-19.md. Les fichiers joueurs bruts restent privés dans Supabase et le cache CI.

@@ -57,6 +57,9 @@ def sauver(etat):
     futur = (auj + datetime.timedelta(days=3)).isoformat()
     etat["matchs"] = {k: m for k, m in etat["matchs"].items()
                       if borne <= m.get("date", "") <= futur}
+    # Mutualiser les résumés déjà reçus avec la mémoire individuelle durable.
+    import buteurs_collecte
+    buteurs_collecte.ingere_compos(etat)
     tmp = CHEMIN + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(etat, f, ensure_ascii=False, separators=(",", ":"))
@@ -105,7 +108,9 @@ def _extraire(summary, evt_id, div, slug, date_iso, home_src, away_src, fini):
             compos[c] = joueurs
     if not compos.get("home") and not compos.get("away"):
         return None
-    return {"div": div, "slug": slug, "evt": str(evt_id), "date": date_iso,
+    import buteurs_collecte
+    return {"joueurs": buteurs_collecte.extraire(summary, div),
+            "div": div, "slug": slug, "evt": str(evt_id), "date": date_iso,
             "home_src": home_src, "away_src": away_src, "fini": 1 if fini else 0,
             "compos": compos,
             "collecte_le": datetime.datetime.now().isoformat(timespec="seconds")}
@@ -211,8 +216,8 @@ def collecter(fenetre_h=FENETRE_H):
             cle = f"{div}|{ev['date']}|{ev['home']}|{ev['away']}"
             deja = etat["matchs"].get(cle)
             if ev["fini"]:
-                if deja and deja.get("compos"):
-                    continue          # déjà stocké avec compositions
+                if deja and deja.get("fini") and deja.get("compos"):
+                    continue          # une composition pré-match doit être actualisée
             else:
                 # à venir : on n'interroge qu'à l'approche du coup d'envoi
                 try:

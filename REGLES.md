@@ -1,3 +1,12 @@
+# Module buteurs autorisé — 19 octobre 2026
+
+- Collecte Big5, historique privé Supabase, apprentissage Gamma-Poisson, onglet robot et vitrine. Voir docs/BUTEURS-IMPLEMENTATION-2026-10-19.md.
+- Zéro ≠ absent ; contrôler score/CSC, périodes, identité, composition et minutes. Jamais de composition finale pour une prédiction avant match.
+- Gel avant coup d'envoi, aucune réécriture de la probabilité après résultat. Pas de coupon automatique buteur ni effet adversaire/penalty inventé.
+- Minimum 5 apparitions/180 minutes ; 3 titularisations ; référence 60 observations. Validation chronologique, statut initial ≠ rentabilité démontrée.
+- The Odds API partagé : au plus 1 événement/jour/1 marché buteur US, +31 crédits nominaux/mois, maximum nominal commun 341/31 jours, réserve 80 maintenue. Prix exact ou indisponible.
+- ESPN : 16 résumés/passage, 160 historiques + 80 récents/jour, 4 connexions max. Amorçage manuel exceptionnel 320 historiques. Cache partagé et mémoire conservée ; aucune promesse de quota officiel ESPN.
+
 # Actualisation autorisée — 19 octobre 2026
 
 - Cote 2 : un ou deux matchs ; cote 5 : trois ou quatre matchs (demande utilisateur).

@@ -906,7 +906,8 @@ def enrichir_secondaires(item):
     return item
 
 
-ROUTES = {"/api/ligues": lambda q: api_ligues(),
+ROUTES = {"/api/buteurs": lambda q: __import__("buteurs").vue(),
+          "/api/ligues": lambda q: api_ligues(),
           "/api/secondaires": lambda q: api_secondaires(
               q.get("div", [""])[0], q.get("home", [""])[0], q.get("away", [""])[0],
               q.get("arbitre", [None])[0]),

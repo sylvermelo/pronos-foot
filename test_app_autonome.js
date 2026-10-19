@@ -231,6 +231,13 @@ const evalJS = (code) => vm.runInContext(code, ctx, { timeout: 30000 });
     else ko('coupon corners créé sans prix vérifié');
   } catch (err) { ko('test corners : ' + err.message); }
 
+  try {
+    const expected=await fetch(BASE+'/api/buteurs').then(r=>r.json());
+    const actual=await evalJS("api('/api/buteurs')");
+    if(JSON.stringify(expected)===JSON.stringify(actual))ok('buteurs : même export pré-calculé serveur et navigateur');
+    else ko('buteurs : export divergent');
+  }catch(e){ko('buteurs : '+e.message);}
+
   console.log(`\n${'='.repeat(62)}`);
   if (erreurs === 0)
     console.log(`\x1b[32mFICHIER AUTONOME VALIDÉ\x1b[0m — identique au serveur (${avertissements} avertissement(s))`);
