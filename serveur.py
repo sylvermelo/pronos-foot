@@ -367,11 +367,11 @@ def api_fleuves(div, top=12):
     return {"ligue": L["nom"], "plus_prolifiques": rows[:top], "plus_fermes": secs}
 
 
-def api_matchs():
+def api_matchs(fixtures=None):
     aujourdhui = datetime.date.today()
     ref = aujourdhui.isoformat()
     out = []
-    for fx in DB.get("fixtures", []):
+    for fx in (DB.get("fixtures", []) if fixtures is None else fixtures):
         if (fx["date"] or "") < ref:
             continue                      # jamais de match deja joue
         p = pronostic(fx["div"], fx["home"], fx["away"])
@@ -906,7 +906,9 @@ def enrichir_secondaires(item):
     return item
 
 
-ROUTES = {"/api/buteurs": lambda q: __import__("buteurs").vue(),
+ROUTES = {"/api/hockey": lambda q: __import__("hockey").vue(),
+          "/api/europe": lambda q: __import__("europe").vue(),
+          "/api/buteurs": lambda q: __import__("buteurs").vue(),
           "/api/ligues": lambda q: api_ligues(),
           "/api/secondaires": lambda q: api_secondaires(
               q.get("div", [""])[0], q.get("home", [""])[0], q.get("away", [""])[0],

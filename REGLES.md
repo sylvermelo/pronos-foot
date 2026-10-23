@@ -1,3 +1,10 @@
+# NHL, Europe et hébergement — 23 octobre 2026
+
+- Hockey : modèle NHL séparé dans hockey_modele.py, collecteur hockey_collecte.py, orchestration hockey.py. Voir docs/HOCKEY-EUROPE-PAIEMENT-2026-10-23.md. Ne jamais assimiler les marchés 60 min au vainqueur prolongation/tirs au but inclus.
+- Prévisions figées avant match, pas de réécriture des probabilités après résultat. Donnée absente ≠ zéro. Modèle expérimental, aucun ROI ou avantage face au football démontré. Pas de coupon NHL sans prix exploitable ; aucun budget Odds API ajouté.
+- Vues canoniques hockey/Europe : ui/multisport.js, scripts/sync_multisport_ui.py, tests/test_multisport_ui.js. Sources JSON du robot via ROBOT_BASE_URL pour permettre un hébergement indépendant.
+- Cloudflare : préparation autorisée pour la vitrine commerciale ; aucun déploiement Cloudflare sans connexion effective. FedaPay : pas d’encaissement réel avant acceptation écrite de l’activité et configuration/test du prestataire.
+
 # Module buteurs autorisé — 19 octobre 2026
 
 - Collecte Big5, historique privé Supabase, apprentissage Gamma-Poisson, onglet robot et vitrine. Voir docs/BUTEURS-IMPLEMENTATION-2026-10-19.md.

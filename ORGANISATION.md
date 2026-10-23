@@ -129,3 +129,15 @@ casserait la chaîne horaire — c'est voulu. Cette carte remplace les dossiers.
 ## Buteurs — 19/10/2026
 
 `buteurs_collecte.py` → mémoire privée `joueurs_matchs`, `buteurs_modele.py` → apprentissage, `buteurs_cotes.py` → prix exacts, `buteurs.py` → prévisions figées et export `buteurs_jour.json`. Onglets robot/vitrine. Détails et limites : docs/BUTEURS-IMPLEMENTATION-2026-10-19.md. Les fichiers joueurs bruts restent privés dans Supabase et le cache CI.
+
+## NHL et coupes européennes — 23/10/2026
+
+| Fichier | Rôle |
+|---|---|
+| hockey_collecte.py | Calendriers NHL, identités, scores 60 min/final, budget local |
+| hockey_modele.py | Modèle, validation chronologique et calibration |
+| hockey.py | Orchestration, gel des prévisions, suivi et export hockey_jour.json |
+| data/nhl_historique_seed.json / nhl_modele_seed.json | Amorçage reproductible après perte du cache |
+| europe.py | Export des prochaines rencontres UEFA, clubs non modélisés visibles |
+| ui/multisport.js | Vues canoniques hockey et Europe, filtres locaux |
+| scripts/sync_multisport_ui.py | Synchronisation robot/vitrine |

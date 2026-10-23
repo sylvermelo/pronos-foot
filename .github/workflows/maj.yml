@@ -90,6 +90,7 @@ jobs:
         run: |
           python -m unittest discover -s tests -v
           node tests/test_buteurs_ui.js
+          node tests/test_multisport_ui.js
 
       - name: Télécharger les nouveautés et ré-entraîner si nécessaire
         env:
@@ -117,6 +118,11 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: python3 -u buteurs.py
+
+      - name: Apprendre le hockey NHL et préparer les coupes européennes
+        run: |
+          python3 -u hockey.py
+          PRONOS_SANS_CALENDRIER=1 python3 europe.py
 
       - name: Régénérer l'application autonome
         run: python genere_app.py
@@ -191,6 +197,8 @@ jobs:
           # copie de secours sous son nom d'origine, téléchargeable
           cp pronos-foot-autonome.html site/pronos-foot-autonome.html
           cp data/buteurs_jour.json site/buteurs_jour.json
+          cp data/hockey_jour.json site/hockey_jour.json
+          cp data/europe_jour.json site/europe_jour.json
           cp data/series_jour.json site/series_jour.json 2>/dev/null || true
           cp data/combines_jour.json site/combines_jour.json 2>/dev/null || true
           cp data/corners_jour.json site/corners_jour.json 2>/dev/null || true

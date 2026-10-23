@@ -104,7 +104,14 @@ def collecter_plage(comp, debut, fin, etat):
     slug = COMPETITIONS[comp]
     d = calendrier.scoreboard_jours(slug, debut, fin)
     if d is None:
+        with _VERROU:etat.setdefault('sources',{}).setdefault(comp,{})['erreur']='calendrier indisponible'
         return None
+    with _VERROU:
+        meta=etat.setdefault('sources',{}).setdefault(comp,{})
+        meta['jours_valides']=d.get('jours_valides');meta['jours_demandes']=d.get('jours_demandes')
+        if d.get('jours_valides')==d.get('jours_demandes'):
+            meta['succes_le']=datetime.datetime.now().isoformat(timespec='seconds');meta.pop('erreur',None)
+        else:meta['erreur']='calendrier partiel'
     cle_plage = f"{comp}|{debut}|{fin}"
     ajoutes = 0
     for e in d.get("events", []):
@@ -144,6 +151,7 @@ def collecter_plage(comp, debut, fin, etat):
                 "home_src": h, "away_src": a,
                 "hg": bh if fini else None, "ag": ba if fini else None,
                 "fini": fini, "evt": str(e.get("id")),
+                "statut": e.get("status",{}).get("type",{}).get("name"),
             }
         with _VERROU:
             if etat["matchs"].get(cle) == entree:

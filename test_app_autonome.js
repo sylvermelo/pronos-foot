@@ -159,7 +159,7 @@ const evalJS = (code) => vm.runInContext(code, ctx, { timeout: 30000 });
   /* ---------------- 4. les 7 onglets s'affichent-ils hors-ligne ? ---------------- */
   console.log('\n=== 4. Rendu des 10 onglets en mode autonome ===');
   await new Promise(r => setTimeout(r, 3500));   // laisse init() terminer ses chargements
-  for (const id of ['matchs','conseils','suivi','coupon','sim','fleuves','sec','corners','classement','bilan']) {
+  for (const id of ['matchs','conseils','suivi','coupon','sim','fleuves','hockey','europe','sec','corners','classement','bilan']) {
     try {
       elements.clear();
       evalJS(`ETAT.onglet=${JSON.stringify(id)};rendu();`);
@@ -237,6 +237,17 @@ const evalJS = (code) => vm.runInContext(code, ctx, { timeout: 30000 });
     if(JSON.stringify(expected)===JSON.stringify(actual))ok('buteurs : même export pré-calculé serveur et navigateur');
     else ko('buteurs : export divergent');
   }catch(e){ko('buteurs : '+e.message);}
+
+  for(const name of ['hockey','europe']){
+    try{
+      const expected=await fetch(BASE+'/api/'+name).then(r=>r.json());
+      const actual=await evalJS("api('/api/"+name+"')");
+      // Horodatage de rendu Europe indépendant de ses données.
+      if(name==='europe'){delete expected.genere_le;delete actual.genere_le;}
+      if(JSON.stringify(expected)===JSON.stringify(actual))ok(name+' : export serveur identique au navigateur');
+      else ko(name+' : export divergent');
+    }catch(e){ko(name+' : '+e.message);}
+  }
 
   console.log(`\n${'='.repeat(62)}`);
   if (erreurs === 0)

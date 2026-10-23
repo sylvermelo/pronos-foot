@@ -215,7 +215,13 @@ def scoreboard_jours(slug, debut, fin=None, workers=4):
         raise ValueError("Fenêtre scoreboard invalide ou trop large")
     dates = [d0 + datetime.timedelta(days=i) for i in range((d1 - d0).days + 1)]
     def lire(jour):
-        return _curl_json(f"https://site.api.espn.com/apis/site/v2/sports/soccer/{slug}/scoreboard?dates={jour:%Y%m%d}&limit=1000", timeout=10)
+        # Deux domaines ESPN officiels : le miroir web répond quand le domaine
+        # site.api est indisponible. Un zéro validé n'entraîne pas de doublon.
+        path=f"/apis/site/v2/sports/soccer/{slug}/scoreboard?dates={jour:%Y%m%d}&limit=1000"
+        for host in ("site.web.api.espn.com","site.api.espn.com"):
+            response=_curl_json("https://"+host+path,timeout=10)
+            if isinstance(response,dict) and isinstance(response.get('events'),list):return response
+        return None
     if len(dates) == 1 or workers == 1:
         reponses = [lire(j) for j in dates]
     else:
@@ -285,6 +291,8 @@ def _espn_jour(slug, date_iso):
         return out
     for e in d.get("events", []):
         if e.get("status", {}).get("type", {}).get("completed", False):
+            continue
+        if (e.get("status",{}).get("type",{}).get("name") or "") in {"STATUS_POSTPONED","STATUS_CANCELED","STATUS_CANCELLED","STATUS_ABANDONED"}:
             continue
         comp = (e.get("competitions") or [{}])[0]
         h = a = None
@@ -485,11 +493,21 @@ def appliquer(db, cotes=None):
     try:
         precedent = db.get("calendrier_log") or {}
         age = (datetime.datetime.now() - datetime.datetime.fromisoformat(precedent["genere_le"])).total_seconds()
-        if age < 21600 and db.get("fixtures"):
+        if age < 21600 and precedent.get("version_affichage_coupes")==1 and db.get("fixtures"):
             return precedent
     except (KeyError, ValueError, TypeError):
         pass
     matchs, log = construire(eq, bruts)
+    # Les prochaines journées UEFA déjà collectées pour la fatigue restent
+    # visibles jusqu'à J+21, sans multiplier les requêtes réseau.
+    extras=coupes_archive(db)
+    vus={(m.get("div"),m.get("event_id") or (m.get("home"),m.get("away"),m.get("date"))) for m in matchs}
+    for m in extras:
+        key=(m['div'],m.get('event_id') or (m['home'],m['away'],m['date']))
+        if key not in vus:matchs.append(m);vus.add(key)
+    matchs.sort(key=lambda m:(m['date'],m.get('heure') or ''))
+    log['total']=len(matchs)
+    log['version_affichage_coupes']=1
     if matchs:
         db["fixtures"] = matchs
         db["fixtures_cotes"] = bruts
@@ -499,3 +517,22 @@ def appliquer(db, cotes=None):
                          if db.get("fixtures") else "echec — aucun match")
     db["calendrier_log"] = log
     return log
+
+
+def coupes_archive(db,etat=None,aujourdhui=None):
+    """Réutilise le calendrier européen à J+21 déjà collecté par fatigue.py."""
+    if etat is None:
+        import fatigue
+        etat=fatigue.charger()
+    today=aujourdhui or datetime.date.today();end=today+datetime.timedelta(days=21)
+    mp=Mappeur({k:sorted(db.get('index_equipes',{})) for k in ('UCL','UEL','UECL')})
+    out=[]
+    for m in (etat.get('matchs') or {}).values():
+        div=m.get('comp');date=m.get('date','')
+        if div not in ('UCL','UEL','UECL') or m.get('fini') or m.get('statut') in {'STATUS_POSTPONED','STATUS_CANCELED','STATUS_CANCELLED','STATUS_ABANDONED'} or not today.isoformat()<=date<=end.isoformat():continue
+        h=mp.traduire(div,m.get('home_src')) or m.get('home_src');a=mp.traduire(div,m.get('away_src')) or m.get('away_src')
+        if not h or not a or h==a:continue
+        out.append({'div':div,'home':h,'away':a,'date':date,'heure':m.get('heure') or '', 'arbitre':None,
+                    'event_id':m.get('evt'),'source':'ESPN','source_collecte':etat.get('genere_le'),
+                    'cote_1':None,'cote_X':None,'cote_2':None,'cote_over':None,'cote_under':None})
+    return out

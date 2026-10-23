@@ -78,3 +78,7 @@ data/complements_collecte.json
 # Mémoire privée joueurs : cache CI + sauvegarde Supabase
 data/joueurs_*.json
 data/buteurs_*.json
+
+# NHL : état et prévisions persistés par le cache CI, exports reconstruits.
+data/hockey_*.json
+data/europe_jour.json

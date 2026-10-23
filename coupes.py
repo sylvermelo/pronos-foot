@@ -23,13 +23,13 @@ Ce qu'on fait (honnêtement) :
       matchs n'entrent JAMAIS dans les sélections conseillées, les combinés
       ni le suivi. Le robot ne parie pas sur ce qu'il ne sait pas calibrer.
     · Une équipe inconnue des 21 divisions (ex. un club kazakh ou chypriote)
-      : le match n'est pas affiché — abstention complète, pas d'invention.
+      : le calendrier reste visible sans probabilité inventée.
 """
 
 # clé interne → (slug ESPN, nom affiché, pays affiché)
 COUPES = {
     "UCL":  {"slug": "uefa.champions",
-             "nom": "Champions League", "pays": "Europe"},
+             "nom": "Ligue des champions", "pays": "Europe"},
     "UEL":  {"slug": "uefa.europa",
              "nom": "Europa League", "pays": "Europe"},
     "UECL": {"slug": "uefa.europa.conf",
