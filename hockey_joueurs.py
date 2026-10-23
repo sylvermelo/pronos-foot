@@ -76,7 +76,7 @@ def main(games,now=None):
                     if not pred:continue
                     snap={'id':key,'game_id':g['id'],'player_id':pid,'nom':data['names'].get(pid,pid),'equipe':p['team'],'marche':market,'date':g['date'],'date_nhl':g.get('date_nhl') or instant(g['start']).astimezone(__import__('zoneinfo').ZoneInfo('America/New_York')).date().isoformat(),'heure':g['heure'],'start':g['start'],'home':g['home'],'away':g['away'],'prediction':pred,'frozen_at':now.isoformat(),'trained_until':model['au'],'version':VERSION,'condition':'Si le joueur participe ; présence et temps de glace non confirmés. Prolongation incluse, tirs au but exclus.','cote':None}
                     archive[key]=snap
-                if not snap.get('invalid_schedule') and snap['start']==g['start'] and instant(snap['frozen_at'])<instant(g['start']) and instant(g['start'])<=now+dt.timedelta(hours=48) and source_age<=48:profiles.append(snap)
+                if not snap.get('invalid_schedule') and snap['start']==g['start'] and instant(snap['frozen_at'])<instant(g['start']) and instant(g['start'])<=now+dt.timedelta(hours=48) and source_age<=48:profiles.append({k:v for k,v in snap.items() if k not in ('condition','version')})
     # Résolution sans assimiler une absence à zéro, résultats du rapport officiel seulement.
     results={(r[1],r[0]):r for r in data['players']}
     for snap in archive.values():
