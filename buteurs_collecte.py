@@ -183,19 +183,26 @@ def collecter(fixtures, amorcage=False):
     if amorcage or time.time()-meta.get('scoreboards_le',0)>=21600:
         # Rattrapage progressif : trois jours historiques par passage lourd.
         cursor=dt.date.fromisoformat(meta.get('curseur_historique',(now.date()-dt.timedelta(days=2)).isoformat()))
-        anciens=[cursor-dt.timedelta(days=i) for i in range(21 if amorcage else 3)] if cursor>=now.date()-dt.timedelta(days=90) else []
+        anciens=[cursor-dt.timedelta(days=i) for i in range(21 if amorcage else 3)] if cursor>=now.date()-dt.timedelta(days=1095) else []
+        reprises=meta.get('scoreboards_a_reprendre',[])[:15]
         dates=sorted({now.date().isoformat(),(now.date()-dt.timedelta(days=1)).isoformat()}|{d.isoformat() for d in anciens})
         tasks=[(div,slug,date) for div,slug in BIG5.items() for date in dates]
         def board(t):
             div,slug,date=t
-            d=calendrier._curl_json(f'https://site.api.espn.com/apis/site/v2/sports/soccer/{slug}/scoreboard?dates={date.replace("-","")}&limit=100') or {}
+            d=calendrier.scoreboard_jours(slug,date)
+            if d is None:return t,None
             out=[]
             for e in d.get('events',[]):
                 c=(e.get('competitions') or [{}])[0]
                 out.append((str(e.get('id')),{'div':div,'ko':c.get('date') or e.get('date'),'fini':c.get('status',{}).get('type',{}).get('completed') is True}))
-            return out
+            return t,out
+        pending={tuple(t) for t in meta.get('scoreboards_a_reprendre',[])}
+        tasks=list(dict.fromkeys(tasks+[tuple(t) for t in reprises]))
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
-            for rows in ex.map(board,tasks):candidates.update(rows)
+            for task,rows in ex.map(board,tasks):
+                if rows is None:pending.add(task)
+                else:candidates.update(rows);pending.discard(task)
+        meta['scoreboards_a_reprendre']=[list(t) for t in sorted(pending)]
         meta['scoreboards_le']=time.time()
         if anciens:meta['curseur_historique']=(min(anciens)-dt.timedelta(days=1)).isoformat()
         sauver('joueurs_candidats.json',candidates)

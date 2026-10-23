@@ -19,3 +19,10 @@ c.euro={competitions:[{id:'UCL',nom:'Ligue des champions',nb:1}],matchs:[{div:'U
 assert(vm.runInContext('europeHTML(euro,"UCL")',c).includes('Club inconnu'));assert(!vm.runInContext('europeHTML(euro,"UCL")',c).includes('Voir les probabilités'));
 for(const p of [path.join(root,'static/index.html'),path.join(root,'../vitrine/docs/assets/app.js')])if(fs.existsSync(p))assert(fs.readFileSync(p,'utf8').includes(src.trim()),'Vue partagée désynchronisée : '+p);
 console.log('Multisport : plage inclusive, tri global, marchés distincts, application des filtres, échappement et clubs inconnus OK');
+c.data={matchs:[{...base,date_nhl:'2026-10-23'}],joueurs:{profils:[{...base,id:'p',date_nhl:'2026-10-23',nom:'Joueur exemple',marche:'but',equipe:'OTT',condition:'Si aligné',prediction:{p:.3,matchs:100,buts:20,passes:30,tirs:200,toi_estime:18}}]}};
+c.f={min:20,max:40,market:'but',day:'2026-10-23',reference:'nhl',sort:'desc'};
+assert.equal(vm.runInContext('hockeyFilter(data,f).length',c),1);
+assert(vm.runInContext('hockeyHTML(data,f)',c).includes('Joueur exemple'));
+c.f.reference='benin';assert.equal(vm.runInContext('hockeyFilter(data,f).length',c),0);
+c.f.day='2026-10-24';assert.equal(vm.runInContext('hockeyFilter(data,f).length',c),1);
+console.log('Joueurs NHL et distinction soirée NHL / date Bénin : OK');

@@ -13,7 +13,7 @@ from scipy.special import expit
 from scipy.stats import poisson
 from hockey_collecte import instant
 
-VERSION='nhl-1.0.0'
+VERSION='nhl-2.0.0'
 LINES=(4.5,5.5,6.5,7.5)
 
 def ordered(games):return sorted(games,key=lambda g:(g['start'],g['id']))
@@ -24,10 +24,10 @@ def rest_features(games):
     """Dates des rencontres déjà programmées, jamais leurs scores futurs."""
     last={};out={}
     for g in ordered(games):
-        t=instant(g['start']);r=[]
+        t=dt.date.fromisoformat(g.get('date_nhl') or g['start'][:10]);r=[]
         for team in (g['h'],g['a']):
-            hours=(t-last[team]).total_seconds()/3600 if team in last else None
-            r.append((min(hours/24,7) if hours is not None else 7, float(hours is not None and hours<36)))
+            hours=(t-last[team]).days*24 if team in last else None
+            r.append((min(hours/24,7) if hours is not None else 7, float(hours is not None and hours<=24)))
             last[team]=t
         out[g['id']]=[(r[0][0]-r[1][0])/7,r[0][1]-r[1][1]]
     return out
@@ -160,7 +160,7 @@ def train(games,now):
             candidates.append((float(np.mean([loss(p,g) for g,p,_ in rows])),params,rows))
     score,params,vr=min(candidates,key=lambda x:x[0]);blend=calibrate(vr)
     tr=walk(gs,test,params);report=metrics(tr,blend)
-    report.update(version=VERSION,protocole='60 % dates entraînement / 20 % validation / 20 % test, réentraînement passé seul par blocs de 28 jours',validation_n=len(vr),params=params,blend=blend,
+    report.update(version=VERSION,protocole='60 % dates entraînement / 20 % validation / 20 % test, réentraînement passé seul par blocs de 28 jours',historique_n=len(gs),apprentissage_initial_n=sum(g['start'][:10]<dval for g in gs),validation_n=len(vr),params=params,blend=blend,
                   baseline='Fréquences de victoire domicile, issue 60 min et totaux apprises sur le passé du même bloc',
                   statut='expérimental',note='Test historique hors réglage. Pas de cote historique : aucune rentabilité mesurée. Pas de supériorité démontrée face au robot football.')
     model=fit(gs,**params);model['blend']=blend;model['report']=report

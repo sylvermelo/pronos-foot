@@ -9,7 +9,8 @@ import math
 from collections import defaultdict
 from scipy.stats import gamma
 
-VERSION='buteurs-gamma-poisson-v1'
+VERSION='buteurs-gamma-poisson-v2'
+import buteurs_profondeur as PROF
 MIN_MATCHS_JOUEUR=5
 MIN_MINUTES=180
 MIN_REFERENCE=60
@@ -24,6 +25,7 @@ def cle_ref(div,poste):return div+'|'+poste
 
 def maj(etat,m):
     if not m.get('fini') or not m.get('valide'):return
+    etat['asof']=max(etat.get('asof',''),m['date'])
     for t in m['equipes'].values():
         for p in t['joueurs']:
             if not p.get('joue') or p.get('minutes') is None or p['minutes']<=0 or p.get('buts') is None:continue
@@ -46,7 +48,7 @@ def maj(etat,m):
             if p['titulaire']:r['titulaires']+=1;r['scores']+=p['buts']>0
 
 
-def predire(etat,div,team,pid,poste,pseudo,intervalle=True):
+def predire(etat,div,team,pid,poste,pseudo,intervalle=True,reference_minutes=0,xg_mix=0,date=None):
     if poste in ('G','?'):return None
     j=etat['joueurs'].get(div+'|'+team+'|'+pid)
     r=etat['references'].get(cle_ref(div,poste))
@@ -56,7 +58,10 @@ def predire(etat,div,team,pid,poste,pseudo,intervalle=True):
     par=j.get('par_poste',{}).get(poste,{'buts':j['buts'],'minutes':j['minutes']})
     g=r['buts']-par['buts'];mins=r['minutes']-par['minutes']
     if g<=0 or mins<=0:return None
-    a=(g/mins)*pseudo+j['buts'];b=pseudo+j['minutes']
+    ref=PROF.reference(j['nom'],div,date or etat.get('asof','1970-01-01')) if reference_minutes else None
+    prior_mins=min(reference_minutes,ref['minutes']) if ref else 0
+    prior_rate=((1-xg_mix)*ref['goals']+xg_mix*ref['xg'])/ref['minutes'] if ref else 0
+    a=(g/mins)*pseudo+j['buts']+prior_rate*prior_mins;b=pseudo+j['minutes']+prior_mins
     scenarios=[m for start,m in j['scenarios'] if start]
     if len(scenarios)<3:return None
     p=sum(1-(b/(b+m))**a for m in scenarios)/len(scenarios)
@@ -64,6 +69,7 @@ def predire(etat,div,team,pid,poste,pseudo,intervalle=True):
          'minutes_si_titulaire':round(sum(scenarios)/len(scenarios),1),'buts':j['buts'],
          'tirs':j['tirs'] if j['n_tirs']==j['matchs'] else None,
          'cadres':j['cadres'] if j['n_cadres']==j['matchs'] else None,
+         'reference_saisons':ref['seasons'] if ref else 0,'reference_minutes_ponderees':prior_mins,
          'baseline':r['scores']/r['titulaires'] if r['titulaires'] else None}
     if intervalle:
         low,high=gamma.ppf([.05,.95],a=a,scale=1/b)
@@ -85,7 +91,7 @@ def pertes(rows):
             'buts_observes':sum(y for _,p,y,b in rows)}
 
 
-def evaluer(matchs,pseudo,debut,fin):
+def evaluer(matchs,pseudo,debut,fin,reference_minutes=0,xg_mix=0):
     etat=vide();rows=[]
     # Tous les matchs d'une même date évalués avant toute mise à jour du jour.
     bydate=defaultdict(list)
@@ -96,7 +102,7 @@ def evaluer(matchs,pseudo,debut,fin):
                 for t in m['equipes'].values():
                     for p in t['joueurs']:
                         if not p['titulaire'] or p.get('buts') is None:continue
-                        v=predire(etat,m['div'],t['id'],p['id'],p['poste'],pseudo,False)
+                        v=predire(etat,m['div'],t['id'],p['id'],p['poste'],pseudo,False,reference_minutes,xg_mix,date)
                         if v and v['baseline'] is not None:rows.append((m['event_id'],v['p'],int(p['buts']>0),v['baseline']))
         for m in jour:maj(etat,m)
     return pertes(rows)
@@ -111,18 +117,19 @@ def empreinte(hist):
 def entrainer(hist):
     matchs=sorted([m for m in hist.get('matchs',{}).values() if m.get('fini') and m.get('valide')],key=lambda m:(m['date'],m['event_id']))
     sig=empreinte(hist)
-    dates=sorted({m['date'] for m in matchs});pseudo=450
+    dates=sorted({m['date'] for m in matchs});pseudo=450;reference_minutes=0;xg_mix=0
     mesures={'statut':'historique_insuffisant'}
     if len(dates)>=10:
         debut_val=dates[int(len(dates)*.6)];debut_test=dates[int(len(dates)*.8)]
         tuning=[]
         for q in (90,450,900,1800):
-            v=evaluer(matchs,q,debut_val,dates[max(0,dates.index(debut_test)-1)])
-            if v['n']:tuning.append((v['brier'],v['logloss'],q,v))
+            for rm,xm in ((0,0),(450,0),(1800,0),(450,.5),(1800,.5)):
+                v=evaluer(matchs,q,debut_val,dates[max(0,dates.index(debut_test)-1)],rm,xm)
+                if v['n']:tuning.append((v['brier'],v['logloss'],q,rm,xm,v))
         val=None
         if tuning:
-            _,_,pseudo,val=min(tuning)
-        test=evaluer(matchs,pseudo,debut_test,dates[-1])
+            _,_,pseudo,reference_minutes,xg_mix,val=min(tuning,key=lambda x:x[:5])
+        test=evaluer(matchs,pseudo,debut_test,dates[-1],reference_minutes,xg_mix)
         ok=(val is not None and test['matchs']>=60 and test['n']>=300 and test['buts_observes']>=20
             and test['brier']<test['baseline_brier'] and test['logloss']<test['baseline_logloss'])
         mesures={'statut':'validation_initiale' if ok else 'experimental',
@@ -132,7 +139,7 @@ def entrainer(hist):
 
     etat=vide()
     for m in matchs:maj(etat,m)
-    return {'version':VERSION,'signature':sig,'pseudo_minutes':pseudo,'etat':etat,
+    return {'version':VERSION,'signature':sig,'pseudo_minutes':pseudo,'reference_minutes':reference_minutes,'xg_mix':xg_mix,'references_saisons':len(PROF.lire()['players']),'etat':etat,
             'historique_matchs':len(matchs),'joueurs':len(etat['joueurs']),
             'derniere_date':max(dates,default=None),'evaluation':mesures,
             'entraine_le':dt.datetime.now(dt.timezone.utc).isoformat()}

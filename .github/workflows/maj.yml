@@ -78,6 +78,11 @@ jobs:
       # repartent des versions saines commitées dans le dépôt (data/suivi.json,
       # data/modeles.json). Les CSV seront re-téléchargés dès que
       # football-data.co.uk répondra de nouveau.
+      - name: Préserver les amorçages versionnés avant restauration du cache
+        run: |
+          mkdir -p "$RUNNER_TEMP/pronos-seeds"
+          cp data/nhl_*seed* data/buteurs_references_seed.json.gz data/europe_*seed.json "$RUNNER_TEMP/pronos-seeds/"
+
       - name: Restaurer les données de la dernière exécution
         uses: actions/cache@v4
         with:
@@ -85,6 +90,9 @@ jobs:
           key: donnees-v2-${{ github.run_id }}
           restore-keys: |
             donnees-v2-
+
+      - name: Réappliquer les amorçages sans toucher aux mémoires live
+        run: cp "$RUNNER_TEMP/pronos-seeds/"* data/
 
       - name: Vérifier les invariants du moteur
         run: |

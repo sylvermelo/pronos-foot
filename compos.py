@@ -140,8 +140,10 @@ def _evenements(slug, dates):
 
 
 def _summary(slug, evt_id):
-    return _curl_json("https://site.api.espn.com/apis/site/v2/sports/soccer/"
-                      f"{slug}/summary?event={evt_id}")
+    for host in ('site.web.api.espn.com','site.api.espn.com'):
+        data=_curl_json(f'https://{host}/apis/site/v2/sports/soccer/{slug}/summary?event={evt_id}')
+        if isinstance(data,dict) and data.get('header'):return data
+    return None
 
 
 def bootstrap(jours=21):

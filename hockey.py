@@ -35,7 +35,8 @@ def export(games,model,archive,collection,now):
         if g.get('rh') is not None or instant(g['start'])<=now or instant(g['start'])>now+dt.timedelta(days=8):continue
         snap=archive.get(g['id']);valid=snap and not snap.get('invalid_schedule')
         upcoming.append({**{k:g[k] for k in ('id','home','away','date','heure','start','home_abbr','away_abbr')},
-            'prediction':snap['p'] if valid else None,'frozen_at':snap['frozen_at'] if valid else None,
+            'date_nhl':g.get('date_nhl') or instant(g['start']).astimezone(__import__('zoneinfo').ZoneInfo('America/New_York')).date().isoformat(),
+            'prediction':snap['p'] if valid else None,'frozen_at':snap['frozen_at'] if valid else None,'version_prevision':snap.get('version') if valid else None,
             'cote_marche':None,'statut':'analyse_seule' if valid else 'donnees_insuffisantes'})
     resolved=[x for x in archive.values() if x.get('resultat') and not x.get('invalid_schedule')]
     hits=sum((x['p']['ml']>=.5)==(x['resultat']['hg']>x['resultat']['ag']) for x in resolved)
@@ -55,6 +56,10 @@ def vue():return read(DATA/'hockey_jour.json',{'sport':'hockey','competition':'N
 
 def main(bootstrap=False,offline=False):
     now=dt.datetime.now(UTC);collection=read(DATA/'hockey_matchs.json',{}) if offline else collect(bootstrap)
+    if not offline:
+        import hockey_profond
+        hockey_profond.collect()
+        collection=read(DATA/'hockey_matchs.json',collection)
     games=collection.get('games',[]);model=read(DATA/'hockey_modele.json',{})
     if not model:model=read(DATA/'nhl_modele_seed.json',{})
     history=M.finals(games,now);changed=model.get('fingerprint')!=signature(history)
@@ -65,7 +70,10 @@ def main(bootstrap=False,offline=False):
         except ValueError as e:print('NHL : modèle conservé / abstention :',str(e))
     archive=read(DATA/'hockey_previsions.json',{})
     archive=freeze(games,model,archive,now);write(DATA/'hockey_previsions.json',archive)
-    payload=export(games,model,archive,collection,now);write(DATA/'hockey_jour.json',payload)
+    payload=export(games,model,archive,collection,now)
+    import hockey_joueurs
+    payload['joueurs']=hockey_joueurs.main(games,now)
+    write(DATA/'hockey_jour.json',payload)
     print(f"NHL : {len(history)} historiques, {len(payload['matchs'])} rencontres à venir, {len(archive)} prévisions figées, {payload['suivi']['n']} résultats prospectifs")
     return payload
 

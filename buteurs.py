@@ -35,7 +35,7 @@ def publier(fixtures, modele, hist, now=None, geler=True):
         for side,t in teams.items():
             for p in t['joueurs']:
                 if confirme and not p['titulaire']:continue
-                v=M.predire(modele['etat'],f['div'],t['id'],p['id'],p['poste'],modele['pseudo_minutes'])
+                v=M.predire(modele['etat'],f['div'],t['id'],p['id'],p['poste'],modele['pseudo_minutes'],reference_minutes=modele.get('reference_minutes',0),xg_mix=modele.get('xg_mix',0),date=f['date'])
                 pl.append({'id':p['id'],'nom':p['nom'],'poste':p['poste'],'equipe':f[side],
                            'titulaire_confirme':confirme,'analyse':v,'cotation':None,
                            'cote_marche':None,'statut':'analyse_seule','resultat':None})
@@ -70,7 +70,9 @@ def publier(fixtures, modele, hist, now=None, geler=True):
             if r and v and r['statut']!='annule':results.append((event['event_id'],v['p'],int(r['buts']>0),v['baseline']))
     payload={'genere_le':now.isoformat(),'version':modele['version'],
         'historique':{'matchs':modele['historique_matchs'],'joueurs':modele['joueurs'],
+                      'bilans_joueur_saison':modele.get('references_saisons',0),'poids_reference_minutes':modele.get('reference_minutes',0),'mix_xg':modele.get('xg_mix',0),
                       'dernier_match':modele['derniere_date'],'entraine_le':modele['entraine_le']},
+        'collecte':{'objectif_annees':3,'curseur_historique':C.lire('joueurs_collecte_meta.json').get('curseur_historique'),'journees_a_reprendre':len(C.lire('joueurs_collecte_meta.json').get('scoreboards_a_reprendre',[])),'plus_ancien_match':min((m['date'] for m in hist['matchs'].values() if m.get('fini') and m.get('valide')),default=None)},
         'evaluation':modele['evaluation'],'suivi':M.pertes(results),'matchs':out,
         'note':'Probabilité conditionnelle à la titularisation ; minutes réglementaires reconstruites. Modèle individuel expérimental, adversaire et pénalties non ajustés séparément. Aucun coupon automatique. Sans prix bookmaker exact : analyse seule.'}
     C.sauver('buteurs_jour.json',payload)

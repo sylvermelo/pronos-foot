@@ -5,9 +5,11 @@ Amorçage explicite : calendriers de clubs, plafond 100 appels par exécution.
 from __future__ import annotations
 import datetime as dt
 import json
+import gzip
 import subprocess
 import time
 import threading
+from zoneinfo import ZoneInfo
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -23,6 +25,11 @@ def write(path,value):
     path=Path(path); path.parent.mkdir(parents=True,exist_ok=True)
     tmp=path.with_suffix('.tmp');tmp.write_text(json.dumps(value,ensure_ascii=False,separators=(',',':'),allow_nan=False));tmp.replace(path)
 
+def seed_history():
+    try:
+        with gzip.open(DATA/'nhl_historique_profond_seed.json.gz','rt') as f:return json.load(f)
+    except (OSError,ValueError):return read(DATA/'nhl_historique_seed.json',{})
+
 def instant(value):
     return dt.datetime.fromisoformat(value.replace('Z','+00:00')).astimezone(UTC)
 
@@ -34,6 +41,7 @@ def normalize(g):
         if h['id']==a['id']: return None
         name=lambda t: (t.get('placeName',{}).get('default','')+' '+t.get('commonName',{}).get('fr',t.get('commonName',{}).get('default',t['abbrev']))).strip()
         out={'id':str(g['id']),'season':g['season'],'start':start.isoformat(),'date':(start+dt.timedelta(hours=1)).date().isoformat(),'heure':(start+dt.timedelta(hours=1)).strftime('%H:%M'),
+             'date_nhl':g.get('gameDate') or start.astimezone(ZoneInfo('America/New_York')).date().isoformat(),
              'h':str(h['id']),'a':str(a['id']),'home':name(h),'away':name(a),'home_abbr':h['abbrev'],'away_abbr':a['abbrev'],
              'neutral':bool(g.get('neutralSite')),'state':g['gameState']}
         if out['state'] in ('FINAL','OFF'):
@@ -68,7 +76,7 @@ def collect(bootstrap=False,now=None):
     now=now or dt.datetime.now(UTC)
     path=DATA/'hockey_matchs.json';old=read(path,{})
     if not bootstrap and old.get('fetched_at') and (now-instant(old['fetched_at'])).total_seconds()<7200:return old
-    games={g['id']:g for g in read(DATA/'nhl_historique_seed.json',{}).get('games',[])}
+    games={g['id']:g for g in seed_history().get('games',[])}
     games.update({g['id']:g for g in old.get('games',[])})
     c=Client(bootstrap);errors=[];success=0
     def ingest(raw):
